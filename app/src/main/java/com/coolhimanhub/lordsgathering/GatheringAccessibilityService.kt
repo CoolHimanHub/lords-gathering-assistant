@@ -1,4 +1,4 @@
-package com.coolhimanhub.lordsgathering
+package com.coolhimanhub.lordsgatheringassistant
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
