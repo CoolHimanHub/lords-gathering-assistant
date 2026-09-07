@@ -1,4 +1,4 @@
-package com.coolhimanhu.lordsgathering
+package com.coolhimanhub.lordsgatheringassistant
 
 import android.content.Intent
 import android.os.Bundle
