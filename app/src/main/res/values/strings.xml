@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Lords Gathering Assistant</string>
+
+    <string name="accessibility_description">
+        Allows the Lords Gathering Assistant to analyse the game screen and perform gathering actions.
+    </string>
+
+</resources>
