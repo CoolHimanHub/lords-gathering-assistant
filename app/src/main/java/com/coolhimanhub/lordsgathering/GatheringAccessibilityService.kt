@@ -32,7 +32,6 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Accessibility events will be processed later.
     }
 
     override fun onInterrupt() {
@@ -148,7 +147,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
 
         updateInfo(
-            "Scan #$scanCount - capturing screen..."
+            "Scan #$scanCount - capturing..."
         )
 
         takeScreenshot(
@@ -160,30 +159,61 @@ class GatheringAccessibilityService : AccessibilityService() {
                     screenshot: ScreenshotResult
                 ) {
 
-                    val bitmap = screenshot.hardwareBuffer.let {
-                        Bitmap.wrapHardwareBuffer(
-                            it,
-                            screenshot.colorSpace
-                        )
-                    }
+                    try {
 
-                    screenshot.hardwareBuffer.close()
+                        val hardwareBitmap =
+                            Bitmap.wrapHardwareBuffer(
+                                screenshot.hardwareBuffer,
+                                screenshot.colorSpace
+                            )
 
-                    if (bitmap == null) {
+                        screenshot.hardwareBuffer.close()
+
+                        if (hardwareBitmap == null) {
+                            updateInfo(
+                                "Scan #$scanCount - bitmap failed"
+                            )
+                            return
+                        }
+
+                        val bitmap =
+                            hardwareBitmap.copy(
+                                Bitmap.Config.ARGB_8888,
+                                false
+                            )
+
+                        hardwareBitmap.recycle()
+
+                        if (bitmap == null) {
+                            updateInfo(
+                                "Scan #$scanCount - bitmap conversion failed"
+                            )
+                            return
+                        }
+
+                        val width = bitmap.width
+                        val height = bitmap.height
+
+                        val candidates =
+                            detectRssCandidates(bitmap)
+
                         updateInfo(
-                            "Scan #$scanCount - capture failed"
+                            "Scan #$scanCount - $candidates candidates found"
                         )
-                        return
+
+                        bitmap.recycle()
+
+                    } catch (e: Exception) {
+
+                        try {
+                            screenshot.hardwareBuffer.close()
+                        } catch (_: Exception) {
+                        }
+
+                        updateInfo(
+                            "Scan #$scanCount - analysis error"
+                        )
                     }
-
-                    val width = bitmap.width
-                    val height = bitmap.height
-
-                    updateInfo(
-                        "Scan #$scanCount - screen captured ${width}x${height}"
-                    )
-
-                    bitmap.recycle()
                 }
 
                 override fun onFailure(errorCode: Int) {
@@ -196,15 +226,173 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
     }
 
+    /*
+     * FIRST RSS VISUAL DETECTOR
+     *
+     * This stage does NOT tap anything.
+     *
+     * It looks for compact areas containing sufficiently
+     * saturated/bright pixels. Lords Mobile resource tiles
+     * generally contain visually distinct coloured objects.
+     *
+     * This is deliberately conservative.
+     */
+    private fun detectRssCandidates(bitmap: Bitmap): Int {
+
+        val originalWidth = bitmap.width
+        val originalHeight = bitmap.height
+
+        /*
+         * Reduce the image so analysis is fast enough to run
+         * repeatedly on the phone.
+         */
+        val targetWidth = 320
+
+        val scale =
+            targetWidth.toFloat() / originalWidth.toFloat()
+
+        val targetHeight =
+            (originalHeight * scale).toInt()
+
+        val smallBitmap =
+            Bitmap.createScaledBitmap(
+                bitmap,
+                targetWidth,
+                targetHeight,
+                true
+            )
+
+        val pixels =
+            IntArray(targetWidth * targetHeight)
+
+        smallBitmap.getPixels(
+            pixels,
+            0,
+            targetWidth,
+            0,
+            0,
+            targetWidth,
+            targetHeight
+        )
+
+        smallBitmap.recycle()
+
+        /*
+         * Divide the screen into small blocks.
+         *
+         * We count blocks containing enough colourful pixels.
+         */
+        val blockSize = 8
+
+        var candidateBlocks = 0
+
+        var y = 0
+
+        while (y < targetHeight) {
+
+            var x = 0
+
+            while (x < targetWidth) {
+
+                var colourfulPixels = 0
+                var totalPixels = 0
+
+                val maxX =
+                    minOf(x + blockSize, targetWidth)
+
+                val maxY =
+                    minOf(y + blockSize, targetHeight)
+
+                var py = y
+
+                while (py < maxY) {
+
+                    var px = x
+
+                    while (px < maxX) {
+
+                        val color =
+                            pixels[
+                                py * targetWidth + px
+                            ]
+
+                        val red =
+                            Color.red(color)
+
+                        val green =
+                            Color.green(color)
+
+                        val blue =
+                            Color.blue(color)
+
+                        val maxValue =
+                            maxOf(red, green, blue)
+
+                        val minValue =
+                            minOf(red, green, blue)
+
+                        val saturation =
+                            maxValue - minValue
+
+                        /*
+                         * Ignore very dark pixels.
+                         *
+                         * Look for pixels with visible colour.
+                         */
+                        if (
+                            maxValue > 90 &&
+                            saturation > 45
+                        ) {
+                            colourfulPixels++
+                        }
+
+                        totalPixels++
+
+                        px++
+                    }
+
+                    py++
+                }
+
+                /*
+                 * A block becomes a candidate when a reasonable
+                 * portion of it contains colourful pixels.
+                 */
+                if (
+                    totalPixels > 0 &&
+                    colourfulPixels.toFloat() /
+                    totalPixels.toFloat() > 0.35f
+                ) {
+                    candidateBlocks++
+                }
+
+                x += blockSize
+            }
+
+            y += blockSize
+        }
+
+        /*
+         * Several neighbouring blocks may belong to the same
+         * object. For this first stage we report the block count.
+         *
+         * Later we will merge neighbouring blocks into actual
+         * RSS tile objects.
+         */
+        return candidateBlocks
+    }
+
     private fun updateInfo(message: String) {
 
-        val container = overlayView as? LinearLayout
-            ?: return
+        val container =
+            overlayView as? LinearLayout
+                ?: return
 
         if (container.childCount < 4) return
 
-        val info = container.getChildAt(3) as? TextView
-            ?: return
+        val info =
+            container.getChildAt(3) as? TextView
+                ?: return
 
         info.text = message
     }
@@ -212,17 +400,19 @@ class GatheringAccessibilityService : AccessibilityService() {
     fun tap(x: Float, y: Float) {
 
         val path = Path()
+
         path.moveTo(x, y)
 
-        val gesture = GestureDescription.Builder()
-            .addStroke(
-                GestureDescription.StrokeDescription(
-                    path,
-                    0,
-                    100
+        val gesture =
+            GestureDescription.Builder()
+                .addStroke(
+                    GestureDescription.StrokeDescription(
+                        path,
+                        0,
+                        100
+                    )
                 )
-            )
-            .build()
+                .build()
 
         dispatchGesture(
             gesture,
@@ -243,7 +433,6 @@ class GatheringAccessibilityService : AccessibilityService() {
             try {
                 windowManager.removeView(it)
             } catch (_: Exception) {
-                // View may already have been removed.
             }
         }
 
