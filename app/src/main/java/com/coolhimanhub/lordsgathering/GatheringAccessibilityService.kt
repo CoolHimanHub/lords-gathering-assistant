@@ -195,11 +195,23 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         dispatchGesture(gesture, null, null)
     }
+override fun onDestroy() {
 
-    override fun onDestroy() {
+    stopAutomation()
 
-        stopAutomation()
+    overlayView?.let {
+        val windowManager =
+            getSystemService(WINDOW_SERVICE) as WindowManager
 
-        overlayView?.let {
-
+        try {
+            windowManager.removeView(it)
+        } catch (_: Exception) {
+            // View may already have been removed by the system.
         }
+    }
+
+    overlayView = null
+    super.onDestroy()
+}
+}
+    
