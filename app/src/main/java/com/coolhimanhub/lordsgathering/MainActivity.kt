@@ -1,25 +1,40 @@
 package com.coolhimanhub.lordsgatheringassistant
 
 import android.app.Activity
-import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.widget.*
 
 class MainActivity : Activity() {
 
-    private lateinit var statusText: TextView
-    private lateinit var button: Button
+    private val rssTypes = arrayOf(
+        "Gems",
+        "Emerging",
+        "Gold",
+        "Ore",
+        "Stone",
+        "Wood",
+        "Food",
+        "Other"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        buildScreen()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        buildScreen()
+    }
+
+    private fun buildScreen() {
+
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(40, 60, 40, 40)
+            setPadding(30, 40, 30, 30)
         }
 
         val title = TextView(this).apply {
@@ -27,11 +42,11 @@ class MainActivity : Activity() {
             textSize = 24f
         }
 
-        statusText = TextView(this).apply {
-            textSize = 18f
-        }
+        layout.addView(title)
 
-        button = Button(this).apply {
+        val serviceButton = Button(this).apply {
+            text = "Enable Accessibility Service"
+
             setOnClickListener {
                 startActivity(
                     Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -39,65 +54,42 @@ class MainActivity : Activity() {
             }
         }
 
-        val instructions = TextView(this).apply {
-            text = """
-                
-Accessibility controls the floating assistant.
+        layout.addView(serviceButton)
 
-After enabling the service, return to the app.
-A floating "Lords Assistant" control should appear.
+        val preferenceTitle = TextView(this).apply {
+            text = "\nRSS Preference Order"
+            textSize = 20f
+        }
 
-Use START to test the tap engine.
-Use STOP to stop it.
-            """.trimIndent()
+        layout.addView(preferenceTitle)
 
+        val list = ListView(this)
+
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_list_item_1,
+            rssTypes
+        )
+
+        list.adapter = adapter
+
+        layout.addView(
+            list,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                500
+            )
+        )
+
+        val instruction = TextView(this).apply {
+            text =
+                "\nTap an RSS type to select it as your preferred resource.\n" +
+                "The scanner will later use this preference when choosing tiles."
             textSize = 16f
         }
 
-        layout.addView(title)
-        layout.addView(statusText)
-        layout.addView(button)
-        layout.addView(instructions)
+        layout.addView(instruction)
 
         setContentView(layout)
-
-        updateAccessibilityStatus()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        updateAccessibilityStatus()
-    }
-
-    private fun isAccessibilityServiceEnabled(): Boolean {
-
-        val enabledServices = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-
-        return enabledServices.split(":").any { service ->
-            ComponentName.unflattenFromString(service)
-                ?.packageName
-                ?.equals(packageName, ignoreCase = true) == true
-        }
-    }
-
-    private fun updateAccessibilityStatus() {
-
-        if (isAccessibilityServiceEnabled()) {
-
-            statusText.text = "✅ Accessibility Service is ENABLED"
-
-            button.text = "Accessibility Service Enabled"
-            button.isEnabled = false
-
-        } else {
-
-            statusText.text = "⚠️ Accessibility Service is NOT enabled"
-
-            button.text = "Enable Accessibility Service"
-            button.isEnabled = true
-        }
     }
 }
