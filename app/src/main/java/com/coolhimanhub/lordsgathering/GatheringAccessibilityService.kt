@@ -315,33 +315,61 @@ class GatheringAccessibilityService : AccessibilityService() {
                     screenshot: ScreenshotResult
                 ) {
 
-                    val bitmap =
-                        try {
+                    var hardwareBitmap: Bitmap? = null
+var bitmap: Bitmap? = null
 
-                            Bitmap.wrapHardwareBuffer(
-                                screenshot.hardwareBuffer,
-                                screenshot.colorSpace
-                            )
+try {
 
-                        } catch (_: Exception) {
-                            null
-                        }
+    hardwareBitmap = Bitmap.wrapHardwareBuffer(
+        screenshot.hardwareBuffer,
+        screenshot.colorSpace
+    )
 
-                    try {
-                        screenshot.hardwareBuffer.close()
-                    } catch (_: Exception) {
-                    }
+    if (hardwareBitmap == null) {
+        updateInfo(
+            "Scan #$scanCount - bitmap conversion failed"
+        )
+        return
+    }
 
-                    if (bitmap == null) {
+    // Convert HARDWARE bitmap to normal software bitmap.
+    // getPixel() can then safely analyse it.
+    bitmap = hardwareBitmap.copy(
+        Bitmap.Config.ARGB_8888,
+        false
+    )
 
-                        updateInfo(
-                            "Scan #$scanCount - capture failed"
-                        )
+    if (bitmap == null) {
+        updateInfo(
+            "Scan #$scanCount - bitmap copy failed"
+        )
+        return
+    }
 
-                        return
-                    }
+    updateInfo(
+        "Scan #$scanCount - screen captured ${bitmap.width}x${bitmap.height}"
+    )
 
-                    analyseScreen(bitmap)
+    analyseScreen(bitmap)
+
+} catch (e: Exception) {
+
+    updateInfo(
+        "Scan #$scanCount - error: ${e.javaClass.simpleName}"
+    )
+
+} finally {
+
+    try {
+        screenshot.hardwareBuffer.close()
+    } catch (_: Exception) {
+    }
+
+    try {
+        bitmap?.recycle()
+    } catch (_: Exception) {
+    }
+}
 
                     try {
                         bitmap.recycle()
