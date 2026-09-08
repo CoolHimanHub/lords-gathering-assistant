@@ -9,13 +9,15 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.Display
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.view.accessibility.AccessibilityEvent
 
 class GatheringAccessibilityService : AccessibilityService() {
 
@@ -23,8 +25,10 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private var running = false
     private var overlayView: View? = null
-
     private var scanCount = 0
+
+    private var windowManager: WindowManager? = null
+    private var overlayParams: WindowManager.LayoutParams? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -32,6 +36,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Accessibility events can be used later for UI detection.
     }
 
     override fun onInterrupt() {
@@ -44,30 +49,109 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(12, 8, 12, 8)
-            setBackgroundColor(Color.DKGRAY)
+            setPadding(10, 8, 10, 8)
+            setBackgroundColor(Color.rgb(65, 65, 65))
         }
+
+        // ---------------------------------------------------------
+        // TITLE / DRAG HANDLE
+        // Drag this title to move the whole overlay.
+        // ---------------------------------------------------------
 
         val title = TextView(this).apply {
             text = "Lords Assistant"
-            textSize = 14f
+            textSize = 16f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
+            setPadding(8, 4, 8, 8)
+
+            setOnTouchListener(object : View.OnTouchListener {
+
+                private var startX = 0f
+                private var startY = 0f
+                private var startParamX = 0
+                private var startParamY = 0
+
+                override fun onTouch(
+                    view: View?,
+                    event: MotionEvent
+                ): Boolean {
+
+                    val params = overlayParams
+                        ?: return false
+
+                    when (event.actionMasked) {
+
+                        MotionEvent.ACTION_DOWN -> {
+
+                            startX = event.rawX
+                            startY = event.rawY
+
+                            startParamX = params.x
+                            startParamY = params.y
+
+                            return true
+                        }
+
+                        MotionEvent.ACTION_MOVE -> {
+
+                            val dx = event.rawX - startX
+                            val dy = event.rawY - startY
+
+                            params.x =
+                                (startParamX + dx).toInt()
+
+                            params.y =
+                                (startParamY + dy).toInt()
+
+                            try {
+                                windowManager?.updateViewLayout(
+                                    container,
+                                    params
+                                )
+                            } catch (_: Exception) {
+                            }
+
+                            return true
+                        }
+
+                        MotionEvent.ACTION_UP -> {
+                            return true
+                        }
+                    }
+
+                    return true
+                }
+            })
         }
+
+        // ---------------------------------------------------------
+        // START / STOP BUTTON
+        // ---------------------------------------------------------
 
         val startStop = Button(this).apply {
             text = "▶ START"
 
             setOnClickListener {
+
                 if (running) {
+
                     stopAutomation()
+
                     text = "▶ START"
+
                 } else {
+
                     startAutomation()
+
                     text = "■ STOP"
                 }
             }
         }
+
+        // ---------------------------------------------------------
+        // SCAN BUTTON
+        // ---------------------------------------------------------
 
         val scanButton = Button(this).apply {
             text = "🔍 SCAN"
@@ -77,17 +161,26 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
         }
 
+        // ---------------------------------------------------------
+        // STATUS TEXT
+        // ---------------------------------------------------------
+
         val info = TextView(this).apply {
             text = "Scanner ready"
             textSize = 11f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
+            setPadding(4, 5, 4, 2)
         }
 
         container.addView(title)
         container.addView(startStop)
         container.addView(scanButton)
         container.addView(info)
+
+        // ---------------------------------------------------------
+        // OVERLAY WINDOW
+        // ---------------------------------------------------------
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -98,29 +191,51 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
 
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 20
+
+        // Initial position
+        params.x = 100
         params.y = 150
 
-        val windowManager =
+        windowManager =
             getSystemService(WINDOW_SERVICE) as WindowManager
 
-        windowManager.addView(container, params)
+        overlayParams = params
 
-        overlayView = container
+        try {
+            windowManager?.addView(
+                container,
+                params
+            )
+
+            overlayView = container
+
+        } catch (_: Exception) {
+            overlayView = null
+        }
     }
+
+    // =============================================================
+    // AUTOMATION
+    // =============================================================
 
     private fun startAutomation() {
 
         if (running) return
 
         running = true
+
+        updateInfo("Automation started")
+
         handler.post(scanRunnable)
     }
 
     private fun stopAutomation() {
 
         running = false
+
         handler.removeCallbacks(scanRunnable)
+
+        updateInfo("Automation stopped")
     }
 
     private val scanRunnable = object : Runnable {
@@ -131,9 +246,17 @@ class GatheringAccessibilityService : AccessibilityService() {
 
             scanScreen()
 
-            handler.postDelayed(this, 3000)
+            // Scan every 3 seconds
+            handler.postDelayed(
+                this,
+                3000
+            )
         }
     }
+
+    // =============================================================
+    // SCREEN SCANNER
+    // =============================================================
 
     private fun scanScreen() {
 
@@ -142,7 +265,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
 
             updateInfo(
-                "Scan #$scanCount - Android too old"
+                "Scan #$scanCount - screen capture unavailable"
             )
 
             return
@@ -152,8 +275,13 @@ class GatheringAccessibilityService : AccessibilityService() {
             "Scan #$scanCount - capturing..."
         )
 
+        // IMPORTANT:
+        // takeScreenshot() is a Java API.
+        // Do NOT use named arguments here.
+        // The second parameter must be an Executor.
+
         takeScreenshot(
-            android.view.Display.DEFAULT_DISPLAY,
+            Display.DEFAULT_DISPLAY,
             mainExecutor,
             object : TakeScreenshotCallback {
 
@@ -161,65 +289,53 @@ class GatheringAccessibilityService : AccessibilityService() {
                     screenshot: ScreenshotResult
                 ) {
 
-                    try {
+                    val bitmap: Bitmap? =
+                        try {
 
-                        val hardwareBitmap =
                             Bitmap.wrapHardwareBuffer(
                                 screenshot.hardwareBuffer,
                                 screenshot.colorSpace
                             )
 
-                        screenshot.hardwareBuffer.close()
-
-                        if (hardwareBitmap == null) {
-
-                            updateInfo(
-                                "Scan #$scanCount - bitmap failed"
-                            )
-
-                            return
-                        }
-
-                        val bitmap =
-                            hardwareBitmap.copy(
-                                Bitmap.Config.ARGB_8888,
-                                false
-                            )
-
-                        hardwareBitmap.recycle()
-
-                        if (bitmap == null) {
-
-                            updateInfo(
-                                "Scan #$scanCount - conversion failed"
-                            )
-
-                            return
-                        }
-
-                        val regions =
-                            detectRssRegions(bitmap)
-
-                        updateInfo(
-                            "Scan #$scanCount - $regions regions found"
-                        )
-
-                        bitmap.recycle()
-
-                    } catch (e: Exception) {
-
-                        try {
-                            screenshot.hardwareBuffer.close()
                         } catch (_: Exception) {
+                            null
                         }
 
+                    try {
+                        screenshot.hardwareBuffer.close()
+                    } catch (_: Exception) {
+                    }
+
+                    if (bitmap == null) {
+
                         updateInfo(
-                            "Scan #$scanCount - analysis error"
+                            "Scan #$scanCount - capture failed"
                         )
+
+                        return
+                    }
+
+                    val width = bitmap.width
+                    val height = bitmap.height
+
+                    updateInfo(
+                        "Scan #$scanCount - screen captured ${width}x$height"
+                    )
+
+                    // -------------------------------------------------
+                    // NEXT STAGE:
+                    // image analysis / RSS detection will go here.
+                    // -------------------------------------------------
+
+                    try {
+                        bitmap.recycle()
+                    } catch (_: Exception) {
                     }
                 }
 
-                override fun onFailure(errorCode: Int) {
+                override fun onFailure(
+                    errorCode: Int
+                ) {
 
                     updateInfo(
                         "Scan #$scanCount - capture failed ($errorCode)"
@@ -229,265 +345,9 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
     }
 
-    /*
-     * STAGE 2 RSS DETECTOR
-     *
-     * Instead of counting every colourful 8x8 block,
-     * this groups neighbouring colourful blocks into
-     * larger connected regions.
-     *
-     * IMPORTANT:
-     * This stage still does NOT tap anything.
-     */
-
-    private fun detectRssRegions(bitmap: Bitmap): Int {
-
-        val originalWidth = bitmap.width
-        val originalHeight = bitmap.height
-
-        if (originalWidth <= 0 || originalHeight <= 0) {
-            return 0
-        }
-
-        /*
-         * Scale the screen down for faster analysis.
-         */
-
-        val targetWidth = 320
-
-        val scale =
-            targetWidth.toFloat() /
-                    originalWidth.toFloat()
-
-        val targetHeight =
-            (originalHeight * scale).toInt()
-
-        if (targetHeight <= 0) {
-            return 0
-        }
-
-        val smallBitmap =
-            Bitmap.createScaledBitmap(
-                bitmap,
-                targetWidth,
-                targetHeight,
-                true
-            )
-
-        val pixels =
-            IntArray(targetWidth * targetHeight)
-
-        smallBitmap.getPixels(
-            pixels,
-            0,
-            targetWidth,
-            0,
-            0,
-            targetWidth,
-            targetHeight
-        )
-
-        smallBitmap.recycle()
-
-        /*
-         * We work on a coarse grid.
-         */
-
-        val blockSize = 8
-
-        val gridWidth =
-            (targetWidth + blockSize - 1) / blockSize
-
-        val gridHeight =
-            (targetHeight + blockSize - 1) / blockSize
-
-        val active =
-            Array(gridHeight) {
-                BooleanArray(gridWidth)
-            }
-
-        /*
-         * Detect colourful blocks.
-         */
-
-        for (gy in 0 until gridHeight) {
-
-            for (gx in 0 until gridWidth) {
-
-                val startX =
-                    gx * blockSize
-
-                val startY =
-                    gy * blockSize
-
-                val endX =
-                    minOf(
-                        startX + blockSize,
-                        targetWidth
-                    )
-
-                val endY =
-                    minOf(
-                        startY + blockSize,
-                        targetHeight
-                    )
-
-                var colourful = 0
-                var total = 0
-
-                for (y in startY until endY) {
-
-                    for (x in startX until endX) {
-
-                        val pixel =
-                            pixels[
-                                y * targetWidth + x
-                            ]
-
-                        val r =
-                            Color.red(pixel)
-
-                        val g =
-                            Color.green(pixel)
-
-                        val b =
-                            Color.blue(pixel)
-
-                        val maxValue =
-                            maxOf(r, g, b)
-
-                        val minValue =
-                            minOf(r, g, b)
-
-                        val saturation =
-                            maxValue - minValue
-
-                        if (
-                            maxValue > 90 &&
-                            saturation > 45
-                        ) {
-                            colourful++
-                        }
-
-                        total++
-                    }
-                }
-
-                if (
-                    total > 0 &&
-                    colourful.toFloat() /
-                    total.toFloat() > 0.35f
-                ) {
-                    active[gy][gx] = true
-                }
-            }
-        }
-
-        /*
-         * Connected-component search.
-         */
-
-        val visited =
-            Array(gridHeight) {
-                BooleanArray(gridWidth)
-            }
-
-        var regions = 0
-
-        for (gy in 0 until gridHeight) {
-
-            for (gx in 0 until gridWidth) {
-
-                if (!active[gy][gx]) {
-                    continue
-                }
-
-                if (visited[gy][gx]) {
-                    continue
-                }
-
-                /*
-                 * Flood fill.
-                 */
-
-                val queue =
-                    ArrayDeque<Pair<Int, Int>>()
-
-                queue.add(
-                    Pair(gx, gy)
-                )
-
-                visited[gy][gx] = true
-
-                var size = 0
-
-                while (queue.isNotEmpty()) {
-
-                    val current =
-                        queue.removeFirst()
-
-                    val cx = current.first
-                    val cy = current.second
-
-                    size++
-
-                    /*
-                     * Four neighbouring directions.
-                     */
-
-                    val directions =
-                        arrayOf(
-                            Pair(1, 0),
-                            Pair(-1, 0),
-                            Pair(0, 1),
-                            Pair(0, -1)
-                        )
-
-                    for (direction in directions) {
-
-                        val nx =
-                            cx + direction.first
-
-                        val ny =
-                            cy + direction.second
-
-                        if (
-                            nx < 0 ||
-                            ny < 0 ||
-                            nx >= gridWidth ||
-                            ny >= gridHeight
-                        ) {
-                            continue
-                        }
-
-                        if (!active[ny][nx]) {
-                            continue
-                        }
-
-                        if (visited[ny][nx]) {
-                            continue
-                        }
-
-                        visited[ny][nx] = true
-
-                        queue.add(
-                            Pair(nx, ny)
-                        )
-                    }
-                }
-
-                /*
-                 * Ignore tiny coloured noise.
-                 */
-
-                if (size >= 3) {
-                    regions++
-                }
-            }
-        }
-
-        return regions
-    }
+    // =============================================================
+    // UPDATE OVERLAY STATUS
+    // =============================================================
 
     private fun updateInfo(message: String) {
 
@@ -506,17 +366,21 @@ class GatheringAccessibilityService : AccessibilityService() {
         info.text = message
     }
 
-    /*
-     * Tap helper.
-     *
-     * NOT USED BY THE SCANNER YET.
-     */
+    // =============================================================
+    // ACCESSIBILITY TAP
+    // =============================================================
 
-    fun tap(x: Float, y: Float) {
+    fun tap(
+        x: Float,
+        y: Float
+    ) {
 
         val path = Path()
 
-        path.moveTo(x, y)
+        path.moveTo(
+            x,
+            y
+        )
 
         val gesture =
             GestureDescription.Builder()
@@ -536,22 +400,25 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
     }
 
+    // =============================================================
+    // SERVICE DESTROY
+    // =============================================================
+
     override fun onDestroy() {
 
         stopAutomation()
 
         overlayView?.let {
 
-            val windowManager =
-                getSystemService(WINDOW_SERVICE) as WindowManager
-
             try {
-                windowManager.removeView(it)
+                windowManager?.removeView(it)
             } catch (_: Exception) {
             }
         }
 
         overlayView = null
+        overlayParams = null
+        windowManager = null
 
         super.onDestroy()
     }
