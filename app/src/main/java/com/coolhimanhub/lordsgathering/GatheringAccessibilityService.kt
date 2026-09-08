@@ -22,8 +22,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     private var running = false
     private var overlayView: View? = null
 
-    private lateinit var statusText: TextView
-    private lateinit var startStopButton: Button
+    private var scanCount = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -31,7 +30,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Scanner will be connected here in the next step.
+        // Game-screen events will be processed by the scanner later.
     }
 
     override fun onInterrupt() {
@@ -55,28 +54,39 @@ class GatheringAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER
         }
 
-        startStopButton = Button(this).apply {
+        val startStop = Button(this).apply {
             text = "▶ START"
 
             setOnClickListener {
                 if (running) {
                     stopAutomation()
+                    text = "▶ START"
                 } else {
                     startAutomation()
+                    text = "■ STOP"
                 }
             }
         }
 
-        statusText = TextView(this).apply {
-            text = "Ready"
+        val scanButton = Button(this).apply {
+            text = "🔍 SCAN"
+
+            setOnClickListener {
+                scanScreen()
+            }
+        }
+
+        val info = TextView(this).apply {
+            text = "Scanner ready"
             textSize = 11f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
         }
 
         container.addView(title)
-        container.addView(startStopButton)
-        container.addView(statusText)
+        container.addView(startStop)
+        container.addView(scanButton)
+        container.addView(info)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -104,65 +114,71 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         running = true
 
-        startStopButton.text = "■ STOP"
-        statusText.text = "Scanning..."
-
-        /*
-         * IMPORTANT:
-         * We deliberately do NOT tap fixed coordinates anymore.
-         *
-         * The next scanner module will:
-         *
-         * 1. Capture the game screen.
-         * 2. Find visible RSS text.
-         * 3. Detect RSS type.
-         * 4. Detect RSS level.
-         * 5. Determine tile position.
-         * 6. Compare against the user's RSS preference.
-         * 7. Select the best candidate.
-         */
-
-        startScanCycle()
+        handler.post(scanRunnable)
     }
 
     private fun stopAutomation() {
 
         running = false
-
-        if (::startStopButton.isInitialized) {
-            startStopButton.text = "▶ START"
-        }
-
-        if (::statusText.isInitialized) {
-            statusText.text = "Stopped"
-        }
-
-        handler.removeCallbacksAndMessages(null)
+        handler.removeCallbacks(scanRunnable)
     }
 
-    private fun startScanCycle() {
+    private val scanRunnable = object : Runnable {
 
-        if (!running) return
+        override fun run() {
 
-        statusText.text = "Scanner ready"
+            if (!running) return
+
+            scanScreen()
+
+            handler.postDelayed(this, 3000)
+        }
+    }
+
+    private fun scanScreen() {
+
+        scanCount++
 
         /*
-         * Scanner implementation goes here.
+         * SCREEN SCANNER FOUNDATION
          *
-         * No automatic tap is performed yet.
-         * This prevents the app from blindly tapping
-         * arbitrary locations on the game screen.
+         * The next stage will:
+         *
+         * 1. Capture the Lords Mobile screen.
+         * 2. Find nearby RSS tiles.
+         * 3. Detect RSS type:
+         *      Gems
+         *      Emerging
+         *      Gold
+         *      Ore
+         *      Stone
+         *      Wood
+         *      Food
+         *      Other
+         * 4. Detect RSS level.
+         * 5. Calculate distance from the player's location.
+         * 6. Apply the user's saved RSS preference.
+         * 7. Select the best tile.
+         * 8. Tap the selected tile.
          */
 
-        handler.postDelayed({
-            if (running) {
-                statusText.text = "Waiting for scanner..."
-                startScanCycle()
-            }
-        }, 3000)
+        updateInfo("Scan #$scanCount - screenshot scanner ready")
     }
 
-    private fun tap(x: Float, y: Float) {
+    private fun updateInfo(message: String) {
+
+        val container = overlayView as? LinearLayout
+            ?: return
+
+        if (container.childCount < 4) return
+
+        val info = container.getChildAt(3) as? TextView
+            ?: return
+
+        info.text = message
+    }
+
+    fun tap(x: Float, y: Float) {
 
         val path = Path()
         path.moveTo(x, y)
@@ -186,17 +202,4 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         overlayView?.let {
 
-            val windowManager =
-                getSystemService(WINDOW_SERVICE) as WindowManager
-
-            try {
-                windowManager.removeView(it)
-            } catch (_: Exception) {
-            }
-        }
-
-        overlayView = null
-
-        super.onDestroy()
-    }
-}
+           
