@@ -108,12 +108,12 @@ class MainActivity : Activity() {
         listView.choiceMode = ListView.CHOICE_MODE_SINGLE
 
         layout.addView(
-            listView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                450
-            )
-        )
+    listView,
+    LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        dp(320)
+    )
+)
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -136,15 +136,14 @@ class MainActivity : Activity() {
         }
 
         buttons.addView(
-            upButton,
-            LinearLayout.LayoutParams(0, 60, 1f)
-        )
+    upButton,
+    LinearLayout.LayoutParams(0, dp(55), 1f)
+)
 
-        buttons.addView(
-            downButton,
-            LinearLayout.LayoutParams(0, 60, 1f)
-        )
-
+buttons.addView(
+    downButton,
+    LinearLayout.LayoutParams(0, dp(55), 1f)
+)
         layout.addView(buttons)
 
         val resetButton = Button(this).apply {
@@ -216,8 +215,11 @@ class MainActivity : Activity() {
         // Screen is rebuilt only when necessary.
     }
 
-    private fun updateServiceButtonText(button: Button) {
-
+        private fun updateServiceButtonText(button: Button) {
         button.text = "ENABLE / MANAGE ACCESSIBILITY SERVICE"
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 }
