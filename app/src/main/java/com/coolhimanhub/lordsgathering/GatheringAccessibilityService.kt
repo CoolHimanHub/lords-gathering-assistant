@@ -32,6 +32,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Accessibility events will be processed later.
     }
 
     override fun onInterrupt() {
@@ -140,50 +141,60 @@ class GatheringAccessibilityService : AccessibilityService() {
         scanCount++
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            updateInfo("Scan #$scanCount - screen capture unavailable")
+            updateInfo(
+                "Scan #$scanCount - screen capture unavailable"
+            )
             return
         }
 
-        updateInfo("Scan #$scanCount - capturing screen...")
+        updateInfo(
+            "Scan #$scanCount - capturing screen..."
+        )
 
         takeScreenshot(
-    android.view.Display.DEFAULT_DISPLAY,
-    mainExecutor,
-    object : TakeScreenshotCallback {
-        override fun onSuccess(
-            screenshot: ScreenshotResult
-        ) {
-            val bitmap = screenshot.hardwareBuffer.let {
-                Bitmap.wrapHardwareBuffer(
-                    it,
-                    screenshot.colorSpace
-                )
+            android.view.Display.DEFAULT_DISPLAY,
+            mainExecutor,
+            object : TakeScreenshotCallback {
+
+                override fun onSuccess(
+                    screenshot: ScreenshotResult
+                ) {
+
+                    val bitmap = screenshot.hardwareBuffer.let {
+                        Bitmap.wrapHardwareBuffer(
+                            it,
+                            screenshot.colorSpace
+                        )
+                    }
+
+                    screenshot.hardwareBuffer.close()
+
+                    if (bitmap == null) {
+                        updateInfo(
+                            "Scan #$scanCount - capture failed"
+                        )
+                        return
+                    }
+
+                    val width = bitmap.width
+                    val height = bitmap.height
+
+                    updateInfo(
+                        "Scan #$scanCount - screen captured ${width}x${height}"
+                    )
+
+                    bitmap.recycle()
+                }
+
+                override fun onFailure(errorCode: Int) {
+
+                    updateInfo(
+                        "Scan #$scanCount - capture failed ($errorCode)"
+                    )
+                }
             }
-
-            screenshot.hardwareBuffer.close()
-
-            if (bitmap == null) {
-                updateInfo("Scan #$scanCount - capture failed")
-                return
-            }
-
-            val width = bitmap.width
-            val height = bitmap.height
-
-            updateInfo(
-                "Scan #$scanCount - screen captured ${width}x${height}"
-            )
-
-            bitmap.recycle()
-        }
-
-        override fun onFailure(errorCode: Int) {
-            updateInfo(
-                "Scan #$scanCount - capture failed ($errorCode)"
-            )
-        }
+        )
     }
-)
 
     private fun updateInfo(message: String) {
 
@@ -213,7 +224,11 @@ class GatheringAccessibilityService : AccessibilityService() {
             )
             .build()
 
-        dispatchGesture(gesture, null, null)
+        dispatchGesture(
+            gesture,
+            null,
+            null
+        )
     }
 
     override fun onDestroy() {
@@ -221,16 +236,19 @@ class GatheringAccessibilityService : AccessibilityService() {
         stopAutomation()
 
         overlayView?.let {
+
             val windowManager =
                 getSystemService(WINDOW_SERVICE) as WindowManager
 
             try {
                 windowManager.removeView(it)
             } catch (_: Exception) {
+                // View may already have been removed.
             }
         }
 
         overlayView = null
+
         super.onDestroy()
     }
 }
