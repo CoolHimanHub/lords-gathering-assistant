@@ -147,44 +147,43 @@ class GatheringAccessibilityService : AccessibilityService() {
         updateInfo("Scan #$scanCount - capturing screen...")
 
         takeScreenshot(
-            displayId = android.view.Display.DEFAULT_DISPLAY,
-            0,
-            object : TakeScreenshotCallback {
-                override fun onSuccess(
-                    screenshot: ScreenshotResult
-                ) {
-                    val bitmap = screenshot.hardwareBuffer.let {
-                        Bitmap.wrapHardwareBuffer(
-                            it,
-                            screenshot.colorSpace
-                        )
-                    }
-
-                    screenshot.hardwareBuffer.close()
-
-                    if (bitmap == null) {
-                        updateInfo("Scan #$scanCount - capture failed")
-                        return
-                    }
-
-                    val width = bitmap.width
-                    val height = bitmap.height
-
-                    updateInfo(
-                        "Scan #$scanCount - screen captured ${width}x${height}"
-                    )
-
-                    bitmap.recycle()
-                }
-
-                override fun onFailure(errorCode: Int) {
-                    updateInfo(
-                        "Scan #$scanCount - capture failed ($errorCode)"
-                    )
-                }
+    android.view.Display.DEFAULT_DISPLAY,
+    mainExecutor,
+    object : TakeScreenshotCallback {
+        override fun onSuccess(
+            screenshot: ScreenshotResult
+        ) {
+            val bitmap = screenshot.hardwareBuffer.let {
+                Bitmap.wrapHardwareBuffer(
+                    it,
+                    screenshot.colorSpace
+                )
             }
-        )
+
+            screenshot.hardwareBuffer.close()
+
+            if (bitmap == null) {
+                updateInfo("Scan #$scanCount - capture failed")
+                return
+            }
+
+            val width = bitmap.width
+            val height = bitmap.height
+
+            updateInfo(
+                "Scan #$scanCount - screen captured ${width}x${height}"
+            )
+
+            bitmap.recycle()
+        }
+
+        override fun onFailure(errorCode: Int) {
+            updateInfo(
+                "Scan #$scanCount - capture failed ($errorCode)"
+            )
+        }
     }
+)
 
     private fun updateInfo(message: String) {
 
