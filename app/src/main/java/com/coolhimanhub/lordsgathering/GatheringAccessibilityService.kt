@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
@@ -19,19 +21,18 @@ import android.widget.TextView
 
 class GatheringAccessibilityService : AccessibilityService() {
 
+    private val handler = Handler(Looper.getMainLooper())
+
+    private var running = false
     private var overlayView: LinearLayout? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var windowManager: WindowManager? = null
 
     private var scanCount = 0
-    private var running = false
 
-    private val scanHandler =
-        android.os.Handler(android.os.Looper.getMainLooper())
-
-    // ------------------------------------------------------------
-    // SERVICE
-    // ------------------------------------------------------------
+    // =============================================================
+    // ACCESSIBILITY SERVICE
+    // =============================================================
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -39,82 +40,116 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Reserved for future game/UI detection.
+        // Accessibility events can be used later.
     }
 
     override fun onInterrupt() {
         stopAutomation()
     }
 
-    // ------------------------------------------------------------
+    // =============================================================
     // FLOATING CONTROL
-    // ------------------------------------------------------------
+    // =============================================================
 
     private fun showFloatingControl() {
 
-        if (overlayView != null) return
-
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(10, 8, 10, 8)
-            setBackgroundColor(Color.rgb(65, 65, 65))
+        if (overlayView != null) {
+            return
         }
 
-        // --------------------------------------------------------
-        // DRAG HANDLE
-        // --------------------------------------------------------
+        val container = LinearLayout(this).apply {
+
+            orientation = LinearLayout.VERTICAL
+
+            setPadding(
+                10,
+                8,
+                10,
+                8
+            )
+
+            setBackgroundColor(
+                Color.rgb(65, 65, 65)
+            )
+        }
+
+        // ---------------------------------------------------------
+        // TITLE / DRAG HANDLE
+        // ---------------------------------------------------------
 
         val title = TextView(this).apply {
+
             text = "Lords Assistant"
+
             textSize = 16f
+
             setTextColor(Color.WHITE)
+
             gravity = Gravity.CENTER
-            setPadding(8, 4, 8, 8)
+
+            setPadding(
+                8,
+                4,
+                8,
+                8
+            )
 
             setOnTouchListener(
                 object : View.OnTouchListener {
 
-                    private var downX = 0f
-                    private var downY = 0f
-                    private var startX = 0
-                    private var startY = 0
+                    private var startX = 0f
+                    private var startY = 0f
+
+                    private var startParamX = 0
+                    private var startParamY = 0
 
                     override fun onTouch(
-                        v: View?,
+                        view: View?,
                         event: MotionEvent
                     ): Boolean {
 
                         val params =
-                            overlayParams ?: return false
+                            overlayParams
+                                ?: return false
 
                         when (event.actionMasked) {
 
                             MotionEvent.ACTION_DOWN -> {
 
-                                downX = event.rawX
-                                downY = event.rawY
+                                startX = event.rawX
+                                startY = event.rawY
 
-                                startX = params.x
-                                startY = params.y
+                                startParamX = params.x
+                                startParamY = params.y
 
                                 return true
                             }
 
                             MotionEvent.ACTION_MOVE -> {
 
+                                val dx =
+                                    event.rawX - startX
+
+                                val dy =
+                                    event.rawY - startY
+
                                 params.x =
-                                    startX +
-                                            (event.rawX - downX).toInt()
+                                    (
+                                        startParamX + dx
+                                    ).toInt()
 
                                 params.y =
-                                    startY +
-                                            (event.rawY - downY).toInt()
+                                    (
+                                        startParamY + dy
+                                    ).toInt()
 
                                 try {
+
                                     windowManager?.updateViewLayout(
                                         container,
                                         params
                                     )
+
                                 } catch (_: Exception) {
                                 }
 
@@ -122,6 +157,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                             }
 
                             MotionEvent.ACTION_UP -> {
+
                                 return true
                             }
                         }
@@ -132,9 +168,9 @@ class GatheringAccessibilityService : AccessibilityService() {
             )
         }
 
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
         // START / STOP
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
 
         val startStop = Button(this).apply {
 
@@ -157,22 +193,23 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
         }
 
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
         // SCAN
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
 
         val scanButton = Button(this).apply {
 
             text = "🔍 SCAN"
 
             setOnClickListener {
+
                 scanScreen()
             }
         }
 
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
         // STATUS
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
 
         val info = TextView(this).apply {
 
@@ -193,32 +230,43 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
 
         container.addView(title)
+
         container.addView(startStop)
+
         container.addView(scanButton)
+
         container.addView(info)
 
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
         // OVERLAY WINDOW
-        // --------------------------------------------------------
+        // ---------------------------------------------------------
 
         val params =
             WindowManager.LayoutParams(
+
                 WindowManager.LayoutParams.WRAP_CONTENT,
+
                 WindowManager.LayoutParams.WRAP_CONTENT,
+
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+
                 PixelFormat.TRANSLUCENT
             )
 
         params.gravity =
             Gravity.TOP or Gravity.START
 
+        // Initial position
+
         params.x = 100
         params.y = 150
 
         windowManager =
-            getSystemService(WINDOW_SERVICE)
-                    as WindowManager
+            getSystemService(
+                WINDOW_SERVICE
+            ) as WindowManager
 
         overlayParams = params
 
@@ -237,13 +285,15 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
     }
 
-    // ------------------------------------------------------------
+    // =============================================================
     // AUTOMATION
-    // ------------------------------------------------------------
+    // =============================================================
 
     private fun startAutomation() {
 
-        if (running) return
+        if (running) {
+            return
+        }
 
         running = true
 
@@ -251,14 +301,16 @@ class GatheringAccessibilityService : AccessibilityService() {
             "AUTO TEST - scan only"
         )
 
-        scanHandler.post(scanRunnable)
+        handler.post(
+            scanRunnable
+        )
     }
 
     private fun stopAutomation() {
 
         running = false
 
-        scanHandler.removeCallbacks(
+        handler.removeCallbacks(
             scanRunnable
         )
 
@@ -272,26 +324,31 @@ class GatheringAccessibilityService : AccessibilityService() {
 
             override fun run() {
 
-                if (!running) return
+                if (!running) {
+                    return
+                }
 
                 scanScreen()
 
-                scanHandler.postDelayed(
+                // Scan every 3 seconds
+
+                handler.postDelayed(
                     this,
                     3000
                 )
             }
         }
 
-    // ------------------------------------------------------------
-    // SCREEN CAPTURE
-    // ------------------------------------------------------------
+    // =============================================================
+    // SCREEN SCANNER
+    // =============================================================
 
     private fun scanScreen() {
 
         scanCount++
 
-        if (Build.VERSION.SDK_INT <
+        if (
+            Build.VERSION.SDK_INT <
             Build.VERSION_CODES.R
         ) {
 
@@ -307,73 +364,108 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
 
         takeScreenshot(
+
             Display.DEFAULT_DISPLAY,
+
             mainExecutor,
+
             object : TakeScreenshotCallback {
 
                 override fun onSuccess(
                     screenshot: ScreenshotResult
                 ) {
 
-                    var hardwareBitmap: Bitmap? = null
-var bitmap: Bitmap? = null
-
-try {
-
-    hardwareBitmap = Bitmap.wrapHardwareBuffer(
-        screenshot.hardwareBuffer,
-        screenshot.colorSpace
-    )
-
-    if (hardwareBitmap == null) {
-        updateInfo(
-            "Scan #$scanCount - bitmap conversion failed"
-        )
-        return
-    }
-
-    // Convert HARDWARE bitmap to normal software bitmap.
-    // getPixel() can then safely analyse it.
-    bitmap = hardwareBitmap.copy(
-        Bitmap.Config.ARGB_8888,
-        false
-    )
-
-    if (bitmap == null) {
-        updateInfo(
-            "Scan #$scanCount - bitmap copy failed"
-        )
-        return
-    }
-
-    updateInfo(
-        "Scan #$scanCount - screen captured ${bitmap.width}x${bitmap.height}"
-    )
-
-    analyseScreen(bitmap)
-
-} catch (e: Exception) {
-
-    updateInfo(
-        "Scan #$scanCount - error: ${e.javaClass.simpleName}"
-    )
-
-} finally {
-
-    try {
-        screenshot.hardwareBuffer.close()
-    } catch (_: Exception) {
-    }
-
-    try {
-        bitmap?.recycle()
-    } catch (_: Exception) {
-    }
-}
-
                     try {
+
+                        // -------------------------------------------------
+                        // STEP 1
+                        // Get the hardware bitmap.
+                        // -------------------------------------------------
+
+                        val hardwareBitmap =
+                            Bitmap.wrapHardwareBuffer(
+                                screenshot.hardwareBuffer,
+                                screenshot.colorSpace
+                            )
+
+                        if (hardwareBitmap == null) {
+
+                            updateInfo(
+                                "Scan #$scanCount - bitmap conversion failed"
+                            )
+
+                            screenshot.hardwareBuffer.close()
+
+                            return
+                        }
+
+                        // -------------------------------------------------
+                        // STEP 2
+                        // IMPORTANT:
+                        // Convert HARDWARE bitmap into a normal bitmap.
+                        //
+                        // getPixel() cannot safely analyse a HARDWARE
+                        // bitmap.
+                        // -------------------------------------------------
+
+                        val bitmap =
+                            hardwareBitmap.copy(
+                                Bitmap.Config.ARGB_8888,
+                                false
+                            )
+
+                        if (bitmap == null) {
+
+                            updateInfo(
+                                "Scan #$scanCount - bitmap copy failed"
+                            )
+
+                            screenshot.hardwareBuffer.close()
+
+                            return
+                        }
+
+                        // -------------------------------------------------
+                        // STEP 3
+                        // Screenshot successfully captured.
+                        // -------------------------------------------------
+
+                        updateInfo(
+                            "Scan #$scanCount - screen captured " +
+                                "${bitmap.width}x${bitmap.height}"
+                        )
+
+                        // -------------------------------------------------
+                        // STEP 4
+                        // Analyse the software bitmap.
+                        // -------------------------------------------------
+
+                        analyseScreen(
+                            bitmap
+                        )
+
+                        // -------------------------------------------------
+                        // STEP 5
+                        // Clean up.
+                        // -------------------------------------------------
+
+                        screenshot.hardwareBuffer.close()
+
                         bitmap.recycle()
-                    } catch (_: Exception) {
+
+                    } catch (e: Exception) {
+
+                        try {
+
+                            screenshot.hardwareBuffer.close()
+
+                        } catch (_: Exception) {
+                        }
+
+                        updateInfo(
+                            "Scan #$scanCount - error: " +
+                                e.javaClass.simpleName
+                        )
                     }
                 }
 
@@ -382,52 +474,50 @@ try {
                 ) {
 
                     updateInfo(
-                        "Scan #$scanCount - capture failed: $errorCode"
+                        "Scan #$scanCount - capture failed: " +
+                            errorCode
                     )
                 }
             }
         )
     }
 
-    // ------------------------------------------------------------
-    // FIRST VISUAL ANALYSIS
-    //
-    // IMPORTANT:
-    // This stage does NOT tap anything.
-    //
-    // We are deliberately conservative.
-    // ------------------------------------------------------------
+    // =============================================================
+    // IMAGE ANALYSIS
+    // =============================================================
 
     private fun analyseScreen(
         bitmap: Bitmap
     ) {
 
-        val width = bitmap.width
-        val height = bitmap.height
+        val width =
+            bitmap.width
 
-        var blueBadgePixels = 0
+        val height =
+            bitmap.height
+
+        var bluePixels = 0
+
         var orangePixels = 0
+
         var greenPixels = 0
 
-        /*
-         * Lords Mobile uses blue level markers around
-         * resource tiles.
-         *
-         * This is only a candidate signal.
-         *
-         * It is NOT yet considered proof that something
-         * is an RSS tile.
-         */
+        // We don't need to inspect every single pixel.
+        // Sampling every 4 pixels is enough for this test.
 
         val step = 4
 
         var y = 80
 
-        while (y < height - 30) {
+        while (
+            y < height - 30
+        ) {
 
             var x = 10
 
-            while (x < width - 10) {
+            while (
+                x < width - 10
+            ) {
 
                 val pixel =
                     bitmap.getPixel(
@@ -435,20 +525,32 @@ try {
                         y
                     )
 
-                val r = Color.red(pixel)
-                val g = Color.green(pixel)
-                val b = Color.blue(pixel)
+                val r =
+                    Color.red(pixel)
 
-                // Blue/cyan candidate pixels
+                val g =
+                    Color.green(pixel)
+
+                val b =
+                    Color.blue(pixel)
+
+                // -------------------------------------------------
+                // BLUE
+                // -------------------------------------------------
+
                 if (
                     b > 110 &&
                     b > r * 1.25 &&
                     b > g * 1.05
                 ) {
-                    blueBadgePixels++
+
+                    bluePixels++
                 }
 
-                // Orange/yellow candidate pixels
+                // -------------------------------------------------
+                // ORANGE
+                // -------------------------------------------------
+
                 if (
                     r > 150 &&
                     g > 70 &&
@@ -456,15 +558,20 @@ try {
                     b < 100 &&
                     r > g * 1.15
                 ) {
+
                     orangePixels++
                 }
 
-                // Green terrain/resource candidate
+                // -------------------------------------------------
+                // GREEN
+                // -------------------------------------------------
+
                 if (
                     g > 70 &&
                     g > r * 1.20 &&
                     g > b * 1.10
                 ) {
+
                     greenPixels++
                 }
 
@@ -474,61 +581,65 @@ try {
             y += step
         }
 
-        /*
-         * We intentionally do NOT call tap().
-         *
-         * We also do NOT classify a tile as EMPTY merely
-         * because we didn't see an orange line.
-         */
+        // ---------------------------------------------------------
+        // TEST RESULT
+        // ---------------------------------------------------------
 
-        val message =
-            "Scan #$scanCount - " +
-                    "${width}x${height}\n" +
-                    "Visual signals: " +
-                    "blue=$blueBadgePixels " +
-                    "orange=$orangePixels " +
-                    "green=$greenPixels\n" +
-                    "SAFE TEST: no troop sent"
+        updateInfo(
 
-        updateInfo(message)
+            "Scan #$scanCount - ${width}x$height\n" +
+
+                "Visual signals: " +
+
+                "blue=$bluePixels " +
+
+                "orange=$orangePixels " +
+
+                "green=$greenPixels\n" +
+
+                "SAFE TEST: no troop sent"
+        )
     }
 
-    // ------------------------------------------------------------
-    // STATUS
-    // ------------------------------------------------------------
+    // =============================================================
+    // UPDATE OVERLAY
+    // =============================================================
 
     private fun updateInfo(
         message: String
     ) {
 
         val container =
-            overlayView ?: return
+            overlayView
+                ?: return
 
-        if (container.childCount < 4) {
+        if (
+            container.childCount < 4
+        ) {
+
             return
         }
 
         val info =
             container.getChildAt(3)
-                    as? TextView
+                as? TextView
                 ?: return
 
-        info.text = message
+        info.text =
+            message
     }
 
-    // ------------------------------------------------------------
+    // =============================================================
     // ACCESSIBILITY TAP
-    //
-    // Kept for the later gathering stage.
-    // NOT USED by the current scanner.
-    // ------------------------------------------------------------
+    // =============================================================
 
     private fun tap(
         x: Float,
         y: Float
     ) {
 
-        val path = Path()
+        val path =
+            Path()
 
         path.moveTo(
             x,
@@ -537,6 +648,7 @@ try {
 
         val gesture =
             GestureDescription.Builder()
+
                 .addStroke(
                     GestureDescription.StrokeDescription(
                         path,
@@ -544,6 +656,7 @@ try {
                         100
                     )
                 )
+
                 .build()
 
         dispatchGesture(
@@ -553,9 +666,9 @@ try {
         )
     }
 
-    // ------------------------------------------------------------
-    // DESTROY
-    // ------------------------------------------------------------
+    // =============================================================
+    // SERVICE DESTROY
+    // =============================================================
 
     override fun onDestroy() {
 
@@ -564,15 +677,19 @@ try {
         overlayView?.let {
 
             try {
+
                 windowManager?.removeView(
                     it
                 )
+
             } catch (_: Exception) {
             }
         }
 
         overlayView = null
+
         overlayParams = null
+
         windowManager = null
 
         super.onDestroy()
