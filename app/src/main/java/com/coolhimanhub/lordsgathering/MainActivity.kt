@@ -99,10 +99,10 @@ class MainActivity : Activity() {
         listView = ListView(this)
 
         adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_list_item_activated_1,
-            rssList
-        )
+    this,
+    android.R.layout.simple_list_item_activated_1,
+    ArrayList(rssList)
+)
 
         listView.adapter = adapter
         listView.choiceMode = ListView.CHOICE_MODE_SINGLE
