@@ -39,9 +39,25 @@ class MainActivity : Activity() {
             }
         }
 
+        val instructions = TextView(this).apply {
+            text = """
+                
+Accessibility controls the floating assistant.
+
+After enabling the service, return to the app.
+A floating "Lords Assistant" control should appear.
+
+Use START to test the tap engine.
+Use STOP to stop it.
+            """.trimIndent()
+
+            textSize = 16f
+        }
+
         layout.addView(title)
         layout.addView(statusText)
         layout.addView(button)
+        layout.addView(instructions)
 
         setContentView(layout)
 
