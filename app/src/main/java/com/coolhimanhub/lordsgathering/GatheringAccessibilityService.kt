@@ -18,6 +18,9 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 
 class GatheringAccessibilityService : AccessibilityService() {
 
@@ -36,100 +39,132 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Accessibility events can be used later for UI detection.
+        // Game map is graphical, so screenshot analysis is used.
     }
 
     override fun onInterrupt() {
         stopAutomation()
     }
 
+    // =============================================================
+    // FLOATING OVERLAY
+    // =============================================================
+
     private fun showFloatingControl() {
 
         if (overlayView != null) return
 
         val container = LinearLayout(this).apply {
+
             orientation = LinearLayout.VERTICAL
-            setPadding(10, 8, 10, 8)
-            setBackgroundColor(Color.rgb(65, 65, 65))
+
+            setPadding(
+                10,
+                8,
+                10,
+                8
+            )
+
+            setBackgroundColor(
+                Color.rgb(65, 65, 65)
+            )
         }
 
         // ---------------------------------------------------------
         // TITLE / DRAG HANDLE
-        // Drag this title to move the whole overlay.
         // ---------------------------------------------------------
 
         val title = TextView(this).apply {
+
             text = "Lords Assistant"
+
             textSize = 16f
+
             setTextColor(Color.WHITE)
+
             gravity = Gravity.CENTER
-            setPadding(8, 4, 8, 8)
 
-            setOnTouchListener(object : View.OnTouchListener {
+            setPadding(
+                8,
+                4,
+                8,
+                8
+            )
 
-                private var startX = 0f
-                private var startY = 0f
-                private var startParamX = 0
-                private var startParamY = 0
+            setOnTouchListener(
+                object : View.OnTouchListener {
 
-                override fun onTouch(
-                    view: View?,
-                    event: MotionEvent
-                ): Boolean {
+                    private var startX = 0f
+                    private var startY = 0f
 
-                    val params = overlayParams
-                        ?: return false
+                    private var startParamX = 0
+                    private var startParamY = 0
 
-                    when (event.actionMasked) {
+                    override fun onTouch(
+                        view: View?,
+                        event: MotionEvent
+                    ): Boolean {
 
-                        MotionEvent.ACTION_DOWN -> {
+                        val params =
+                            overlayParams ?: return false
 
-                            startX = event.rawX
-                            startY = event.rawY
+                        when (event.actionMasked) {
 
-                            startParamX = params.x
-                            startParamY = params.y
+                            MotionEvent.ACTION_DOWN -> {
 
-                            return true
-                        }
+                                startX = event.rawX
+                                startY = event.rawY
 
-                        MotionEvent.ACTION_MOVE -> {
+                                startParamX = params.x
+                                startParamY = params.y
 
-                            val dx = event.rawX - startX
-                            val dy = event.rawY - startY
-
-                            params.x =
-                                (startParamX + dx).toInt()
-
-                            params.y =
-                                (startParamY + dy).toInt()
-
-                            try {
-                                windowManager?.updateViewLayout(
-                                    container,
-                                    params
-                                )
-                            } catch (_: Exception) {
+                                return true
                             }
 
-                            return true
+                            MotionEvent.ACTION_MOVE -> {
+
+                                val dx =
+                                    event.rawX - startX
+
+                                val dy =
+                                    event.rawY - startY
+
+                                params.x =
+                                    (startParamX + dx).toInt()
+
+                                params.y =
+                                    (startParamY + dy).toInt()
+
+                                try {
+
+                                    windowManager?.updateViewLayout(
+                                        container,
+                                        params
+                                    )
+
+                                } catch (_: Exception) {
+                                }
+
+                                return true
+                            }
+
+                            MotionEvent.ACTION_UP -> {
+                                return true
+                            }
                         }
 
-                        MotionEvent.ACTION_UP -> {
-                            return true
-                        }
+                        return true
                     }
-
-                    return true
                 }
-            })
+            )
         }
 
         // ---------------------------------------------------------
-        // START / STOP BUTTON
+        // START / STOP
         // ---------------------------------------------------------
 
         val startStop = Button(this).apply {
+
             text = "▶ START"
 
             setOnClickListener {
@@ -150,27 +185,39 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
 
         // ---------------------------------------------------------
-        // SCAN BUTTON
+        // SCAN
         // ---------------------------------------------------------
 
         val scanButton = Button(this).apply {
+
             text = "🔍 SCAN"
 
             setOnClickListener {
+
                 scanScreen()
             }
         }
 
         // ---------------------------------------------------------
-        // STATUS TEXT
+        // STATUS
         // ---------------------------------------------------------
 
         val info = TextView(this).apply {
+
             text = "Scanner ready"
+
             textSize = 11f
+
             setTextColor(Color.WHITE)
+
             gravity = Gravity.CENTER
-            setPadding(4, 5, 4, 2)
+
+            setPadding(
+                4,
+                5,
+                4,
+                2
+            )
         }
 
         container.addView(title)
@@ -183,25 +230,32 @@ class GatheringAccessibilityService : AccessibilityService() {
         // ---------------------------------------------------------
 
         val params = WindowManager.LayoutParams(
+
             WindowManager.LayoutParams.WRAP_CONTENT,
+
             WindowManager.LayoutParams.WRAP_CONTENT,
+
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+
             PixelFormat.TRANSLUCENT
         )
 
-        params.gravity = Gravity.TOP or Gravity.START
+        params.gravity =
+            Gravity.TOP or Gravity.START
 
-        // Initial position
         params.x = 100
         params.y = 150
 
         windowManager =
-            getSystemService(WINDOW_SERVICE) as WindowManager
+            getSystemService(WINDOW_SERVICE)
+                    as WindowManager
 
         overlayParams = params
 
         try {
+
             windowManager?.addView(
                 container,
                 params
@@ -210,6 +264,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             overlayView = container
 
         } catch (_: Exception) {
+
             overlayView = null
         }
     }
@@ -224,7 +279,9 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         running = true
 
-        updateInfo("Automation started")
+        updateInfo(
+            "Automation started"
+        )
 
         handler.post(scanRunnable)
     }
@@ -233,26 +290,30 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         running = false
 
-        handler.removeCallbacks(scanRunnable)
+        handler.removeCallbacks(
+            scanRunnable
+        )
 
-        updateInfo("Automation stopped")
+        updateInfo(
+            "Automation stopped"
+        )
     }
 
-    private val scanRunnable = object : Runnable {
+    private val scanRunnable =
+        object : Runnable {
 
-        override fun run() {
+            override fun run() {
 
-            if (!running) return
+                if (!running) return
 
-            scanScreen()
+                scanScreen()
 
-            // Scan every 3 seconds
-            handler.postDelayed(
-                this,
-                3000
-            )
+                handler.postDelayed(
+                    this,
+                    3000
+                )
+            }
         }
-    }
 
     // =============================================================
     // SCREEN SCANNER
@@ -262,7 +323,10 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         scanCount++
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        if (
+            Build.VERSION.SDK_INT <
+            Build.VERSION_CODES.R
+        ) {
 
             updateInfo(
                 "Scan #$scanCount - screen capture unavailable"
@@ -275,11 +339,6 @@ class GatheringAccessibilityService : AccessibilityService() {
             "Scan #$scanCount - capturing..."
         )
 
-        // IMPORTANT:
-        // takeScreenshot() is a Java API.
-        // Do NOT use named arguments here.
-        // The second parameter must be an Executor.
-
         takeScreenshot(
             Display.DEFAULT_DISPLAY,
             mainExecutor,
@@ -289,7 +348,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                     screenshot: ScreenshotResult
                 ) {
 
-                    val bitmap: Bitmap? =
+                    val hardwareBitmap =
                         try {
 
                             Bitmap.wrapHardwareBuffer(
@@ -298,15 +357,18 @@ class GatheringAccessibilityService : AccessibilityService() {
                             )
 
                         } catch (_: Exception) {
+
                             null
                         }
 
                     try {
+
                         screenshot.hardwareBuffer.close()
+
                     } catch (_: Exception) {
                     }
 
-                    if (bitmap == null) {
+                    if (hardwareBitmap == null) {
 
                         updateInfo(
                             "Scan #$scanCount - capture failed"
@@ -315,20 +377,69 @@ class GatheringAccessibilityService : AccessibilityService() {
                         return
                     }
 
-                    val width = bitmap.width
-                    val height = bitmap.height
+                    val bitmap =
+                        try {
 
-                    updateInfo(
-                        "Scan #$scanCount - screen captured ${width}x$height"
-                    )
+                            hardwareBitmap.copy(
+                                Bitmap.Config.ARGB_8888,
+                                false
+                            )
 
-                    // -------------------------------------------------
-                    // NEXT STAGE:
-                    // image analysis / RSS detection will go here.
-                    // -------------------------------------------------
+                        } catch (_: Exception) {
+
+                            null
+                        }
 
                     try {
+
+                        hardwareBitmap.recycle()
+
+                    } catch (_: Exception) {
+                    }
+
+                    if (bitmap == null) {
+
+                        updateInfo(
+                            "Scan #$scanCount - bitmap conversion failed"
+                        )
+
+                        return
+                    }
+
+                    val width =
+                        bitmap.width
+
+                    val height =
+                        bitmap.height
+
+                    // -------------------------------------------------
+                    // ORANGE MARCH DETECTION
+                    // -------------------------------------------------
+
+                    val result =
+                        detectOrangeMarches(
+                            bitmap
+                        )
+
+                    if (result.detected) {
+
+                        updateInfo(
+                            "⚠ ORANGE MARCH: " +
+                                    "${result.paths} path(s)"
+                        )
+
+                    } else {
+
+                        updateInfo(
+                            "Scan #$scanCount - " +
+                                    "no orange attack path"
+                        )
+                    }
+
+                    try {
+
                         bitmap.recycle()
+
                     } catch (_: Exception) {
                     }
                 }
@@ -346,24 +457,195 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     // =============================================================
-    // UPDATE OVERLAY STATUS
+    // ORANGE MARCH DETECTION
     // =============================================================
 
-    private fun updateInfo(message: String) {
+    private data class OrangeDetection(
+        val detected: Boolean,
+        val paths: Int
+    )
+
+    /**
+     * Detects the bright orange/yellow-orange march arrows
+     * visible on the Lords Mobile world map.
+     *
+     * This stage only detects the orange path.
+     *
+     * It does NOT return troops yet.
+     */
+    private fun detectOrangeMarches(
+        bitmap: Bitmap
+    ): OrangeDetection {
+
+        val width =
+            bitmap.width
+
+        val height =
+            bitmap.height
+
+        /*
+         * We don't need to examine every pixel.
+         * A small sampling step makes scanning much faster.
+         */
+        val step =
+            max(
+                2,
+                min(width, height) / 700
+            )
+
+        var orangePixels = 0
+
+        /*
+         * Divide the screen into regions.
+         * This helps distinguish a real march path
+         * from isolated orange UI pixels.
+         */
+        val regions =
+            HashMap<Int, Int>()
+
+        var y = 0
+
+        while (y < height) {
+
+            var x = 0
+
+            while (x < width) {
+
+                val pixel =
+                    bitmap.getPixel(
+                        x,
+                        y
+                    )
+
+                if (isMarchOrange(pixel)) {
+
+                    orangePixels++
+
+                    /*
+                     * Region size is intentionally broad.
+                     */
+                    val rx =
+                        x / 120
+
+                    val ry =
+                        y / 120
+
+                    val key =
+                        ry * 10000 + rx
+
+                    regions[key] =
+                        (regions[key] ?: 0) + 1
+                }
+
+                x += step
+            }
+
+            y += step
+        }
+
+        if (orangePixels < 20) {
+
+            return OrangeDetection(
+                detected = false,
+                paths = 0
+            )
+        }
+
+        /*
+         * A genuine march normally produces orange
+         * pixels across multiple neighbouring regions.
+         */
+        val strongRegions =
+            regions.values.count {
+                it >= 4
+            }
+
+        if (strongRegions == 0) {
+
+            return OrangeDetection(
+                detected = false,
+                paths = 0
+            )
+        }
+
+        /*
+         * At this stage we conservatively report one or more
+         * candidate paths. The next stage will connect the
+         * regions and determine the actual arrow direction.
+         */
+        val estimatedPaths =
+            min(
+                5,
+                max(
+                    1,
+                    strongRegions / 2
+                )
+            )
+
+        return OrangeDetection(
+            detected = true,
+            paths = estimatedPaths
+        )
+    }
+
+    // =============================================================
+    // ORANGE COLOR FILTER
+    // =============================================================
+
+    private fun isMarchOrange(
+        color: Int
+    ): Boolean {
+
+        val r =
+            Color.red(color)
+
+        val g =
+            Color.green(color)
+
+        val b =
+            Color.blue(color)
+
+        /*
+         * Bright orange used by march indicators.
+         *
+         * Terrain is generally much darker/browner,
+         * so these thresholds intentionally favour
+         * bright orange pixels.
+         */
+        return (
+                r >= 190 &&
+                g >= 70 &&
+                g <= 210 &&
+                b <= 110 &&
+                r > g + 55
+                )
+    }
+
+    // =============================================================
+    // UPDATE STATUS
+    // =============================================================
+
+    private fun updateInfo(
+        message: String
+    ) {
 
         val container =
             overlayView as? LinearLayout
                 ?: return
 
-        if (container.childCount < 4) {
+        if (
+            container.childCount < 4
+        ) {
             return
         }
 
         val info =
-            container.getChildAt(3) as? TextView
+            container.getChildAt(3)
+                    as? TextView
                 ?: return
 
-        info.text = message
+        info.text =
+            message
     }
 
     // =============================================================
@@ -375,7 +657,8 @@ class GatheringAccessibilityService : AccessibilityService() {
         y: Float
     ) {
 
-        val path = Path()
+        val path =
+            Path()
 
         path.moveTo(
             x,
@@ -401,6 +684,28 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     // =============================================================
+    // DISTANCE HELPER
+    // =============================================================
+
+    private fun distance(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float
+    ): Float {
+
+        val dx =
+            x1 - x2
+
+        val dy =
+            y1 - y2
+
+        return sqrt(
+            dx * dx + dy * dy
+        )
+    }
+
+    // =============================================================
     // SERVICE DESTROY
     // =============================================================
 
@@ -411,13 +716,19 @@ class GatheringAccessibilityService : AccessibilityService() {
         overlayView?.let {
 
             try {
-                windowManager?.removeView(it)
+
+                windowManager?.removeView(
+                    it
+                )
+
             } catch (_: Exception) {
             }
         }
 
         overlayView = null
+
         overlayParams = null
+
         windowManager = null
 
         super.onDestroy()
