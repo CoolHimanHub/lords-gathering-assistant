@@ -140,9 +140,11 @@ class GatheringAccessibilityService : AccessibilityService() {
         scanCount++
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+
             updateInfo(
-                "Scan #$scanCount - screen capture unavailable"
+                "Scan #$scanCount - Android too old"
             )
+
             return
         }
 
@@ -170,9 +172,11 @@ class GatheringAccessibilityService : AccessibilityService() {
                         screenshot.hardwareBuffer.close()
 
                         if (hardwareBitmap == null) {
+
                             updateInfo(
                                 "Scan #$scanCount - bitmap failed"
                             )
+
                             return
                         }
 
@@ -185,20 +189,19 @@ class GatheringAccessibilityService : AccessibilityService() {
                         hardwareBitmap.recycle()
 
                         if (bitmap == null) {
+
                             updateInfo(
-                                "Scan #$scanCount - bitmap conversion failed"
+                                "Scan #$scanCount - conversion failed"
                             )
+
                             return
                         }
 
-                        val width = bitmap.width
-                        val height = bitmap.height
-
-                        val candidates =
-                            detectRssCandidates(bitmap)
+                        val regions =
+                            detectRssRegions(bitmap)
 
                         updateInfo(
-                            "Scan #$scanCount - $candidates candidates found"
+                            "Scan #$scanCount - $regions regions found"
                         )
 
                         bitmap.recycle()
@@ -227,32 +230,41 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     /*
-     * FIRST RSS VISUAL DETECTOR
+     * STAGE 2 RSS DETECTOR
      *
-     * This stage does NOT tap anything.
+     * Instead of counting every colourful 8x8 block,
+     * this groups neighbouring colourful blocks into
+     * larger connected regions.
      *
-     * It looks for compact areas containing sufficiently
-     * saturated/bright pixels. Lords Mobile resource tiles
-     * generally contain visually distinct coloured objects.
-     *
-     * This is deliberately conservative.
+     * IMPORTANT:
+     * This stage still does NOT tap anything.
      */
-    private fun detectRssCandidates(bitmap: Bitmap): Int {
+
+    private fun detectRssRegions(bitmap: Bitmap): Int {
 
         val originalWidth = bitmap.width
         val originalHeight = bitmap.height
 
+        if (originalWidth <= 0 || originalHeight <= 0) {
+            return 0
+        }
+
         /*
-         * Reduce the image so analysis is fast enough to run
-         * repeatedly on the phone.
+         * Scale the screen down for faster analysis.
          */
+
         val targetWidth = 320
 
         val scale =
-            targetWidth.toFloat() / originalWidth.toFloat()
+            targetWidth.toFloat() /
+                    originalWidth.toFloat()
 
         val targetHeight =
             (originalHeight * scale).toInt()
+
+        if (targetHeight <= 0) {
+            return 0
+        }
 
         val smallBitmap =
             Bitmap.createScaledBitmap(
@@ -278,108 +290,203 @@ class GatheringAccessibilityService : AccessibilityService() {
         smallBitmap.recycle()
 
         /*
-         * Divide the screen into small blocks.
-         *
-         * We count blocks containing enough colourful pixels.
+         * We work on a coarse grid.
          */
+
         val blockSize = 8
 
-        var candidateBlocks = 0
+        val gridWidth =
+            (targetWidth + blockSize - 1) / blockSize
 
-        var y = 0
+        val gridHeight =
+            (targetHeight + blockSize - 1) / blockSize
 
-        while (y < targetHeight) {
+        val active =
+            Array(gridHeight) {
+                BooleanArray(gridWidth)
+            }
 
-            var x = 0
+        /*
+         * Detect colourful blocks.
+         */
 
-            while (x < targetWidth) {
+        for (gy in 0 until gridHeight) {
 
-                var colourfulPixels = 0
-                var totalPixels = 0
+            for (gx in 0 until gridWidth) {
 
-                val maxX =
-                    minOf(x + blockSize, targetWidth)
+                val startX =
+                    gx * blockSize
 
-                val maxY =
-                    minOf(y + blockSize, targetHeight)
+                val startY =
+                    gy * blockSize
 
-                var py = y
+                val endX =
+                    minOf(
+                        startX + blockSize,
+                        targetWidth
+                    )
 
-                while (py < maxY) {
+                val endY =
+                    minOf(
+                        startY + blockSize,
+                        targetHeight
+                    )
 
-                    var px = x
+                var colourful = 0
+                var total = 0
 
-                    while (px < maxX) {
+                for (y in startY until endY) {
 
-                        val color =
+                    for (x in startX until endX) {
+
+                        val pixel =
                             pixels[
-                                py * targetWidth + px
+                                y * targetWidth + x
                             ]
 
-                        val red =
-                            Color.red(color)
+                        val r =
+                            Color.red(pixel)
 
-                        val green =
-                            Color.green(color)
+                        val g =
+                            Color.green(pixel)
 
-                        val blue =
-                            Color.blue(color)
+                        val b =
+                            Color.blue(pixel)
 
                         val maxValue =
-                            maxOf(red, green, blue)
+                            maxOf(r, g, b)
 
                         val minValue =
-                            minOf(red, green, blue)
+                            minOf(r, g, b)
 
                         val saturation =
                             maxValue - minValue
 
-                        /*
-                         * Ignore very dark pixels.
-                         *
-                         * Look for pixels with visible colour.
-                         */
                         if (
                             maxValue > 90 &&
                             saturation > 45
                         ) {
-                            colourfulPixels++
+                            colourful++
                         }
 
-                        totalPixels++
-
-                        px++
+                        total++
                     }
-
-                    py++
                 }
 
-                /*
-                 * A block becomes a candidate when a reasonable
-                 * portion of it contains colourful pixels.
-                 */
                 if (
-                    totalPixels > 0 &&
-                    colourfulPixels.toFloat() /
-                    totalPixels.toFloat() > 0.35f
+                    total > 0 &&
+                    colourful.toFloat() /
+                    total.toFloat() > 0.35f
                 ) {
-                    candidateBlocks++
+                    active[gy][gx] = true
                 }
-
-                x += blockSize
             }
-
-            y += blockSize
         }
 
         /*
-         * Several neighbouring blocks may belong to the same
-         * object. For this first stage we report the block count.
-         *
-         * Later we will merge neighbouring blocks into actual
-         * RSS tile objects.
+         * Connected-component search.
          */
-        return candidateBlocks
+
+        val visited =
+            Array(gridHeight) {
+                BooleanArray(gridWidth)
+            }
+
+        var regions = 0
+
+        for (gy in 0 until gridHeight) {
+
+            for (gx in 0 until gridWidth) {
+
+                if (!active[gy][gx]) {
+                    continue
+                }
+
+                if (visited[gy][gx]) {
+                    continue
+                }
+
+                /*
+                 * Flood fill.
+                 */
+
+                val queue =
+                    ArrayDeque<Pair<Int, Int>>()
+
+                queue.add(
+                    Pair(gx, gy)
+                )
+
+                visited[gy][gx] = true
+
+                var size = 0
+
+                while (queue.isNotEmpty()) {
+
+                    val current =
+                        queue.removeFirst()
+
+                    val cx = current.first
+                    val cy = current.second
+
+                    size++
+
+                    /*
+                     * Four neighbouring directions.
+                     */
+
+                    val directions =
+                        arrayOf(
+                            Pair(1, 0),
+                            Pair(-1, 0),
+                            Pair(0, 1),
+                            Pair(0, -1)
+                        )
+
+                    for (direction in directions) {
+
+                        val nx =
+                            cx + direction.first
+
+                        val ny =
+                            cy + direction.second
+
+                        if (
+                            nx < 0 ||
+                            ny < 0 ||
+                            nx >= gridWidth ||
+                            ny >= gridHeight
+                        ) {
+                            continue
+                        }
+
+                        if (!active[ny][nx]) {
+                            continue
+                        }
+
+                        if (visited[ny][nx]) {
+                            continue
+                        }
+
+                        visited[ny][nx] = true
+
+                        queue.add(
+                            Pair(nx, ny)
+                        )
+                    }
+                }
+
+                /*
+                 * Ignore tiny coloured noise.
+                 */
+
+                if (size >= 3) {
+                    regions++
+                }
+            }
+        }
+
+        return regions
     }
 
     private fun updateInfo(message: String) {
@@ -388,7 +495,9 @@ class GatheringAccessibilityService : AccessibilityService() {
             overlayView as? LinearLayout
                 ?: return
 
-        if (container.childCount < 4) return
+        if (container.childCount < 4) {
+            return
+        }
 
         val info =
             container.getChildAt(3) as? TextView
@@ -396,6 +505,12 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         info.text = message
     }
+
+    /*
+     * Tap helper.
+     *
+     * NOT USED BY THE SCANNER YET.
+     */
 
     fun tap(x: Float, y: Float) {
 
