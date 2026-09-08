@@ -22,17 +22,8 @@ class GatheringAccessibilityService : AccessibilityService() {
     private var running = false
     private var overlayView: View? = null
 
-    private var x = 500f
-    private var y = 800f
-
-    private val tapRunnable = object : Runnable {
-        override fun run() {
-            if (running) {
-                tap(x, y)
-                handler.postDelayed(this, 2000)
-            }
-        }
-    }
+    private lateinit var statusText: TextView
+    private lateinit var startStopButton: Button
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -40,7 +31,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Accessibility events can be handled here later.
+        // Scanner will be connected here in the next step.
     }
 
     override fun onInterrupt() {
@@ -64,30 +55,28 @@ class GatheringAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER
         }
 
-        val startStop = Button(this).apply {
+        startStopButton = Button(this).apply {
             text = "▶ START"
 
             setOnClickListener {
                 if (running) {
                     stopAutomation()
-                    text = "▶ START"
                 } else {
                     startAutomation()
-                    text = "■ STOP"
                 }
             }
         }
 
-        val info = TextView(this).apply {
-            text = "Tap test: ($x, $y)"
+        statusText = TextView(this).apply {
+            text = "Ready"
             textSize = 11f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
         }
 
         container.addView(title)
-        container.addView(startStop)
-        container.addView(info)
+        container.addView(startStopButton)
+        container.addView(statusText)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -101,7 +90,8 @@ class GatheringAccessibilityService : AccessibilityService() {
         params.x = 20
         params.y = 150
 
-        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val windowManager =
+            getSystemService(WINDOW_SERVICE) as WindowManager
 
         windowManager.addView(container, params)
 
@@ -114,17 +104,65 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         running = true
 
-        handler.removeCallbacks(tapRunnable)
-        handler.post(tapRunnable)
+        startStopButton.text = "■ STOP"
+        statusText.text = "Scanning..."
+
+        /*
+         * IMPORTANT:
+         * We deliberately do NOT tap fixed coordinates anymore.
+         *
+         * The next scanner module will:
+         *
+         * 1. Capture the game screen.
+         * 2. Find visible RSS text.
+         * 3. Detect RSS type.
+         * 4. Detect RSS level.
+         * 5. Determine tile position.
+         * 6. Compare against the user's RSS preference.
+         * 7. Select the best candidate.
+         */
+
+        startScanCycle()
     }
 
     private fun stopAutomation() {
 
         running = false
-        handler.removeCallbacks(tapRunnable)
+
+        if (::startStopButton.isInitialized) {
+            startStopButton.text = "▶ START"
+        }
+
+        if (::statusText.isInitialized) {
+            statusText.text = "Stopped"
+        }
+
+        handler.removeCallbacksAndMessages(null)
     }
 
-    fun tap(x: Float, y: Float) {
+    private fun startScanCycle() {
+
+        if (!running) return
+
+        statusText.text = "Scanner ready"
+
+        /*
+         * Scanner implementation goes here.
+         *
+         * No automatic tap is performed yet.
+         * This prevents the app from blindly tapping
+         * arbitrary locations on the game screen.
+         */
+
+        handler.postDelayed({
+            if (running) {
+                statusText.text = "Waiting for scanner..."
+                startScanCycle()
+            }
+        }, 3000)
+    }
+
+    private fun tap(x: Float, y: Float) {
 
         val path = Path()
         path.moveTo(x, y)
@@ -147,6 +185,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         stopAutomation()
 
         overlayView?.let {
+
             val windowManager =
                 getSystemService(WINDOW_SERVICE) as WindowManager
 
