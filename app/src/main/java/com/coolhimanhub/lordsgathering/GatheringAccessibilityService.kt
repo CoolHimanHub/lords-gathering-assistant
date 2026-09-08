@@ -2,9 +2,11 @@ package com.coolhimanhub.lordsgatheringassistant
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -30,7 +32,6 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Game-screen events will be processed by the scanner later.
     }
 
     override fun onInterrupt() {
@@ -113,7 +114,6 @@ class GatheringAccessibilityService : AccessibilityService() {
         if (running) return
 
         running = true
-
         handler.post(scanRunnable)
     }
 
@@ -139,30 +139,51 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         scanCount++
 
-        /*
-         * SCREEN SCANNER FOUNDATION
-         *
-         * The next stage will:
-         *
-         * 1. Capture the Lords Mobile screen.
-         * 2. Find nearby RSS tiles.
-         * 3. Detect RSS type:
-         *      Gems
-         *      Emerging
-         *      Gold
-         *      Ore
-         *      Stone
-         *      Wood
-         *      Food
-         *      Other
-         * 4. Detect RSS level.
-         * 5. Calculate distance from the player's location.
-         * 6. Apply the user's saved RSS preference.
-         * 7. Select the best tile.
-         * 8. Tap the selected tile.
-         */
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            updateInfo("Scan #$scanCount - screen capture unavailable")
+            return
+        }
 
-        updateInfo("Scan #$scanCount - screenshot scanner ready")
+        updateInfo("Scan #$scanCount - capturing screen...")
+
+        takeScreenshot(
+            displayId = android.view.Display.DEFAULT_DISPLAY,
+            0,
+            object : TakeScreenshotCallback {
+                override fun onSuccess(
+                    screenshot: ScreenshotResult
+                ) {
+                    val bitmap = screenshot.hardwareBuffer.let {
+                        Bitmap.wrapHardwareBuffer(
+                            it,
+                            screenshot.colorSpace
+                        )
+                    }
+
+                    screenshot.hardwareBuffer.close()
+
+                    if (bitmap == null) {
+                        updateInfo("Scan #$scanCount - capture failed")
+                        return
+                    }
+
+                    val width = bitmap.width
+                    val height = bitmap.height
+
+                    updateInfo(
+                        "Scan #$scanCount - screen captured ${width}x${height}"
+                    )
+
+                    bitmap.recycle()
+                }
+
+                override fun onFailure(errorCode: Int) {
+                    updateInfo(
+                        "Scan #$scanCount - capture failed ($errorCode)"
+                    )
+                }
+            }
+        )
     }
 
     private fun updateInfo(message: String) {
@@ -195,23 +216,22 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         dispatchGesture(gesture, null, null)
     }
-override fun onDestroy() {
 
-    stopAutomation()
+    override fun onDestroy() {
 
-    overlayView?.let {
-        val windowManager =
-            getSystemService(WINDOW_SERVICE) as WindowManager
+        stopAutomation()
 
-        try {
-            windowManager.removeView(it)
-        } catch (_: Exception) {
-            // View may already have been removed by the system.
+        overlayView?.let {
+            val windowManager =
+                getSystemService(WINDOW_SERVICE) as WindowManager
+
+            try {
+                windowManager.removeView(it)
+            } catch (_: Exception) {
+            }
         }
-    }
 
-    overlayView = null
-    super.onDestroy()
+        overlayView = null
+        super.onDestroy()
+    }
 }
-}
-    
