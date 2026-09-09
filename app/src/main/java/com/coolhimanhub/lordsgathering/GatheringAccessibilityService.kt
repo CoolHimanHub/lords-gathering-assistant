@@ -2163,31 +2163,16 @@ val bottom =
 
 
         val left =
-            max(
-                0,
-                bx - 100
-            )
+    max(0, bx - 75)
 
+val right =
+    min(bitmap.width - 1, bx - 8)
 
-        val right =
-            min(
-                bitmap.width - 1,
-                bx + 20
-            )
+val top =
+    max(0, by - 28)
 
-
-        val top =
-            max(
-                0,
-                by - 95
-            )
-
-
-        val bottom =
-            min(
-                bitmap.height - 1,
-                by + 10
-            )
+val bottom =
+    min(bitmap.height - 1, by + 32)
 
 
         var y =
