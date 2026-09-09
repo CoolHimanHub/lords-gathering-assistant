@@ -22,41 +22,76 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-class GatheringAccessibilityService : AccessibilityService() {
+
+class GatheringAccessibilityService :
+    AccessibilityService() {
+
 
     // =============================================================
     // BASIC STATE
     // =============================================================
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler =
+        Handler(Looper.getMainLooper())
+
 
     private val analysisExecutor =
         Executors.newSingleThreadExecutor()
 
+
     @Volatile
     private var running = false
+
 
     @Volatile
     private var screenshotInProgress = false
 
+
     @Volatile
     private var serviceAlive = true
 
-    private var overlayView: LinearLayout? = null
+
+    private var overlayView:
+        LinearLayout? = null
+
 
     private var overlayParams:
         WindowManager.LayoutParams? = null
 
+
     private var windowManager:
         WindowManager? = null
 
-    private var infoText: TextView? = null
 
-    private var startStopButton: Button? = null
+    private var infoText:
+        TextView? = null
 
-    private var scanButton: Button? = null
+
+    private var startStopButton:
+        Button? = null
+
+
+    private var scanButton:
+        Button? = null
+
 
     private var scanCount = 0
+
+
+    // =============================================================
+    // V6 SETTINGS
+    // =============================================================
+
+    private val scanInterval =
+        4000L
+
+
+    private val minimumConfidence =
+        20
+
+
+    private val maximumDisplayedTargets =
+        6
 
 
     // =============================================================
@@ -76,7 +111,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
     // =============================================================
-    // RSS DATA
+    // RSS CANDIDATE
     // =============================================================
 
     private data class RssCandidate(
@@ -91,7 +126,11 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         val confidence: Int,
 
-        val occupied: Boolean
+        val occupied: Boolean,
+
+        val occupationScore: Int,
+
+        val targetScore: Int
     )
 
 
@@ -112,9 +151,11 @@ class GatheringAccessibilityService : AccessibilityService() {
                     WINDOW_SERVICE
                 ) as WindowManager
 
+
             handler.post {
 
                 if (serviceAlive) {
+
                     showFloatingControl()
                 }
             }
@@ -126,11 +167,15 @@ class GatheringAccessibilityService : AccessibilityService() {
                 "Overlay retrying..."
             )
 
+
             handler.postDelayed(
                 {
+
                     if (serviceAlive) {
+
                         recreateOverlay()
                     }
+
                 },
                 1000
             )
@@ -141,7 +186,8 @@ class GatheringAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(
         event: AccessibilityEvent?
     ) {
-        // Reserved for future use.
+
+        // Reserved for future gathering engine.
     }
 
 
@@ -161,9 +207,11 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
+
         if (overlayView != null) {
             return
         }
+
 
         val wm =
             windowManager
@@ -178,11 +226,12 @@ class GatheringAccessibilityService : AccessibilityService() {
                     return
                 }
 
+
         windowManager = wm
 
 
         // ---------------------------------------------------------
-        // MAIN CONTAINER
+        // CONTAINER
         // ---------------------------------------------------------
 
         val container =
@@ -191,12 +240,14 @@ class GatheringAccessibilityService : AccessibilityService() {
                 orientation =
                     LinearLayout.VERTICAL
 
+
                 setPadding(
                     10,
                     8,
                     10,
                     8
                 )
+
 
                 setBackgroundColor(
                     Color.rgb(
@@ -209,24 +260,28 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
         // ---------------------------------------------------------
-        // TITLE / DRAG HANDLE
+        // TITLE
         // ---------------------------------------------------------
 
         val title =
             TextView(this).apply {
 
                 text =
-                    "Lords Assistant V5"
+                    "Lords Assistant V6"
+
 
                 textSize =
                     16f
+
 
                 setTextColor(
                     Color.WHITE
                 )
 
+
                 gravity =
                     Gravity.CENTER
+
 
                 setPadding(
                     8,
@@ -238,21 +293,25 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
         // ---------------------------------------------------------
-        // DRAG
+        // DRAG HANDLE
         // ---------------------------------------------------------
 
         title.setOnTouchListener(
+
             object :
                 View.OnTouchListener {
 
                 private var startX =
                     0f
 
+
                 private var startY =
                     0f
 
+
                 private var startParamX =
                     0
+
 
                 private var startParamY =
                     0
@@ -277,14 +336,18 @@ class GatheringAccessibilityService : AccessibilityService() {
                             startX =
                                 event.rawX
 
+
                             startY =
                                 event.rawY
+
 
                             startParamX =
                                 params.x
 
+
                             startParamY =
                                 params.y
+
 
                             return true
                         }
@@ -298,6 +361,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                                         event.rawX -
                                         startX
                                     ).toInt()
+
 
                             params.y =
                                 (
@@ -317,6 +381,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                             } catch (_: Exception) {
                             }
 
+
                             return true
                         }
 
@@ -327,6 +392,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                             return true
                         }
                     }
+
 
                     return true
                 }
@@ -405,18 +471,22 @@ class GatheringAccessibilityService : AccessibilityService() {
             TextView(this).apply {
 
                 text =
-                    "V5 Scanner ready\n" +
+                    "V6 Scanner ready\n" +
                     "SAFE TEST: no troop sent"
+
 
                 textSize =
                     11f
+
 
                 setTextColor(
                     Color.WHITE
                 )
 
+
                 gravity =
                     Gravity.CENTER
+
 
                 setPadding(
                     4,
@@ -430,8 +500,10 @@ class GatheringAccessibilityService : AccessibilityService() {
         infoText =
             info
 
+
         startStopButton =
             startButton
+
 
         scanButton =
             scanBtn
@@ -441,13 +513,16 @@ class GatheringAccessibilityService : AccessibilityService() {
             title
         )
 
+
         container.addView(
             startButton
         )
 
+
         container.addView(
             scanBtn
         )
+
 
         container.addView(
             info
@@ -479,8 +554,10 @@ class GatheringAccessibilityService : AccessibilityService() {
             Gravity.TOP or
                 Gravity.START
 
+
         params.x =
             100
+
 
         params.y =
             150
@@ -501,12 +578,13 @@ class GatheringAccessibilityService : AccessibilityService() {
                 params
             )
 
+
             overlayView =
                 container
 
 
             safeStatus(
-                "V5 Scanner ready\n" +
+                "V6 Scanner ready\n" +
                 "Press SCAN\n" +
                 "SAFE TEST: no troop sent"
             )
@@ -516,14 +594,18 @@ class GatheringAccessibilityService : AccessibilityService() {
             overlayView =
                 null
 
+
             overlayParams =
                 null
+
 
             infoText =
                 null
 
+
             startStopButton =
                 null
+
 
             scanButton =
                 null
@@ -531,9 +613,12 @@ class GatheringAccessibilityService : AccessibilityService() {
 
             handler.postDelayed(
                 {
+
                     if (serviceAlive) {
+
                         recreateOverlay()
                     }
+
                 },
                 1000
             )
@@ -551,9 +636,11 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
+
         if (overlayView != null) {
             return
         }
+
 
         try {
 
@@ -574,6 +661,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
+
         if (!serviceAlive) {
             return
         }
@@ -587,10 +675,11 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
         safeStatus(
-            "V5 AUTO SCAN started\n" +
+            "V6 AUTO SCAN started\n" +
             "Scanning every 4 seconds\n" +
+            "Target selection enabled\n" +
             "No map movement\n" +
-            "SAFE TEST: no troop sent"
+            "No troop sent"
         )
 
 
@@ -607,7 +696,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
     // =============================================================
-    // STOP AUTOMATION
+    // STOP
     // =============================================================
 
     private fun stopAutomation() {
@@ -646,6 +735,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                     !running ||
                     !serviceAlive
                 ) {
+
                     return
                 }
 
@@ -670,7 +760,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
                     handler.postDelayed(
                         this,
-                        4000
+                        scanInterval
                     )
                 }
             }
@@ -698,6 +788,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                 "Accessibility screenshot API"
             )
 
+
             return
         }
 
@@ -708,6 +799,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                 "Scan already running...\n" +
                 "Previous capture still processing"
             )
+
 
             return
         }
@@ -752,8 +844,10 @@ class GatheringAccessibilityService : AccessibilityService() {
                                 screenshot
                             )
 
+
                             screenshotInProgress =
                                 false
+
 
                             return
                         }
@@ -777,11 +871,9 @@ class GatheringAccessibilityService : AccessibilityService() {
                         safeStatus(
 
                             "Scan #$thisScan\n" +
-
-                                "Capture failed: " +
-                                errorCode +
-
-                                "\nSAFE TEST: no troop sent"
+                            "Capture failed: " +
+                            errorCode +
+                            "\nSAFE TEST: no troop sent"
                         )
                     }
                 }
@@ -796,12 +888,9 @@ class GatheringAccessibilityService : AccessibilityService() {
             safeStatus(
 
                 "Scan #$thisScan\n" +
-
-                    "Capture exception: " +
-
-                    e.javaClass.simpleName +
-
-                    "\nSAFE TEST: no troop sent"
+                "Capture exception: " +
+                e.javaClass.simpleName +
+                "\nSAFE TEST: no troop sent"
             )
         }
     }
@@ -851,6 +940,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                     "SAFE TEST: no troop sent"
                 )
 
+
                 return
             }
 
@@ -877,6 +967,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                     "Bitmap copy failed\n" +
                     "SAFE TEST: no troop sent"
                 )
+
 
                 return
             }
@@ -919,15 +1010,6 @@ class GatheringAccessibilityService : AccessibilityService() {
 
                 } finally {
 
-                    /*
-                     * IMPORTANT:
-                     *
-                     * Do NOT manually recycle
-                     * this bitmap.
-                     *
-                     * Let Android/GC manage it.
-                     */
-
                     screenshotInProgress =
                         false
                 }
@@ -948,11 +1030,6 @@ class GatheringAccessibilityService : AccessibilityService() {
                 false
 
         } finally {
-
-            /*
-             * Screenshot hardware buffer
-             * MUST be closed.
-             */
 
             closeScreenshot(
                 screenshot
@@ -980,7 +1057,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
     // =============================================================
-    // SCREEN ANALYSIS
+    // MAIN SCREEN ANALYSIS
     // =============================================================
 
     private fun analyseScreen(
@@ -1004,38 +1081,34 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
 
 
-        if (
-            candidates.isEmpty()
-        ) {
+        val cleaned =
+            removeDuplicates(
+                candidates
+            )
+
+
+        if (cleaned.isEmpty()) {
 
             safeStatus(
 
                 "Scan #$thisScan\n" +
                 "No RSS markers detected\n" +
                 "Move the kingdom map and SCAN again\n" +
+                "VISIBLE SCREEN ONLY\n" +
                 "SAFE TEST: no troop sent"
             )
+
 
             return
         }
 
 
         val sorted =
-            removeDuplicates(
-                candidates
-            ).sortedWith(
+            cleaned.sortedWith(
 
-                compareBy<RssCandidate> {
+                compareByDescending<RssCandidate> {
 
-                    val index =
-                        rssPriority.indexOf(
-                            it.type
-                        )
-
-                    if (index < 0)
-                        999
-                    else
-                        index
+                    it.targetScore
 
                 }.thenByDescending {
 
@@ -1048,10 +1121,14 @@ class GatheringAccessibilityService : AccessibilityService() {
             )
 
 
-        val best =
-            sorted.firstOrNull {
+        val emptyTargets =
+            sorted.filter {
                 !it.occupied
             }
+
+
+        val best =
+            emptyTargets.firstOrNull()
 
 
         val output =
@@ -1078,11 +1155,26 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
 
 
+        output.append(
+            "EMPTY: "
+        )
+
+
+        output.append(
+            emptyTargets.size
+        )
+
+
+        output.append(
+            "\n"
+        )
+
+
         for (
             i in 0 until
                 min(
                     sorted.size,
-                    8
+                    maximumDisplayedTargets
                 )
         ) {
 
@@ -1135,12 +1227,32 @@ class GatheringAccessibilityService : AccessibilityService() {
             )
 
 
+            output.append(
+                " C"
+            )
+
+
+            output.append(
+                rss.confidence
+            )
+
+
+            output.append(
+                " S"
+            )
+
+
+            output.append(
+                rss.targetScore
+            )
+
+
             if (
                 rss.occupied
             ) {
 
                 output.append(
-                    " [OCCUPIED?]"
+                    " [OCCUPIED]"
                 )
             }
 
@@ -1151,10 +1263,15 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
 
 
+        output.append(
+            "\n"
+        )
+
+
         if (best != null) {
 
             output.append(
-                "BEST: "
+                "SAFE TARGET:\n"
             )
 
 
@@ -1174,7 +1291,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
             output.append(
-                " ("
+                " @ "
             )
 
 
@@ -1194,24 +1311,55 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
             output.append(
-                ")\n"
+                "\n"
             )
+
+
+            output.append(
+                "Confidence: "
+            )
+
+
+            output.append(
+                best.confidence
+            )
+
+
+            output.append(
+                "\n"
+            )
+
+
+            output.append(
+                "Occupation score: "
+            )
+
+
+            output.append(
+                best.occupationScore
+            )
+
 
         } else {
 
             output.append(
-                "BEST: none\n"
+                "SAFE TARGET: NONE\n"
+            )
+
+
+            output.append(
+                "All detected RSS are suspicious/occupied"
             )
         }
 
 
         output.append(
-            "VISIBLE SCREEN ONLY\n"
+            "\nVISIBLE SCREEN ONLY"
         )
 
 
         output.append(
-            "SAFE TEST: no troop sent"
+            "\nSAFE TEST: no troop sent"
         )
 
 
@@ -1232,6 +1380,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         val width =
             bitmap.width
+
 
         val height =
             bitmap.height
@@ -1376,12 +1525,14 @@ class GatheringAccessibilityService : AccessibilityService() {
                     visited[startIndex] =
                         true
 
+
                     continue
                 }
 
 
                 var head =
                     0
+
 
                 var tail =
                     0
@@ -1390,8 +1541,10 @@ class GatheringAccessibilityService : AccessibilityService() {
                 queueX[tail] =
                     gx
 
+
                 queueY[tail] =
                     gy
+
 
                 tail++
 
@@ -1403,14 +1556,18 @@ class GatheringAccessibilityService : AccessibilityService() {
                 var minX =
                     gx
 
+
                 var maxX =
                     gx
+
 
                 var minY =
                     gy
 
+
                 var maxY =
                     gy
+
 
                 var pixels =
                     0
@@ -1423,8 +1580,10 @@ class GatheringAccessibilityService : AccessibilityService() {
                     val cx =
                         queueX[head]
 
+
                     val cy =
                         queueY[head]
+
 
                     head++
 
@@ -1485,6 +1644,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         val x2 =
                             nx[k]
 
+
                         val y2 =
                             ny[k]
 
@@ -1495,6 +1655,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                             x2 >= gridWidth ||
                             y2 >= gridHeight
                         ) {
+
                             continue
                         }
 
@@ -1508,6 +1669,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         if (
                             visited[index]
                         ) {
+
                             continue
                         }
 
@@ -1528,8 +1690,10 @@ class GatheringAccessibilityService : AccessibilityService() {
                             queueX[tail] =
                                 x2
 
+
                             queueY[tail] =
                                 y2
+
 
                             tail++
                         }
@@ -1601,27 +1765,54 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
                 if (
-                    confidence < 20
+                    confidence <
+                    minimumConfidence
                 ) {
 
                     continue
                 }
 
 
+                val occupationScore =
+                    occupationScore(
+                        bitmap,
+                        centerX,
+                        centerY
+                    )
+
+
+                val occupied =
+                    occupationScore >= 35
+
+
+                val level =
+                    estimateLevel(
+                        bitmap,
+                        centerX,
+                        centerY,
+                        boxWidth,
+                        boxHeight
+                    )
+
+
+                val targetScore =
+                    calculateTargetScore(
+                        type,
+                        level,
+                        confidence,
+                        occupationScore
+                    )
+
+
                 result.add(
 
                     RssCandidate(
 
-                        type = type,
+                        type =
+                            type,
 
                         level =
-                            estimateLevel(
-                                bitmap,
-                                centerX,
-                                centerY,
-                                boxWidth,
-                                boxHeight
-                            ),
+                            level,
 
                         x =
                             centerX,
@@ -1633,11 +1824,13 @@ class GatheringAccessibilityService : AccessibilityService() {
                             confidence,
 
                         occupied =
-                            looksOccupied(
-                                bitmap,
-                                centerX,
-                                centerY
-                            )
+                            occupied,
+
+                        occupationScore =
+                            occupationScore,
+
+                        targetScore =
+                            targetScore
                     )
                 )
             }
@@ -1645,6 +1838,66 @@ class GatheringAccessibilityService : AccessibilityService() {
 
 
         return result
+    }
+
+
+    // =============================================================
+    // TARGET SCORE
+    // =============================================================
+
+    private fun calculateTargetScore(
+        type:
+            String,
+
+        level:
+            Int,
+
+        confidence:
+            Int,
+
+        occupation:
+            Int
+    ): Int {
+
+        val priorityIndex =
+            rssPriority.indexOf(
+                type
+            )
+
+
+        val priorityScore =
+            when {
+
+                priorityIndex < 0 ->
+                    0
+
+                else ->
+                    (
+                        rssPriority.size -
+                            priorityIndex
+                        ) * 100
+            }
+
+
+        val levelScore =
+            level * 35
+
+
+        val confidenceScore =
+            confidence
+
+
+        val occupationPenalty =
+            occupation * 5
+
+
+        return (
+            priorityScore +
+                levelScore +
+                confidenceScore -
+                occupationPenalty
+            )
+            .coerceAtLeast(0)
     }
 
 
@@ -1666,14 +1919,18 @@ class GatheringAccessibilityService : AccessibilityService() {
         var yellow =
             0
 
+
         var brown =
             0
+
 
         var gray =
             0
 
+
         var cyan =
             0
+
 
         var orange =
             0
@@ -1751,9 +2008,9 @@ class GatheringAccessibilityService : AccessibilityService() {
                 if (
                     !(
                         b > 100 &&
-                        b >
-                        r * 1.2f
-                    )
+                            b >
+                            r * 1.2f
+                        )
                 ) {
 
                     if (
@@ -1761,6 +2018,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         g > 115 &&
                         b < 100
                     ) {
+
                         yellow++
                     }
 
@@ -1772,6 +2030,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         r >
                         g * 1.10f
                     ) {
+
                         brown++
                     }
 
@@ -1781,6 +2040,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         abs(g - b) < 28 &&
                         r in 85..220
                     ) {
+
                         gray++
                     }
 
@@ -1791,6 +2051,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         b >
                         r * 1.15f
                     ) {
+
                         cyan++
                     }
 
@@ -1802,6 +2063,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                         r >
                         g * 1.12f
                     ) {
+
                         orange++
                     }
                 }
@@ -1818,15 +2080,19 @@ class GatheringAccessibilityService : AccessibilityService() {
         val food =
             yellow * 4
 
+
         val gold =
             yellow * 3 +
                 orange * 2
 
+
         val wood =
             brown * 4
 
+
         val stone =
             gray * 5
+
 
         val ore =
             cyan * 4 +
@@ -1899,6 +2165,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         var total =
             0
+
 
         var match =
             0
@@ -1976,9 +2243,9 @@ class GatheringAccessibilityService : AccessibilityService() {
                 if (
                     !(
                         b > 100 &&
-                        b >
-                        r * 1.2f
-                    )
+                            b >
+                            r * 1.2f
+                        )
                 ) {
 
                     total++
@@ -2087,6 +2354,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         var white =
             0
 
+
         var blue =
             0
 
@@ -2165,6 +2433,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                     g > 180 &&
                     b > 180
                 ) {
+
                     white++
                 }
 
@@ -2174,6 +2443,7 @@ class GatheringAccessibilityService : AccessibilityService() {
                     b >
                     r * 1.2f
                 ) {
+
                     blue++
                 }
 
@@ -2189,6 +2459,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         if (
             blue < 5
         ) {
+
             return 0
         }
 
@@ -2198,15 +2469,220 @@ class GatheringAccessibilityService : AccessibilityService() {
             white in 2..12 ->
                 1
 
+
             white in 13..28 ->
                 2
+
 
             white > 28 ->
                 3
 
+
             else ->
                 0
         }
+    }
+
+
+    // =============================================================
+    // OCCUPATION SCORE
+    // =============================================================
+    //
+    // This is deliberately a suspicion score rather than a
+    // simple "red line = occupied" rule.
+    //
+    // It checks several visual regions around the RSS marker.
+    //
+    // V6 DOES NOT SEND TROOPS.
+    //
+    // =============================================================
+
+    private fun occupationScore(
+        bitmap:
+            Bitmap,
+
+        centerX:
+            Int,
+
+        centerY:
+            Int
+    ): Int {
+
+        var suspicious =
+            0
+
+
+        var samples =
+            0
+
+
+        val left =
+            max(
+                0,
+                centerX - 75
+            )
+
+
+        val right =
+            min(
+                bitmap.width - 1,
+                centerX + 75
+            )
+
+
+        val top =
+            max(
+                0,
+                centerY - 75
+            )
+
+
+        val bottom =
+            min(
+                bitmap.height - 1,
+                centerY + 75
+            )
+
+
+        var y =
+            top
+
+
+        while (
+            y <= bottom
+        ) {
+
+            var x =
+                left
+
+
+            while (
+                x <= right
+            ) {
+
+                val dx =
+                    x - centerX
+
+
+                val dy =
+                    y - centerY
+
+
+                val distanceSquared =
+                    dx * dx +
+                        dy * dy
+
+
+                if (
+                    distanceSquared <=
+                    75 * 75
+                ) {
+
+                    val pixel =
+                        bitmap.getPixel(
+                            x,
+                            y
+                        )
+
+
+                    val r =
+                        Color.red(
+                            pixel
+                        )
+
+
+                    val g =
+                        Color.green(
+                            pixel
+                        )
+
+
+                    val b =
+                        Color.blue(
+                            pixel
+                        )
+
+
+                    samples++
+
+
+                    // -------------------------------------------------
+                    // RED / ORANGE MARCH INDICATORS
+                    // -------------------------------------------------
+
+                    if (
+
+                        r > 175 &&
+                        r >
+                        g * 1.35f &&
+                        r >
+                        b * 1.25f
+
+                    ) {
+
+                        suspicious += 2
+                    }
+
+
+                    // -------------------------------------------------
+                    // RED + BLUE / PURPLE STYLE MARKERS
+                    // -------------------------------------------------
+
+                    else if (
+
+                        r > 130 &&
+                        b > 100 &&
+                        r >
+                        g * 1.20f
+
+                    ) {
+
+                        suspicious += 1
+                    }
+
+
+                    // -------------------------------------------------
+                    // WHITE/YELLOW LINE-LIKE INDICATORS
+                    // -------------------------------------------------
+
+                    else if (
+
+                        r > 190 &&
+                        g > 170 &&
+                        b > 120 &&
+                        abs(r - g) < 70
+
+                    ) {
+
+                        suspicious += 1
+                    }
+                }
+
+
+                x += 4
+            }
+
+
+            y += 4
+        }
+
+
+        if (
+            samples == 0
+        ) {
+
+            return 0
+        }
+
+
+        return min(
+            100,
+            suspicious * 100 /
+                max(
+                    1,
+                    samples / 5
+                )
+        )
     }
 
 
@@ -2225,113 +2701,11 @@ class GatheringAccessibilityService : AccessibilityService() {
             Int
     ): Boolean {
 
-        var suspicious =
-            0
-
-
-        val left =
-            max(
-                0,
-                x - 55
-            )
-
-
-        val right =
-            min(
-                bitmap.width - 1,
-                x + 55
-            )
-
-
-        val top =
-            max(
-                0,
-                y - 55
-            )
-
-
-        val bottom =
-            min(
-                bitmap.height - 1,
-                y + 55
-            )
-
-
-        var yy =
-            top
-
-
-        while (
-            yy <= bottom
-        ) {
-
-            var xx =
-                left
-
-
-            while (
-                xx <= right
-            ) {
-
-                val pixel =
-                    bitmap.getPixel(
-                        xx,
-                        yy
-                    )
-
-
-                val red =
-                    Color.red(
-                        pixel
-                    )
-
-
-                val green =
-                    Color.green(
-                        pixel
-                    )
-
-
-                val blue =
-                    Color.blue(
-                        pixel
-                    )
-
-
-                if (
-
-                    (
-                        red > 175 &&
-                            red >
-                            green * 1.35f &&
-                            red >
-                            blue * 1.35f
-                        )
-
-                    ||
-
-                    (
-                        red > 130 &&
-                            blue > 100 &&
-                            red >
-                            green * 1.25f
-                        )
-
-                ) {
-
-                    suspicious++
-                }
-
-
-                xx += 4
-            }
-
-
-            yy += 4
-        }
-
-
-        return suspicious > 35
+        return occupationScore(
+            bitmap,
+            x,
+            y
+        ) >= 35
     }
 
 
@@ -2375,13 +2749,20 @@ class GatheringAccessibilityService : AccessibilityService() {
                     candidate
                 )
 
-            } else if (
-                candidate.confidence >
-                output[existing].confidence
-            ) {
+            } else {
 
-                output[existing] =
-                    candidate
+                val old =
+                    output[existing]
+
+
+                if (
+                    candidate.targetScore >
+                    old.targetScore
+                ) {
+
+                    output[existing] =
+                        candidate
+                }
             }
         }
 
@@ -2448,9 +2829,9 @@ class GatheringAccessibilityService : AccessibilityService() {
     // ACCESSIBILITY TAP
     // =============================================================
     //
-    // RESERVED FOR FUTURE GATHERING ENGINE.
+    // RESERVED ONLY.
     //
-    // V5 NEVER CALLS THIS.
+    // V6 DOES NOT CALL THIS.
     //
     // =============================================================
 
