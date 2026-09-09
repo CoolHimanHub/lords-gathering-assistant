@@ -2959,4 +2959,124 @@ class GatheringAccessibilityService :
 
         super.onDestroy()
     }
+    // =============================================================
+    // V6.1 DIAGNOSTIC
+    // =============================================================
+
+    private fun showDiagnostic(
+        candidates: List<RssCandidate>
+    ) {
+
+        if (!serviceAlive) {
+            return
+        }
+
+        if (candidates.isEmpty()) {
+
+            safeStatus(
+                "V6.1 DIAGNOSTIC\n" +
+                "No blue RSS components found\n" +
+                "Try opening the kingdom map\n" +
+                "and press SCAN again"
+            )
+
+            return
+        }
+
+        val text =
+            StringBuilder()
+
+        text.append(
+            "V6.1 DIAGNOSTIC\n"
+        )
+
+        text.append(
+            "Components: "
+        )
+
+        text.append(
+            candidates.size
+        )
+
+        text.append(
+            "\n\n"
+        )
+
+        for (
+            i in 0 until
+                min(
+                    candidates.size,
+                    10
+                )
+        ) {
+
+            val c =
+                candidates[i]
+
+            text.append(
+                "${i + 1}. "
+            )
+
+            text.append(
+                c.type
+            )
+
+            text.append(
+                " Lv"
+            )
+
+            text.append(
+                c.level
+            )
+
+            text.append(
+                " @ "
+            )
+
+            text.append(
+                c.x
+            )
+
+            text.append(
+                ","
+            )
+
+            text.append(
+                c.y
+            )
+
+            text.append(
+                "\nC="
+            )
+
+            text.append(
+                c.confidence
+            )
+
+            text.append(
+                " O="
+            )
+
+            text.append(
+                c.occupationScore
+            )
+
+            text.append(
+                " S="
+            )
+
+            text.append(
+                c.targetScore
+            )
+
+            text.append(
+                "\n\n"
+            )
+        }
+
+        safeStatus(
+            text.toString()
+        )
+    }
+
 }
