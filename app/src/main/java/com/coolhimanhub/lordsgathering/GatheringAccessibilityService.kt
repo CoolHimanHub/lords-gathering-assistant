@@ -39,6 +39,9 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private var scanCount = 0
 
+    // Prevent repeated overlay recreation attempts.
+    private var overlayCreating = false
+
     // =============================================================
     // ACCESSIBILITY SERVICE
     // =============================================================
@@ -50,18 +53,28 @@ class GatheringAccessibilityService : AccessibilityService() {
             windowManager =
                 getSystemService(WINDOW_SERVICE) as WindowManager
 
-            showFloatingControl()
+            // Give Android a moment after service connection.
+            handler.postDelayed(
+                {
+                    recreateOverlay()
+                },
+                300
+            )
 
         } catch (e: Exception) {
 
-            // Do not allow an exception here to kill the service.
-            handler.post {
-                recreateOverlay()
-            }
+            handler.postDelayed(
+                {
+                    recreateOverlay()
+                },
+                1000
+            )
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+    override fun onAccessibilityEvent(
+        event: AccessibilityEvent?
+    ) {
         // Nothing required here yet.
     }
 
@@ -75,15 +88,38 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun showFloatingControl() {
 
-        // Already visible.
+        // ---------------------------------------------------------
+        // IMPORTANT:
+        // Remove stale overlay references.
+        //
+        // Previously the code returned immediately when
+        // overlayView != null. If Android/Xiaomi had already
+        // removed the actual view, the reference could remain and
+        // the application would never recreate the box.
+        // ---------------------------------------------------------
+
         if (overlayView != null) {
-            return
+
+            try {
+                windowManager?.removeViewImmediate(
+                    overlayView
+                )
+            } catch (_: Exception) {
+            }
+
+            overlayView = null
+            overlayParams = null
+            infoText = null
+            startStopButton = null
+            scanButton = null
         }
 
         val wm =
             windowManager
                 ?: try {
-                    getSystemService(WINDOW_SERVICE) as WindowManager
+                    getSystemService(
+                        WINDOW_SERVICE
+                    ) as WindowManager
                 } catch (_: Exception) {
                     return
                 }
@@ -97,7 +133,8 @@ class GatheringAccessibilityService : AccessibilityService() {
         val container =
             LinearLayout(this).apply {
 
-                orientation = LinearLayout.VERTICAL
+                orientation =
+                    LinearLayout.VERTICAL
 
                 setPadding(
                     10,
@@ -107,7 +144,11 @@ class GatheringAccessibilityService : AccessibilityService() {
                 )
 
                 setBackgroundColor(
-                    Color.rgb(65, 65, 65)
+                    Color.rgb(
+                        65,
+                        65,
+                        65
+                    )
                 )
             }
 
@@ -118,13 +159,18 @@ class GatheringAccessibilityService : AccessibilityService() {
         val title =
             TextView(this).apply {
 
-                text = "Lords Assistant"
+                text =
+                    "Lords Assistant"
 
-                textSize = 16f
+                textSize =
+                    16f
 
-                setTextColor(Color.WHITE)
+                setTextColor(
+                    Color.WHITE
+                )
 
-                gravity = Gravity.CENTER
+                gravity =
+                    Gravity.CENTER
 
                 setPadding(
                     8,
@@ -134,15 +180,24 @@ class GatheringAccessibilityService : AccessibilityService() {
                 )
             }
 
-        // Drag functionality.
+        // ---------------------------------------------------------
+        // DRAG FUNCTIONALITY
+        // ---------------------------------------------------------
+
         title.setOnTouchListener(
             object : View.OnTouchListener {
 
-                private var startX = 0f
-                private var startY = 0f
+                private var startX =
+                    0f
 
-                private var startParamX = 0
-                private var startParamY = 0
+                private var startY =
+                    0f
+
+                private var startParamX =
+                    0
+
+                private var startParamY =
+                    0
 
                 override fun onTouch(
                     view: View?,
@@ -153,15 +208,23 @@ class GatheringAccessibilityService : AccessibilityService() {
                         overlayParams
                             ?: return false
 
-                    when (event.actionMasked) {
+                    when (
+                        event.actionMasked
+                    ) {
 
                         MotionEvent.ACTION_DOWN -> {
 
-                            startX = event.rawX
-                            startY = event.rawY
+                            startX =
+                                event.rawX
 
-                            startParamX = params.x
-                            startParamY = params.y
+                            startY =
+                                event.rawY
+
+                            startParamX =
+                                params.x
+
+                            startParamY =
+                                params.y
 
                             return true
                         }
@@ -169,20 +232,24 @@ class GatheringAccessibilityService : AccessibilityService() {
                         MotionEvent.ACTION_MOVE -> {
 
                             val dx =
-                                event.rawX - startX
+                                event.rawX -
+                                    startX
 
                             val dy =
-                                event.rawY - startY
+                                event.rawY -
+                                    startY
 
                             params.x =
                                 (
-                                    startParamX + dx
-                                ).toInt()
+                                    startParamX +
+                                        dx
+                                    ).toInt()
 
                             params.y =
                                 (
-                                    startParamY + dy
-                                ).toInt()
+                                    startParamY +
+                                        dy
+                                    ).toInt()
 
                             try {
 
@@ -207,14 +274,15 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
         )
 
-        // ---------------------------------------------------------
+        // =========================================================
         // START / STOP BUTTON
-        // ---------------------------------------------------------
+        // =========================================================
 
         val startButton =
             Button(this).apply {
 
-                text = "▶ START"
+                text =
+                    "▶ START"
 
                 setOnClickListener {
 
@@ -227,7 +295,6 @@ class GatheringAccessibilityService : AccessibilityService() {
                         } else {
 
                             startAutomation()
-
                         }
 
                     } catch (e: Exception) {
@@ -240,14 +307,15 @@ class GatheringAccessibilityService : AccessibilityService() {
                 }
             }
 
-        // ---------------------------------------------------------
+        // =========================================================
         // SCAN BUTTON
-        // ---------------------------------------------------------
+        // =========================================================
 
         val scanBtn =
             Button(this).apply {
 
-                text = "🔍 SCAN"
+                text =
+                    "🔍 SCAN"
 
                 setOnClickListener {
 
@@ -265,20 +333,25 @@ class GatheringAccessibilityService : AccessibilityService() {
                 }
             }
 
-        // ---------------------------------------------------------
+        // =========================================================
         // STATUS TEXT
-        // ---------------------------------------------------------
+        // =========================================================
 
         val info =
             TextView(this).apply {
 
-                text = "Scanner ready"
+                text =
+                    "Scanner ready"
 
-                textSize = 11f
+                textSize =
+                    11f
 
-                setTextColor(Color.WHITE)
+                setTextColor(
+                    Color.WHITE
+                )
 
-                gravity = Gravity.CENTER
+                gravity =
+                    Gravity.CENTER
 
                 setPadding(
                     4,
@@ -288,20 +361,42 @@ class GatheringAccessibilityService : AccessibilityService() {
                 )
             }
 
-        // Save references.
-        infoText = info
-        startStopButton = startButton
-        scanButton = scanBtn
+        // ---------------------------------------------------------
+        // SAVE REFERENCES
+        // ---------------------------------------------------------
 
-        // Add views.
-        container.addView(title)
-        container.addView(startButton)
-        container.addView(scanBtn)
-        container.addView(info)
+        infoText =
+            info
+
+        startStopButton =
+            startButton
+
+        scanButton =
+            scanBtn
 
         // ---------------------------------------------------------
+        // ADD VIEWS
+        // ---------------------------------------------------------
+
+        container.addView(
+            title
+        )
+
+        container.addView(
+            startButton
+        )
+
+        container.addView(
+            scanBtn
+        )
+
+        container.addView(
+            info
+        )
+
+        // =========================================================
         // OVERLAY PARAMETERS
-        // ---------------------------------------------------------
+        // =========================================================
 
         val params =
             WindowManager.LayoutParams(
@@ -315,14 +410,18 @@ class GatheringAccessibilityService : AccessibilityService() {
         params.gravity =
             Gravity.TOP or Gravity.START
 
-        params.x = 100
-        params.y = 150
+        params.x =
+            100
 
-        overlayParams = params
+        params.y =
+            150
 
-        // ---------------------------------------------------------
+        overlayParams =
+            params
+
+        // =========================================================
         // ADD OVERLAY
-        // ---------------------------------------------------------
+        // =========================================================
 
         try {
 
@@ -331,22 +430,54 @@ class GatheringAccessibilityService : AccessibilityService() {
                 params
             )
 
-            overlayView = container
+            // IMPORTANT:
+            // Set these only AFTER addView succeeds.
+            overlayView =
+                container
+
+            overlayCreating =
+                false
 
             updateInfo(
-                "Scanner ready\nSAFE TEST: no troop sent"
+                "Scanner ready\n" +
+                    "SAFE TEST: no troop sent"
             )
 
         } catch (e: Exception) {
 
-            overlayView = null
-            overlayParams = null
+            // -----------------------------------------------------
+            // Clean up failed creation.
+            // -----------------------------------------------------
 
-            infoText = null
-            startStopButton = null
-            scanButton = null
+            try {
+                wm.removeViewImmediate(
+                    container
+                )
+            } catch (_: Exception) {
+            }
 
-            // Don't crash the accessibility service.
+            overlayView =
+                null
+
+            overlayParams =
+                null
+
+            infoText =
+                null
+
+            startStopButton =
+                null
+
+            scanButton =
+                null
+
+            overlayCreating =
+                false
+
+            // -----------------------------------------------------
+            // Try again shortly.
+            // -----------------------------------------------------
+
             handler.postDelayed(
                 {
                     recreateOverlay()
@@ -362,15 +493,31 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun recreateOverlay() {
 
-        try {
+        if (overlayCreating) {
+            return
+        }
 
-            if (overlayView != null) {
-                return
+        overlayCreating =
+            true
+
+        handler.post {
+
+            try {
+
+                showFloatingControl()
+
+            } catch (_: Exception) {
+
+                overlayCreating =
+                    false
+
+                handler.postDelayed(
+                    {
+                        recreateOverlay()
+                    },
+                    1000
+                )
             }
-
-            showFloatingControl()
-
-        } catch (_: Exception) {
         }
     }
 
@@ -384,7 +531,8 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
-        running = true
+        running =
+            true
 
         updateStartStopButton()
 
@@ -394,11 +542,9 @@ class GatheringAccessibilityService : AccessibilityService() {
                 "SAFE TEST: no troop sent"
         )
 
-        // IMPORTANT:
-        // Do not immediately call screenshot here.
-        // Give Android a moment after pressing START.
-
-        handler.removeCallbacks(scanRunnable)
+        handler.removeCallbacks(
+            scanRunnable
+        )
 
         handler.postDelayed(
             scanRunnable,
@@ -412,13 +558,18 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun stopAutomation() {
 
-        running = false
+        running =
+            false
 
         handler.removeCallbacks(
             scanRunnable
         )
 
         updateStartStopButton()
+
+        // IMPORTANT:
+        // STOP ONLY stops scanning.
+        // It DOES NOT remove the floating overlay.
 
         updateInfo(
             "STOPPED\n" +
@@ -481,7 +632,10 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
+        // ---------------------------------------------------------
         // Prevent two screenshots at once.
+        // ---------------------------------------------------------
+
         if (screenshotInProgress) {
 
             updateInfo(
@@ -491,7 +645,8 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
-        screenshotInProgress = true
+        screenshotInProgress =
+            true
 
         scanCount++
 
@@ -504,10 +659,12 @@ class GatheringAccessibilityService : AccessibilityService() {
             takeScreenshot(
                 android.view.Display.DEFAULT_DISPLAY,
                 mainExecutor,
-                object : TakeScreenshotCallback {
+                object :
+                    TakeScreenshotCallback {
 
                     override fun onSuccess(
-                        screenshot: ScreenshotResult
+                        screenshot:
+                            ScreenshotResult
                     ) {
 
                         processScreenshot(
@@ -519,12 +676,14 @@ class GatheringAccessibilityService : AccessibilityService() {
                         errorCode: Int
                     ) {
 
-                        screenshotInProgress = false
+                        screenshotInProgress =
+                            false
 
                         updateInfo(
                             "Scan #$scanCount\n" +
-                                "Capture failed: $errorCode\n" +
-                                "SAFE TEST: no troop sent"
+                                "Capture failed: " +
+                                errorCode +
+                                "\nSAFE TEST: no troop sent"
                         )
                     }
                 }
@@ -532,7 +691,8 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         } catch (e: Exception) {
 
-            screenshotInProgress = false
+            screenshotInProgress =
+                false
 
             updateInfo(
                 "Scan #$scanCount\n" +
@@ -547,10 +707,12 @@ class GatheringAccessibilityService : AccessibilityService() {
     // =============================================================
 
     private fun processScreenshot(
-        screenshot: ScreenshotResult
+        screenshot:
+            ScreenshotResult
     ) {
 
-        var bitmap: Bitmap? = null
+        var bitmap:
+            Bitmap? = null
 
         try {
 
@@ -564,7 +726,9 @@ class GatheringAccessibilityService : AccessibilityService() {
                     screenshot.colorSpace
                 )
 
-            if (hardwareBitmap == null) {
+            if (
+                hardwareBitmap == null
+            ) {
 
                 updateInfo(
                     "Scan #$scanCount\n" +
@@ -621,16 +785,21 @@ class GatheringAccessibilityService : AccessibilityService() {
             // -----------------------------------------------------
 
             try {
+
                 screenshot.hardwareBuffer.close()
+
             } catch (_: Exception) {
             }
 
             try {
+
                 bitmap?.recycle()
+
             } catch (_: Exception) {
             }
 
-            screenshotInProgress = false
+            screenshotInProgress =
+                false
         }
     }
 
@@ -648,20 +817,31 @@ class GatheringAccessibilityService : AccessibilityService() {
         val height =
             bitmap.height
 
-        var bluePixels = 0
-        var orangePixels = 0
-        var greenPixels = 0
+        var bluePixels =
+            0
 
+        var orangePixels =
+            0
+
+        var greenPixels =
+            0
+
+        // ---------------------------------------------------------
         // Sample every 4 pixels.
-        val step = 4
+        // ---------------------------------------------------------
 
-        var y = 80
+        val step =
+            4
+
+        var y =
+            80
 
         while (
             y < height - 30
         ) {
 
-            var x = 10
+            var x =
+                10
 
             while (
                 x < width - 10
@@ -674,13 +854,19 @@ class GatheringAccessibilityService : AccessibilityService() {
                     )
 
                 val r =
-                    Color.red(pixel)
+                    Color.red(
+                        pixel
+                    )
 
                 val g =
-                    Color.green(pixel)
+                    Color.green(
+                        pixel
+                    )
 
                 val b =
-                    Color.blue(pixel)
+                    Color.blue(
+                        pixel
+                    )
 
                 // -------------------------------------------------
                 // BLUE
@@ -723,10 +909,12 @@ class GatheringAccessibilityService : AccessibilityService() {
                     greenPixels++
                 }
 
-                x += step
+                x +=
+                    step
             }
 
-            y += step
+            y +=
+                step
         }
 
         // ---------------------------------------------------------
@@ -762,8 +950,11 @@ class GatheringAccessibilityService : AccessibilityService() {
 
                 startStopButton?.text =
                     if (running) {
+
                         "■ STOP"
+
                     } else {
+
                         "▶ START"
                     }
 
@@ -795,8 +986,12 @@ class GatheringAccessibilityService : AccessibilityService() {
     // =============================================================
     // ACCESSIBILITY TAP
     // =============================================================
+    //
     // Kept available for the later gathering engine.
+    //
     // CURRENT VERSION NEVER CALLS IT.
+    // Therefore this version does NOT send troops or perform
+    // gathering actions.
     // =============================================================
 
     private fun tap(
@@ -815,13 +1010,15 @@ class GatheringAccessibilityService : AccessibilityService() {
             )
 
             val gesture =
-                GestureDescription.Builder()
+                GestureDescription
+                    .Builder()
                     .addStroke(
-                        GestureDescription.StrokeDescription(
-                            path,
-                            0,
-                            100
-                        )
+                        GestureDescription
+                            .StrokeDescription(
+                                path,
+                                0,
+                                100
+                            )
                     )
                     .build()
 
@@ -841,30 +1038,53 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
 
-        running = false
+        running =
+            false
 
-        screenshotInProgress = false
+        screenshotInProgress =
+            false
+
+        overlayCreating =
+            false
 
         handler.removeCallbacks(
             scanRunnable
         )
 
+        // ---------------------------------------------------------
+        // Remove overlay only when the ACCESSIBILITY SERVICE
+        // itself is actually destroyed.
+        // ---------------------------------------------------------
+
         try {
 
             overlayView?.let {
-                windowManager?.removeView(it)
+
+                windowManager?.removeViewImmediate(
+                    it
+                )
             }
 
         } catch (_: Exception) {
         }
 
-        overlayView = null
-        overlayParams = null
-        windowManager = null
+        overlayView =
+            null
 
-        infoText = null
-        startStopButton = null
-        scanButton = null
+        overlayParams =
+            null
+
+        windowManager =
+            null
+
+        infoText =
+            null
+
+        startStopButton =
+            null
+
+        scanButton =
+            null
 
         super.onDestroy()
     }
