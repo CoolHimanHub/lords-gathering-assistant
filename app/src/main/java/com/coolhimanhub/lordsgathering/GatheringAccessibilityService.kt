@@ -1,11 +1,10 @@
 package com.coolhimanhub.lordsgatheringassistant
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +19,7 @@ import android.widget.TextView
 
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
@@ -79,21 +79,21 @@ class GatheringAccessibilityService :
 
 
     // =============================================================
-    // V6.3 SETTINGS
+    // V6.4 SETTINGS
     // =============================================================
 
     private val scanInterval =
         4000L
 
     private val minimumConfidence =
-        20
+        12
 
     private val maximumDisplayedTargets =
-        6
+        12
 
 
     // =============================================================
-    // RSS PRIORITY
+    // RESOURCE PRIORITY
     // =============================================================
 
     private val rssPriority =
@@ -129,6 +129,24 @@ class GatheringAccessibilityService :
         val occupationScore: Int,
 
         val targetScore: Int
+    )
+
+
+    // =============================================================
+    // OCR BADGE CANDIDATE
+    // =============================================================
+
+    private data class BadgeCandidate(
+
+        val level: Int,
+
+        val x: Int,
+
+        val y: Int,
+
+        val box: Rect,
+
+        val ocrConfidence: Int
     )
 
 
@@ -254,7 +272,7 @@ class GatheringAccessibilityService :
             TextView(this).apply {
 
                 text =
-                    "Lords Assistant V6.3"
+                    "Lords Assistant V6.4"
 
                 textSize =
                     16f
@@ -428,7 +446,7 @@ class GatheringAccessibilityService :
             TextView(this).apply {
 
                 text =
-                    "V6.3 Scanner ready\n" +
+                    "V6.4 Scanner ready\n" +
                         "SAFE TEST: no troop sent"
 
                 textSize =
@@ -525,9 +543,9 @@ class GatheringAccessibilityService :
                 container
 
             safeStatus(
-                "V6.3 Scanner ready\n" +
-                    "Press SCAN\n" +
-                    "OCR level detection: 1-5\n" +
+                "V6.4 Scanner ready\n" +
+                    "Improved Lv1-Lv5 detection\n" +
+                    "Full-screen OCR + visual detection\n" +
                     "SAFE TEST: no troop sent"
             )
 
@@ -603,9 +621,10 @@ class GatheringAccessibilityService :
         updateStartStopButton()
 
         safeStatus(
-            "V6.3 AUTO SCAN started\n" +
-                "Scanning every 4 seconds\n" +
-                "OCR level detection 1-5\n" +
+            "V6.4 AUTO SCAN started\n" +
+                "Every 4 seconds\n" +
+                "Lv1-Lv5 detection\n" +
+                "Visible screen only\n" +
                 "No map movement\n" +
                 "No troop sent"
         )
@@ -638,7 +657,7 @@ class GatheringAccessibilityService :
 
         safeStatus(
             "STOPPED\n" +
-                "Scanning stopped only\n" +
+                "Scanning stopped\n" +
                 "Overlay remains active\n" +
                 "SAFE TEST: no troop sent"
         )
@@ -828,17 +847,18 @@ class GatheringAccessibilityService :
                 hardwareBitmap == null
             ) {
 
+                screenshotInProgress =
+                    false
+
                 safeStatus(
                     "Scan #$thisScan\n" +
                         "Bitmap conversion failed\n" +
                         "SAFE TEST: no troop sent"
                 )
 
-                screenshotInProgress =
-                    false
-
                 return
             }
+
 
             val bitmap =
                 try {
@@ -853,7 +873,11 @@ class GatheringAccessibilityService :
                     null
                 }
 
+
             if (bitmap == null) {
+
+                screenshotInProgress =
+                    false
 
                 safeStatus(
                     "Scan #$thisScan\n" +
@@ -861,15 +885,14 @@ class GatheringAccessibilityService :
                         "SAFE TEST: no troop sent"
                 )
 
-                screenshotInProgress =
-                    false
-
                 return
             }
+
 
             safeStatus(
                 "Scan #$thisScan - analysing..."
             )
+
 
             analysisExecutor.execute {
 
@@ -906,15 +929,15 @@ class GatheringAccessibilityService :
 
         } catch (e: Exception) {
 
+            screenshotInProgress =
+                false
+
             safeStatus(
                 "Scan #$thisScan\n" +
                     "Processing error: " +
                     e.javaClass.simpleName +
                     "\nSAFE TEST: no troop sent"
             )
-
-            screenshotInProgress =
-                false
 
         } finally {
 
@@ -955,26 +978,115 @@ class GatheringAccessibilityService :
             Int
     ) {
 
-        val candidates =
-            try {
+        // ---------------------------------------------------------
+        // STEP 1
+        // FULL SCREEN OCR
+        // ---------------------------------------------------------
 
-                detectBlueRssBadges(
-                    bitmap
+        safeStatus(
+            "Scan #$thisScan\n" +
+                "Step 1/3: finding level badges..."
+        )
+
+        val ocrBadges =
+            findBadgesUsingFullScreenOcr(
+                bitmap
+            )
+
+
+        // ---------------------------------------------------------
+        // STEP 2
+        // VISUAL BLUE BADGE DETECTION
+        // ---------------------------------------------------------
+
+        safeStatus(
+            "Scan #$thisScan\n" +
+                "Step 2/3: visual badge detection..."
+        )
+
+        val visualBadges =
+            findBlueBadgeBoxes(
+                bitmap
+            )
+
+
+        // ---------------------------------------------------------
+        // STEP 3
+        // MERGE BOTH METHODS
+        // ---------------------------------------------------------
+
+        safeStatus(
+            "Scan #$thisScan\n" +
+                "Step 3/3: combining detections..."
+        )
+
+        val allBadgeCandidates =
+            mutableListOf<BadgeCandidate>()
+
+
+        allBadgeCandidates.addAll(
+            ocrBadges
+        )
+
+
+        for (
+            box in visualBadges
+        ) {
+
+            val level =
+                readLevelFromBadge(
+                    bitmap,
+                    box
                 )
 
-            } catch (_: Exception) {
+            if (
+                level in 1..5
+            ) {
 
-                emptyList()
+                val centerX =
+                    box.centerX()
+
+                val centerY =
+                    box.centerY()
+
+                allBadgeCandidates.add(
+
+                    BadgeCandidate(
+
+                        level =
+                            level,
+
+                        x =
+                            centerX,
+
+                        y =
+                            centerY,
+
+                        box =
+                            box,
+
+                        ocrConfidence =
+                            75
+                    )
+                )
             }
+        }
 
 
-        if (candidates.isEmpty()) {
+        val mergedBadges =
+            mergeBadgeCandidates(
+                allBadgeCandidates
+            )
+
+
+        if (
+            mergedBadges.isEmpty()
+        ) {
 
             safeStatus(
                 "Scan #$thisScan\n" +
-                    "No readable RSS badges found\n" +
-                    "Level OCR accepts only 1-5\n" +
-                    "Move map and SCAN again\n" +
+                    "No RSS level badges detected\n" +
+                    "Lv1-Lv5 accepted\n" +
                     "VISIBLE SCREEN ONLY\n" +
                     "SAFE TEST: no troop sent"
             )
@@ -983,18 +1095,110 @@ class GatheringAccessibilityService :
         }
 
 
+        // ---------------------------------------------------------
+        // CONVERT BADGES INTO RSS CANDIDATES
+        // ---------------------------------------------------------
+
+        val rssCandidates =
+            mutableListOf<RssCandidate>()
+
+
+        for (
+            badge in mergedBadges
+        ) {
+
+            val type =
+                classifyResource(
+                    bitmap,
+                    badge.x,
+                    badge.y
+                )
+
+
+            val confidence =
+                resourceConfidence(
+                    bitmap,
+                    badge.x,
+                    badge.y,
+                    type
+                )
+
+
+            if (
+                confidence <
+                minimumConfidence
+            ) {
+                continue
+            }
+
+
+            val occupation =
+                occupationScore(
+                    bitmap,
+                    badge.x,
+                    badge.y
+                )
+
+
+            val occupied =
+                occupation >= 55
+
+
+            val targetScore =
+                calculateTargetScore(
+                    type,
+                    badge.level,
+                    confidence,
+                    occupation
+                )
+
+
+            rssCandidates.add(
+
+                RssCandidate(
+
+                    type =
+                        type,
+
+                    level =
+                        badge.level,
+
+                    x =
+                        badge.x,
+
+                    y =
+                        badge.y,
+
+                    confidence =
+                        confidence,
+
+                    occupied =
+                        occupied,
+
+                    occupationScore =
+                        occupation,
+
+                    targetScore =
+                        targetScore
+                )
+            )
+        }
+
+
         val cleaned =
             removeDuplicates(
-                candidates
+                rssCandidates
             )
 
 
-        if (cleaned.isEmpty()) {
+        if (
+            cleaned.isEmpty()
+        ) {
 
             safeStatus(
                 "Scan #$thisScan\n" +
-                    "No valid RSS targets\n" +
-                    "VISIBLE SCREEN ONLY\n" +
+                    "Badges detected but no valid RSS\n" +
+                    "Try SCAN again\n" +
                     "SAFE TEST: no troop sent"
             )
 
@@ -1059,7 +1263,7 @@ class GatheringAccessibilityService :
         )
 
         output.append(
-            "\n"
+            "\n\n"
         )
 
 
@@ -1073,6 +1277,7 @@ class GatheringAccessibilityService :
 
             val rss =
                 sorted[i]
+
 
             output.append(
                 "${i + 1}. "
@@ -1122,12 +1327,16 @@ class GatheringAccessibilityService :
                 rss.targetScore
             )
 
-            if (rss.occupied) {
+
+            if (
+                rss.occupied
+            ) {
 
                 output.append(
                     " [OCCUPIED]"
                 )
             }
+
 
             output.append(
                 "\n"
@@ -1140,7 +1349,9 @@ class GatheringAccessibilityService :
         )
 
 
-        if (best != null) {
+        if (
+            best != null
+        ) {
 
             output.append(
                 "SAFE TARGET:\n"
@@ -1175,11 +1386,7 @@ class GatheringAccessibilityService :
             )
 
             output.append(
-                "\n"
-            )
-
-            output.append(
-                "Confidence: "
+                "\nConfidence: "
             )
 
             output.append(
@@ -1187,11 +1394,7 @@ class GatheringAccessibilityService :
             )
 
             output.append(
-                "\n"
-            )
-
-            output.append(
-                "Occupation score: "
+                "\nOccupation score: "
             )
 
             output.append(
@@ -1205,13 +1408,13 @@ class GatheringAccessibilityService :
             )
 
             output.append(
-                "All detected RSS are suspicious/occupied"
+                "All detected RSS are occupied/suspicious"
             )
         }
 
 
         output.append(
-            "\nVISIBLE SCREEN ONLY"
+            "\n\nVISIBLE SCREEN ONLY"
         )
 
         output.append(
@@ -1230,13 +1433,294 @@ class GatheringAccessibilityService :
 
 
     // =============================================================
-    // BLUE RSS BADGE DETECTION
+    // FULL SCREEN OCR
     // =============================================================
 
-    private fun detectBlueRssBadges(
+    private fun findBadgesUsingFullScreenOcr(
         bitmap:
             Bitmap
-    ): List<RssCandidate> {
+    ): List<BadgeCandidate> {
+
+        val result =
+            mutableListOf<BadgeCandidate>()
+
+
+        try {
+
+            val scale =
+                1.35f
+
+
+            val scaledWidth =
+                max(
+                    1,
+                    (bitmap.width * scale).toInt()
+                )
+
+
+            val scaledHeight =
+                max(
+                    1,
+                    (bitmap.height * scale).toInt()
+                )
+
+
+            val scaled =
+                Bitmap.createScaledBitmap(
+                    bitmap,
+                    scaledWidth,
+                    scaledHeight,
+                    true
+                )
+
+
+            val input =
+                InputImage.fromBitmap(
+                    scaled,
+                    0
+                )
+
+
+            val visionText =
+                try {
+
+                    Tasks.await(
+                        textRecognizer.process(
+                            input
+                        ),
+                        2200,
+                        TimeUnit.MILLISECONDS
+                    )
+
+                } catch (_: Exception) {
+
+                    null
+                }
+
+
+            try {
+                scaled.recycle()
+            } catch (_: Exception) {
+            }
+
+
+            if (
+                visionText == null
+            ) {
+                return result
+            }
+
+
+            for (
+                block in visionText.textBlocks
+            ) {
+
+                for (
+                    line in block.lines
+                ) {
+
+                    for (
+                        element in line.elements
+                    ) {
+
+                        val raw =
+                            element.text
+                                .trim()
+
+
+                        val level =
+                            parseLevel(
+                                raw
+                            )
+
+
+                        if (
+                            level !in 1..5
+                        ) {
+                            continue
+                        }
+
+
+                        val originalBox =
+                            element.boundingBox
+                                ?: continue
+
+
+                        val left =
+                            (
+                                originalBox.left /
+                                    scale
+                                ).toInt()
+
+
+                        val top =
+                            (
+                                originalBox.top /
+                                    scale
+                                ).toInt()
+
+
+                        val right =
+                            (
+                                originalBox.right /
+                                    scale
+                                ).toInt()
+
+
+                        val bottom =
+                            (
+                                originalBox.bottom /
+                                    scale
+                                ).toInt()
+
+
+                        val box =
+                            Rect(
+                                left,
+                                top,
+                                right,
+                                bottom
+                            )
+
+
+                        if (
+                            box.width() < 5 ||
+                            box.height() < 5
+                        ) {
+                            continue
+                        }
+
+
+                        val blueScore =
+                            badgeBlueScore(
+                                bitmap,
+                                box
+                            )
+
+
+                        // -------------------------------------------------
+                        // IMPORTANT:
+                        // Ignore normal UI numbers.
+                        // We only accept OCR digits surrounded by
+                        // enough badge-blue pixels.
+                        // -------------------------------------------------
+
+                        if (
+                            blueScore < 0.10f
+                        ) {
+                            continue
+                        }
+
+
+                        val centerX =
+                            box.centerX()
+
+                        val centerY =
+                            box.centerY()
+
+
+                        val confidence =
+                            min(
+                                100,
+                                55 +
+                                    (
+                                        blueScore *
+                                            45
+                                        ).toInt()
+                            )
+
+
+                        result.add(
+
+                            BadgeCandidate(
+
+                                level =
+                                    level,
+
+                                x =
+                                    centerX,
+
+                                y =
+                                    centerY,
+
+                                box =
+                                    box,
+
+                                ocrConfidence =
+                                    confidence
+                            )
+                        )
+                    }
+                }
+            }
+
+        } catch (_: Exception) {
+        }
+
+
+        return result
+    }
+
+
+    // =============================================================
+    // LEVEL PARSER
+    // =============================================================
+
+    private fun parseLevel(
+        text:
+            String
+    ): Int {
+
+        val cleaned =
+            text
+                .replace(
+                    "I",
+                    "1",
+                    ignoreCase = true
+                )
+                .replace(
+                    "L",
+                    "1",
+                    ignoreCase = true
+                )
+                .replace(
+                    "l",
+                    "1"
+                )
+                .trim()
+
+
+        if (
+            cleaned.length != 1
+        ) {
+            return 0
+        }
+
+
+        val value =
+            cleaned[0]
+                .digitToIntOrNull()
+                ?: return 0
+
+
+        return if (
+            value in 1..5
+        ) {
+            value
+        } else {
+            0
+        }
+    }
+
+
+    // =============================================================
+    // VISUAL BLUE BADGE DETECTOR
+    // =============================================================
+
+    private fun findBlueBadgeBoxes(
+        bitmap:
+            Bitmap
+    ): List<Rect> {
 
         val width =
             bitmap.width
@@ -1244,6 +1728,9 @@ class GatheringAccessibilityService :
         val height =
             bitmap.height
 
+
+        // 2-pixel sampling gives substantially more coverage
+        // than the previous V6.3 detector.
         val step =
             2
 
@@ -1254,6 +1741,7 @@ class GatheringAccessibilityService :
                     step -
                     1
                 ) / step
+
 
         val gridHeight =
             (
@@ -1276,6 +1764,7 @@ class GatheringAccessibilityService :
                     gridHeight
             )
 
+
         val queueY =
             IntArray(
                 gridWidth *
@@ -1284,10 +1773,10 @@ class GatheringAccessibilityService :
 
 
         val result =
-            mutableListOf<RssCandidate>()
+            mutableListOf<Rect>()
 
 
-        fun isBlue(
+        fun isBadgeBlue(
             gx: Int,
             gy: Int
         ): Boolean {
@@ -1298,17 +1787,20 @@ class GatheringAccessibilityService :
                     gx * step
                 )
 
+
             val y =
                 min(
                     height - 1,
                     gy * step
                 )
 
+
             val pixel =
                 bitmap.getPixel(
                     x,
                     y
                 )
+
 
             val r =
                 Color.red(pixel)
@@ -1321,51 +1813,51 @@ class GatheringAccessibilityService :
 
 
             return (
-
-                b > 105 &&
-
-                    b >
-                    r * 1.18f &&
-
-                    b >
-                    g * 1.01f &&
-
-                    b - r > 20
+                b >= 105 &&
+                    b - r >= 35 &&
+                    b > g * 1.02f &&
+                    r < 150
                 )
         }
 
 
         for (
-            gy in 5 until
+            gy in 3 until
                 max(
-                    5,
-                    gridHeight - 5
+                    3,
+                    gridHeight - 3
                 )
         ) {
 
             for (
-                gx in 2 until
+                gx in 1 until
                     max(
-                        2,
-                        gridWidth - 2
+                        1,
+                        gridWidth - 1
                     )
             ) {
 
-                val startIndex =
+                val start =
                     gy *
                         gridWidth +
                         gx
 
 
                 if (
-                    visited[startIndex] ||
-                    !isBlue(
+                    visited[start]
+                ) {
+                    continue
+                }
+
+
+                if (
+                    !isBadgeBlue(
                         gx,
                         gy
                     )
                 ) {
 
-                    visited[startIndex] =
+                    visited[start] =
                         true
 
                     continue
@@ -1388,7 +1880,7 @@ class GatheringAccessibilityService :
                 tail++
 
 
-                visited[startIndex] =
+                visited[start] =
                     true
 
 
@@ -1418,6 +1910,7 @@ class GatheringAccessibilityService :
                     val cy =
                         queueY[head]
 
+
                     head++
 
 
@@ -1430,17 +1923,20 @@ class GatheringAccessibilityService :
                             cx
                         )
 
+
                     maxX =
                         max(
                             maxX,
                             cx
                         )
 
+
                     minY =
                         min(
                             minY,
                             cy
                         )
+
 
                     maxY =
                         max(
@@ -1457,6 +1953,7 @@ class GatheringAccessibilityService :
                             cx
                         )
 
+
                     val ny =
                         intArrayOf(
                             cy,
@@ -1470,27 +1967,27 @@ class GatheringAccessibilityService :
                         k in 0..3
                     ) {
 
-                        val x2 =
+                        val xx =
                             nx[k]
 
-                        val y2 =
+                        val yy =
                             ny[k]
 
 
                         if (
-                            x2 < 0 ||
-                            y2 < 0 ||
-                            x2 >= gridWidth ||
-                            y2 >= gridHeight
+                            xx < 0 ||
+                            yy < 0 ||
+                            xx >= gridWidth ||
+                            yy >= gridHeight
                         ) {
                             continue
                         }
 
 
                         val index =
-                            y2 *
+                            yy *
                                 gridWidth +
-                                x2
+                                xx
 
 
                         if (
@@ -1505,19 +2002,19 @@ class GatheringAccessibilityService :
 
 
                         if (
-                            isBlue(
-                                x2,
-                                y2
+                            isBadgeBlue(
+                                xx,
+                                yy
                             ) &&
                             tail <
                             queueX.size
                         ) {
 
                             queueX[tail] =
-                                x2
+                                xx
 
                             queueY[tail] =
-                                y2
+                                yy
 
                             tail++
                         }
@@ -1542,134 +2039,80 @@ class GatheringAccessibilityService :
 
 
                 // -------------------------------------------------
-                // BLUE BADGE SIZE FILTER
+                // RELAXED BUT COMPACT BADGE FILTER
                 // -------------------------------------------------
 
                 if (
-                    pixels !in 10..1800 ||
-                    boxWidth !in 10..100 ||
-                    boxHeight !in 8..70 ||
-                    boxWidth *
-                    boxHeight > 5000
+                    pixels < 5 ||
+                    pixels > 900 ||
+                    boxWidth < 7 ||
+                    boxWidth > 75 ||
+                    boxHeight < 7 ||
+                    boxHeight > 55
                 ) {
                     continue
                 }
 
 
-                val centerX =
-                    (
-                        (
-                            minX +
-                                maxX
-                            ) / 2
-                        ) * step
+                val ratio =
+                    boxWidth.toFloat() /
+                        max(
+                            1,
+                            boxHeight
+                        )
 
 
-                val centerY =
-                    (
-                        (
-                            minY +
-                                maxY
-                            ) / 2
-                        ) * step
+                if (
+                    ratio < 0.40f ||
+                    ratio > 3.0f
+                ) {
+                    continue
+                }
 
 
-                // -------------------------------------------------
-                // OCR THE BLUE LEVEL BADGE
-                // -------------------------------------------------
+                val rect =
+                    Rect(
 
-                val level =
-                    readLevelFromBadge(
-                        bitmap,
                         minX * step,
+
                         minY * step,
-                        boxWidth,
-                        boxHeight
+
+                        min(
+                            width,
+                            (
+                                maxX + 1
+                            ) * step
+                        ),
+
+                        min(
+                            height,
+                            (
+                                maxY + 1
+                            ) * step
+                        )
                     )
 
 
-                // ONLY LEVELS 1-5 ARE VALID
-                if (
-                    level !in 1..5
-                ) {
-                    continue
-                }
+                // -------------------------------------------------
+                // BADGE MUST HAVE BLUE DENSITY
+                // -------------------------------------------------
 
-
-                val type =
-                    classifyResource(
+                val blueScore =
+                    badgeBlueScore(
                         bitmap,
-                        centerX,
-                        centerY
-                    )
-
-
-                val confidence =
-                    resourceConfidence(
-                        bitmap,
-                        centerX,
-                        centerY,
-                        type
+                        rect
                     )
 
 
                 if (
-                    confidence <
-                    minimumConfidence
+                    blueScore < 0.18f
                 ) {
                     continue
                 }
-
-
-                val occupation =
-                    occupationScore(
-                        bitmap,
-                        centerX,
-                        centerY
-                    )
-
-
-                val occupied =
-                    occupation >= 35
-
-
-                val targetScore =
-                    calculateTargetScore(
-                        type,
-                        level,
-                        confidence,
-                        occupation
-                    )
 
 
                 result.add(
-
-                    RssCandidate(
-
-                        type =
-                            type,
-
-                        level =
-                            level,
-
-                        x =
-                            centerX,
-
-                        y =
-                            centerY,
-
-                        confidence =
-                            confidence,
-
-                        occupied =
-                            occupied,
-
-                        occupationScore =
-                            occupation,
-
-                        targetScore =
-                            targetScore
-                    )
+                    rect
                 )
             }
         }
@@ -1680,77 +2123,195 @@ class GatheringAccessibilityService :
 
 
     // =============================================================
-    // OCR LEVEL READER
+    // BADGE BLUE SCORE
+    // =============================================================
+
+    private fun badgeBlueScore(
+        bitmap:
+            Bitmap,
+
+        box:
+            Rect
+    ): Float {
+
+        val marginX =
+            max(
+                5,
+                box.width() / 2
+            )
+
+
+        val marginY =
+            max(
+                5,
+                box.height() / 2
+            )
+
+
+        val left =
+            max(
+                0,
+                box.left - marginX
+            )
+
+
+        val top =
+            max(
+                0,
+                box.top - marginY
+            )
+
+
+        val right =
+            min(
+                bitmap.width - 1,
+                box.right + marginX
+            )
+
+
+        val bottom =
+            min(
+                bitmap.height - 1,
+                box.bottom + marginY
+            )
+
+
+        var blue =
+            0
+
+
+        var total =
+            0
+
+
+        var y =
+            top
+
+
+        while (
+            y <= bottom
+        ) {
+
+            var x =
+                left
+
+
+            while (
+                x <= right
+            ) {
+
+                val pixel =
+                    bitmap.getPixel(
+                        x,
+                        y
+                    )
+
+
+                val r =
+                    Color.red(pixel)
+
+                val g =
+                    Color.green(pixel)
+
+                val b =
+                    Color.blue(pixel)
+
+
+                total++
+
+
+                if (
+                    b >= 95 &&
+                    b - r >= 30 &&
+                    b > g * 1.01f
+                ) {
+
+                    blue++
+                }
+
+
+                x += 2
+            }
+
+
+            y += 2
+        }
+
+
+        if (
+            total == 0
+        ) {
+            return 0f
+        }
+
+
+        return blue.toFloat() /
+            total.toFloat()
+    }
+
+
+    // =============================================================
+    // INDIVIDUAL BADGE OCR
     // =============================================================
 
     private fun readLevelFromBadge(
         bitmap:
             Bitmap,
 
-        left:
-            Int,
-
-        top:
-            Int,
-
-        width:
-            Int,
-
-        height:
-            Int
+        badge:
+            Rect
     ): Int {
 
         try {
 
             val extraX =
                 max(
-                    8,
-                    width / 4
+                    12,
+                    badge.width()
                 )
+
 
             val extraY =
                 max(
-                    8,
-                    height / 4
+                    12,
+                    badge.height()
                 )
 
 
-            val cropLeft =
+            val left =
                 max(
                     0,
-                    left - extraX
+                    badge.left - extraX
                 )
 
-            val cropTop =
+
+            val top =
                 max(
                     0,
-                    top - extraY
+                    badge.top - extraY
                 )
 
-            val cropRight =
+
+            val right =
                 min(
                     bitmap.width,
-                    left +
-                        width +
-                        extraX
+                    badge.right + extraX
                 )
 
-            val cropBottom =
+
+            val bottom =
                 min(
                     bitmap.height,
-                    top +
-                        height +
-                        extraY
+                    badge.bottom + extraY
                 )
 
 
             val cropWidth =
-                cropRight -
-                    cropLeft
+                right - left
+
 
             val cropHeight =
-                cropBottom -
-                    cropTop
+                bottom - top
 
 
             if (
@@ -1764,28 +2325,130 @@ class GatheringAccessibilityService :
             val crop =
                 Bitmap.createBitmap(
                     bitmap,
-                    cropLeft,
-                    cropTop,
+                    left,
+                    top,
                     cropWidth,
                     cropHeight
                 )
 
 
+            // -----------------------------------------------------
+            // ATTEMPT 1
+            // ORIGINAL, UPSCALED
+            // -----------------------------------------------------
+
+            val level1 =
+                ocrSmallBadge(
+                    crop,
+                    false
+                )
+
+
+            if (
+                level1 in 1..5
+            ) {
+
+                crop.recycle()
+
+                return level1
+            }
+
+
+            // -----------------------------------------------------
+            // ATTEMPT 2
+            // HIGH-CONTRAST VERSION
+            // -----------------------------------------------------
+
+            val level2 =
+                ocrSmallBadge(
+                    crop,
+                    true
+                )
+
+
+            try {
+                crop.recycle()
+            } catch (_: Exception) {
+            }
+
+
+            if (
+                level2 in 1..5
+            ) {
+                return level2
+            }
+
+        } catch (_: Exception) {
+        }
+
+
+        return 0
+    }
+
+
+    // =============================================================
+    // SMALL BADGE OCR
+    // =============================================================
+
+    private fun ocrSmallBadge(
+        source:
+            Bitmap,
+
+        threshold:
+            Boolean
+    ): Int {
+
+        try {
+
+            val scale =
+                3
+
+
+            val scaled =
+                Bitmap.createScaledBitmap(
+                    source,
+                    max(
+                        30,
+                        source.width * scale
+                    ),
+                    max(
+                        30,
+                        source.height * scale
+                    ),
+                    true
+                )
+
+
+            val imageBitmap =
+                if (
+                    threshold
+                ) {
+
+                    createWhiteDigitBitmap(
+                        scaled
+                    )
+
+                } else {
+
+                    scaled
+                }
+
+
             val input =
                 InputImage.fromBitmap(
-                    crop,
+                    imageBitmap,
                     0
                 )
 
 
-            val visionText =
+            val text =
                 try {
 
                     Tasks.await(
                         textRecognizer.process(
                             input
                         ),
-                        1500,
+                        1000,
                         TimeUnit.MILLISECONDS
                     )
 
@@ -1795,59 +2458,83 @@ class GatheringAccessibilityService :
                 }
 
 
+            if (
+                text != null
+            ) {
+
+                val raw =
+                    text.text
+
+
+                val digits =
+                    raw
+                        .replace(
+                            "I",
+                            "1",
+                            ignoreCase = true
+                        )
+                        .replace(
+                            "L",
+                            "1",
+                            ignoreCase = true
+                        )
+                        .replace(
+                            "l",
+                            "1"
+                        )
+                        .filter {
+                            it.isDigit()
+                        }
+
+
+                for (
+                    char in digits
+                ) {
+
+                    val value =
+                        char.digitToInt()
+
+
+                    if (
+                        value in 1..5
+                    ) {
+
+                        try {
+                            imageBitmap.recycle()
+                        } catch (_: Exception) {
+                        }
+
+
+                        if (
+                            imageBitmap !== scaled
+                        ) {
+
+                            try {
+                                scaled.recycle()
+                            } catch (_: Exception) {
+                            }
+                        }
+
+
+                        return value
+                    }
+                }
+            }
+
+
             try {
-                crop.recycle()
+                imageBitmap.recycle()
             } catch (_: Exception) {
             }
 
 
-            if (visionText == null) {
-                return 0
-            }
+            if (
+                imageBitmap !== scaled
+            ) {
 
-
-            val raw =
-                visionText.text
-
-
-            // -----------------------------------------------------
-            // OCR CLEANUP
-            // -----------------------------------------------------
-
-            val digits =
-                raw
-                    .replace(
-                        "I",
-                        "1",
-                        ignoreCase = true
-                    )
-                    .replace(
-                        "l",
-                        "1"
-                    )
-                    .replace(
-                        "O",
-                        "0",
-                        ignoreCase = true
-                    )
-                    .filter {
-                        it.isDigit()
-                    }
-
-
-            // -----------------------------------------------------
-            // GAME HAS ONLY LEVELS 1-5
-            // -----------------------------------------------------
-
-            for (char in digits) {
-
-                val value =
-                    char.digitToInt()
-
-                if (
-                    value in 1..5
-                ) {
-                    return value
+                try {
+                    scaled.recycle()
+                } catch (_: Exception) {
                 }
             }
 
@@ -1860,62 +2547,183 @@ class GatheringAccessibilityService :
 
 
     // =============================================================
-    // TARGET SCORE
+    // CREATE HIGH CONTRAST BADGE
     // =============================================================
 
-    private fun calculateTargetScore(
-        type:
-            String,
+    private fun createWhiteDigitBitmap(
+        source:
+            Bitmap
+    ): Bitmap {
 
-        level:
-            Int,
-
-        confidence:
-            Int,
-
-        occupation:
-            Int
-    ): Int {
-
-        val priorityIndex =
-            rssPriority.indexOf(
-                type
+        val result =
+            Bitmap.createBitmap(
+                source.width,
+                source.height,
+                Bitmap.Config.ARGB_8888
             )
 
 
-        val priorityScore =
-            when {
+        var y =
+            0
 
-                priorityIndex < 0 ->
-                    0
 
-                else ->
+        while (
+            y < source.height
+        ) {
+
+            var x =
+                0
+
+
+            while (
+                x < source.width
+            ) {
+
+                val pixel =
+                    source.getPixel(
+                        x,
+                        y
+                    )
+
+
+                val r =
+                    Color.red(pixel)
+
+                val g =
+                    Color.green(pixel)
+
+                val b =
+                    Color.blue(pixel)
+
+
+                val maxChannel =
+                    maxOf(
+                        r,
+                        g,
+                        b
+                    )
+
+
+                val minChannel =
+                    minOf(
+                        r,
+                        g,
+                        b
+                    )
+
+
+                val brightness =
                     (
-                        rssPriority.size -
-                            priorityIndex
-                        ) * 100
+                        r +
+                            g +
+                            b
+                        ) / 3
+
+
+                val lowSaturation =
+                    maxChannel -
+                        minChannel <
+                        80
+
+
+                val isWhite =
+                    brightness > 155 &&
+                        lowSaturation
+
+
+                if (
+                    isWhite
+                ) {
+
+                    result.setPixel(
+                        x,
+                        y,
+                        Color.WHITE
+                    )
+
+                } else {
+
+                    result.setPixel(
+                        x,
+                        y,
+                        Color.BLACK
+                    )
+                }
+
+
+                x++
             }
 
 
-        val levelScore =
-            level * 35
+            y++
+        }
 
 
-        val confidenceScore =
-            confidence
+        return result
+    }
 
 
-        val occupationPenalty =
-            occupation * 5
+    // =============================================================
+    // MERGE BADGE CANDIDATES
+    // =============================================================
+
+    private fun mergeBadgeCandidates(
+        input:
+            List<BadgeCandidate>
+    ): List<BadgeCandidate> {
+
+        val output =
+            mutableListOf<BadgeCandidate>()
 
 
-        return (
-            priorityScore +
-                levelScore +
-                confidenceScore -
-                occupationPenalty
-            )
-            .coerceAtLeast(0)
+        for (
+            candidate in input
+        ) {
+
+            val existing =
+                output.indexOfFirst {
+
+                    abs(
+                        it.x -
+                            candidate.x
+                    ) < 32 &&
+
+                    abs(
+                        it.y -
+                            candidate.y
+                    ) < 32
+                }
+
+
+            if (
+                existing < 0
+            ) {
+
+                output.add(
+                    candidate
+                )
+
+            } else {
+
+                val old =
+                    output[existing]
+
+
+                // If two methods found the same badge,
+                // prefer the candidate with stronger OCR.
+                if (
+                    candidate.ocrConfidence >
+                    old.ocrConfidence
+                ) {
+
+                    output[existing] =
+                        candidate
+                }
+            }
+        }
+
+
+        return output
     }
 
 
@@ -1934,44 +2742,51 @@ class GatheringAccessibilityService :
             Int
     ): String {
 
-        var yellow =
+        var food =
             0
 
-        var brown =
+        var wood =
             0
 
-        var gray =
+        var stone =
             0
 
-        var cyan =
+        var ore =
             0
 
-        var orange =
+        var gold =
             0
 
+
+        // ---------------------------------------------------------
+        // RSS OBJECT IS GENERALLY ABOVE/LEFT OF THE LEVEL BADGE
+        // ---------------------------------------------------------
 
         val left =
             max(
                 0,
-                bx - 95
+                bx - 100
             )
+
 
         val right =
             min(
                 bitmap.width - 1,
-                bx - 12
+                bx - 8
             )
+
 
         val top =
             max(
                 0,
-                by - 65
+                by - 75
             )
+
 
         val bottom =
             min(
                 bitmap.height - 1,
-                by + 15
+                by + 10
             )
 
 
@@ -2008,128 +2823,132 @@ class GatheringAccessibilityService :
                     Color.blue(pixel)
 
 
+                // Ignore the blue badge itself.
                 if (
-                    !(
-                        b > 100 &&
-                            b >
-                            r * 1.2f
-                        )
+                    !isStrongBlue(
+                        r,
+                        g,
+                        b
+                    )
                 ) {
 
-                    if (
-                        r > 150 &&
-                        g > 115 &&
-                        b < 100
-                    ) {
-                        yellow++
-                    }
-
-
-                    if (
-                        r > 85 &&
-                        g in 45..155 &&
-                        b < 95 &&
-                        r >
-                        g * 1.10f
-                    ) {
-                        brown++
-                    }
-
-
-                    if (
-                        abs(r - g) < 28 &&
-                        abs(g - b) < 28 &&
-                        r in 85..220
-                    ) {
-                        gray++
-                    }
-
-
-                    if (
-                        b > 90 &&
-                        g > 80 &&
-                        b >
-                        r * 1.15f
-                    ) {
-                        cyan++
-                    }
-
-
+                    // FOOD / WHEAT
                     if (
                         r > 145 &&
-                        g in 65..180 &&
-                        b < 110 &&
-                        r >
-                        g * 1.12f
+                        g > 110 &&
+                        b < 125 &&
+                        r > g * 0.95f
                     ) {
-                        orange++
+
+                        food++
+                    }
+
+
+                    // WOOD / LOGS
+                    if (
+                        r > 75 &&
+                        g in 40..160 &&
+                        b < 105 &&
+                        r > g * 1.08f
+                    ) {
+
+                        wood++
+                    }
+
+
+                    // STONE / GREY ROCK
+                    if (
+                        abs(
+                            r - g
+                        ) < 38 &&
+
+                        abs(
+                            g - b
+                        ) < 38 &&
+
+                        r in 75..215
+                    ) {
+
+                        stone++
+                    }
+
+
+                    // ORE / BLUE-CYAN MINERAL
+                    if (
+                        b > 85 &&
+                        g > 65 &&
+                        b > r * 1.12f
+                    ) {
+
+                        ore++
+                    }
+
+
+                    // GOLD / GOLDEN MATERIAL
+                    if (
+                        r > 145 &&
+                        g > 105 &&
+                        b < 115 &&
+                        r > b * 1.35f
+                    ) {
+
+                        gold++
                     }
                 }
 
 
-                x += 5
+                x += 4
             }
 
 
-            y += 5
+            y += 4
         }
 
 
-        val food =
-            yellow * 4
-
-        val gold =
-            yellow * 3 +
-                orange * 2
-
-        val wood =
-            brown * 4
-
-        val stone =
-            gray * 5
-
-        val ore =
-            cyan * 4 +
-                orange * 3
-
-
-        val best =
-            maxOf(
-                food,
-                gold,
-                wood,
-                stone,
-                ore
+        val scores =
+            mapOf(
+                "Food" to food,
+                "Wood" to wood,
+                "Stone" to stone,
+                "Ore" to ore,
+                "Gold" to gold
             )
 
 
-        return when {
+        val best =
+            scores.maxByOrNull {
+                it.value
+            }
 
-            best <= 0 ->
-                "Other"
 
-            ore == best &&
-                ore >
-                stone * 1.15f ->
-                "Ore"
+        if (
+            best == null ||
+            best.value < 8
+        ) {
 
-            stone == best ->
-                "Stone"
-
-            wood == best ->
-                "Wood"
-
-            gold == best &&
-                gold >
-                food * 1.10f ->
-                "Gold"
-
-            food == best ->
-                "Food"
-
-            else ->
-                "Other"
+            return "Other"
         }
+
+
+        return best.key
+    }
+
+
+    // =============================================================
+    // STRONG BLUE TEST
+    // =============================================================
+
+    private fun isStrongBlue(
+        r: Int,
+        g: Int,
+        b: Int
+    ): Boolean {
+
+        return (
+            b > 100 &&
+                b > r * 1.15f &&
+                b > g * 1.02f
+            )
     }
 
 
@@ -2151,18 +2970,19 @@ class GatheringAccessibilityService :
             String
     ): Int {
 
-        var total =
+        var totalRelevant =
             0
 
-        var match =
+        var matched =
             0
 
 
         val left =
             max(
                 0,
-                bx - 75
+                bx - 95
             )
+
 
         val right =
             min(
@@ -2170,16 +2990,18 @@ class GatheringAccessibilityService :
                 bx - 8
             )
 
+
         val top =
             max(
                 0,
-                by - 28
+                by - 70
             )
+
 
         val bottom =
             min(
                 bitmap.height - 1,
-                by + 32
+                by + 10
             )
 
 
@@ -2216,59 +3038,74 @@ class GatheringAccessibilityService :
                     Color.blue(pixel)
 
 
+                val strongBlue =
+                    isStrongBlue(
+                        r,
+                        g,
+                        b
+                    )
+
+
+                val greenBackground =
+                    g > r * 1.15f &&
+                        g > b * 1.05f &&
+                        g > 75
+
+
                 if (
-                    !(
-                        b > 100 &&
-                            b >
-                            r * 1.2f
-                        )
+                    !strongBlue &&
+                    !greenBackground
                 ) {
 
-                    total++
+                    totalRelevant++
 
 
                     val matches =
-                        when (type) {
+                        when (
+                            type
+                        ) {
 
                             "Food" ->
 
-                                r > 150 &&
-                                    g > 110 &&
-                                    b < 110
-
-
-                            "Gold" ->
-
-                                r > 150 &&
-                                    g > 100 &&
-                                    b < 120
+                                r > 140 &&
+                                    g > 105 &&
+                                    b < 130
 
 
                             "Wood" ->
 
-                                r > 85 &&
-                                    g in 45..155 &&
-                                    b < 100
+                                r > 75 &&
+                                    g in 35..165 &&
+                                    b < 110 &&
+                                    r > g * 1.05f
 
 
                             "Stone" ->
 
-                                abs(r - g) < 30 &&
-                                    abs(g - b) < 30 &&
-                                    r in 80..220
+                                abs(
+                                    r - g
+                                ) < 42 &&
+
+                                    abs(
+                                        g - b
+                                    ) < 42 &&
+
+                                    r in 70..220
 
 
                             "Ore" ->
 
-                                (
-                                    b > 90 &&
-                                        g > 75
-                                    ) ||
-                                    (
-                                        r > 140 &&
-                                            g > 60 &&
-                                            b < 110
-                                        )
+                                b > 85 &&
+                                    g > 65 &&
+                                    b > r * 1.08f
+
+
+                            "Gold" ->
+
+                                r > 140 &&
+                                    g > 100 &&
+                                    b < 125 &&
+                                    r > b * 1.25f
 
 
                             else ->
@@ -2276,33 +3113,39 @@ class GatheringAccessibilityService :
                         }
 
 
-                    if (matches) {
-                        match++
+                    if (
+                        matches
+                    ) {
+
+                        matched++
                     }
                 }
 
 
-                x += 5
+                x += 4
             }
 
 
-            y += 5
+            y += 4
         }
 
 
-        return if (
-            total == 0
+        if (
+            totalRelevant == 0
         ) {
-
-            0
-
-        } else {
-
-            min(
-                100,
-                match * 100 / total
-            )
+            return 0
         }
+
+
+        val confidence =
+            matched * 100 /
+                totalRelevant
+
+
+        return confidence.coerceIn(
+            0,
+            100
+        )
     }
 
 
@@ -2328,28 +3171,35 @@ class GatheringAccessibilityService :
             0
 
 
+        val radius =
+            70
+
+
         val left =
             max(
                 0,
-                centerX - 75
+                centerX - radius
             )
+
 
         val right =
             min(
                 bitmap.width - 1,
-                centerX + 75
+                centerX + radius
             )
+
 
         val top =
             max(
                 0,
-                centerY - 75
+                centerY - radius
             )
+
 
         val bottom =
             min(
                 bitmap.height - 1,
-                centerY + 75
+                centerY + radius
             )
 
 
@@ -2379,7 +3229,7 @@ class GatheringAccessibilityService :
                 if (
                     dx * dx +
                     dy * dy <=
-                    75 * 75
+                    radius * radius
                 ) {
 
                     val pixel =
@@ -2402,33 +3252,23 @@ class GatheringAccessibilityService :
                     samples++
 
 
+                    // Strong red = possible marching/occupancy marker.
                     if (
                         r > 175 &&
-                        r >
-                        g * 1.35f &&
-                        r >
-                        b * 1.25f
+                        r > g * 1.35f &&
+                        r > b * 1.25f
                     ) {
 
                         suspicious += 2
 
                     } else if (
-                        r > 130 &&
-                        b > 100 &&
-                        r >
-                        g * 1.20f
+                        r > 135 &&
+                        b > 95 &&
+                        r > g * 1.20f
                     ) {
 
-                        suspicious += 1
+                        suspicious++
 
-                    } else if (
-                        r > 190 &&
-                        g > 170 &&
-                        b > 120 &&
-                        abs(r - g) < 70
-                    ) {
-
-                        suspicious += 1
                     }
                 }
 
@@ -2453,9 +3293,71 @@ class GatheringAccessibilityService :
             suspicious * 100 /
                 max(
                     1,
-                    samples / 5
+                    samples / 6
                 )
         )
+    }
+
+
+    // =============================================================
+    // TARGET SCORE
+    // =============================================================
+
+    private fun calculateTargetScore(
+        type:
+            String,
+
+        level:
+            Int,
+
+        confidence:
+            Int,
+
+        occupation:
+            Int
+    ): Int {
+
+        val priorityIndex =
+            rssPriority.indexOf(
+                type
+            )
+
+
+        val priorityScore =
+            if (
+                priorityIndex >= 0
+            ) {
+
+                (
+                    rssPriority.size -
+                        priorityIndex
+                    ) * 100
+
+            } else {
+
+                0
+            }
+
+
+        val levelScore =
+            level * 35
+
+
+        val confidenceScore =
+            confidence
+
+
+        val occupationPenalty =
+            occupation * 5
+
+
+        return (
+            priorityScore +
+                levelScore +
+                confidenceScore -
+                occupationPenalty
+            )
+            .coerceAtLeast(0)
     }
 
 
@@ -2482,12 +3384,12 @@ class GatheringAccessibilityService :
                     abs(
                         it.x -
                             candidate.x
-                    ) < 45 &&
+                    ) < 38 &&
 
                     abs(
                         it.y -
                             candidate.y
-                    ) < 45
+                    ) < 38
                 }
 
 
@@ -2533,7 +3435,9 @@ class GatheringAccessibilityService :
 
                 startStopButton?.text =
 
-                    if (running) {
+                    if (
+                        running
+                    ) {
 
                         "■ STOP"
 
@@ -2570,60 +3474,6 @@ class GatheringAccessibilityService :
 
             } catch (_: Exception) {
             }
-        }
-    }
-
-
-    // =============================================================
-    // RESERVED TAP
-    // =============================================================
-
-    private fun tap(
-        x:
-            Float,
-
-        y:
-            Float
-    ) {
-
-        if (!serviceAlive) {
-            return
-        }
-
-        try {
-
-            val path =
-                Path().apply {
-
-                    moveTo(
-                        x,
-                        y
-                    )
-                }
-
-
-            val gesture =
-                GestureDescription
-                    .Builder()
-                    .addStroke(
-
-                        GestureDescription
-                            .StrokeDescription(
-                                path,
-                                0,
-                                100
-                            )
-                    )
-                    .build()
-
-
-            dispatchGesture(
-                gesture,
-                null,
-                null
-            )
-
-        } catch (_: Exception) {
         }
     }
 
