@@ -1943,31 +1943,16 @@ class GatheringAccessibilityService :
 
 
         val left =
-            max(
-                0,
-                bx - 110
-            )
+    max(0, bx - 95)
 
+val right =
+    min(bitmap.width - 1, bx - 12)
 
-        val right =
-            min(
-                bitmap.width - 1,
-                bx + 25
-            )
+val top =
+    max(0, by - 65)
 
-
-        val top =
-            max(
-                0,
-                by - 105
-            )
-
-
-        val bottom =
-            min(
-                bitmap.height - 1,
-                by + 20
-            )
+val bottom =
+    min(bitmap.height - 1, by + 15)
 
 
         var y =
