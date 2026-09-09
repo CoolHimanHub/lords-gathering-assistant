@@ -1080,7 +1080,13 @@ class GatheringAccessibilityService :
                 emptyList()
             }
 
-        showDiagnostic(candidates)
+        safeStatus(
+    "SCREEN CHECK\n" +
+    "Bitmap: ${bitmap.width} x ${bitmap.height}\n" +
+    "Display: ${resources.displayMetrics.widthPixels} x ${resources.displayMetrics.heightPixels}\n" +
+    "RSS detected: ${candidates.size}\n" +
+    "SAFE TEST: no tap"
+)
         val cleaned =
             removeDuplicates(
                 candidates
