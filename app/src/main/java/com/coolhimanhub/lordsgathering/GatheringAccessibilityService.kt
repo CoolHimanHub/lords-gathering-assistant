@@ -17,6 +17,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -29,84 +30,136 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
 
+    private val analysisExecutor =
+        Executors.newSingleThreadExecutor()
+
+    @Volatile
     private var running = false
+
+    @Volatile
     private var screenshotInProgress = false
 
+    @Volatile
+    private var serviceAlive = true
+
     private var overlayView: LinearLayout? = null
-    private var overlayParams: WindowManager.LayoutParams? = null
-    private var windowManager: WindowManager? = null
+
+    private var overlayParams:
+        WindowManager.LayoutParams? = null
+
+    private var windowManager:
+        WindowManager? = null
 
     private var infoText: TextView? = null
+
     private var startStopButton: Button? = null
+
     private var scanButton: Button? = null
 
     private var scanCount = 0
 
+
     // =============================================================
-    // RSS MODEL
+    // RSS PRIORITY
+    // =============================================================
+
+    private val rssPriority =
+        listOf(
+            "Emerging",
+            "Gold",
+            "Ore",
+            "Wood",
+            "Food",
+            "Stone",
+            "Other"
+        )
+
+
+    // =============================================================
+    // RSS DATA
     // =============================================================
 
     private data class RssCandidate(
+
         val type: String,
+
         val level: Int,
+
         val x: Int,
+
         val y: Int,
+
         val confidence: Int,
+
         val occupied: Boolean
     )
 
-    // User-selected priority.
-    // Current order matches the app screen:
-    // Emerging, Gold, Ore, Wood, Food, Stone, Other
-    //
-    // We keep this here for V2.
-    // Later this will read the actual saved preference automatically.
-    private val rssPriority = listOf(
-        "Emerging",
-        "Gold",
-        "Ore",
-        "Wood",
-        "Food",
-        "Stone",
-        "Other"
-    )
 
     // =============================================================
     // ACCESSIBILITY SERVICE
     // =============================================================
 
     override fun onServiceConnected() {
+
         super.onServiceConnected()
 
-        try {
-            windowManager =
-                getSystemService(WINDOW_SERVICE) as WindowManager
+        serviceAlive = true
 
-            showFloatingControl()
+        try {
+
+            windowManager =
+                getSystemService(
+                    WINDOW_SERVICE
+                ) as WindowManager
+
+            handler.post {
+
+                if (serviceAlive) {
+                    showFloatingControl()
+                }
+            }
 
         } catch (_: Exception) {
 
-            handler.post {
-                recreateOverlay()
-            }
+            safeStatus(
+                "Service ready\n" +
+                "Overlay retrying..."
+            )
+
+            handler.postDelayed(
+                {
+                    if (serviceAlive) {
+                        recreateOverlay()
+                    }
+                },
+                1000
+            )
         }
     }
+
 
     override fun onAccessibilityEvent(
         event: AccessibilityEvent?
     ) {
-        // Nothing required yet.
+        // Reserved for future use.
     }
 
+
     override fun onInterrupt() {
+
         stopAutomation()
     }
+
 
     // =============================================================
     // FLOATING CONTROL
     // =============================================================
 
     private fun showFloatingControl() {
+
+        if (!serviceAlive) {
+            return
+        }
 
         if (overlayView != null) {
             return
@@ -115,17 +168,28 @@ class GatheringAccessibilityService : AccessibilityService() {
         val wm =
             windowManager
                 ?: try {
-                    getSystemService(WINDOW_SERVICE) as WindowManager
+
+                    getSystemService(
+                        WINDOW_SERVICE
+                    ) as WindowManager
+
                 } catch (_: Exception) {
+
                     return
                 }
 
         windowManager = wm
 
+
+        // ---------------------------------------------------------
+        // MAIN CONTAINER
+        // ---------------------------------------------------------
+
         val container =
             LinearLayout(this).apply {
 
-                orientation = LinearLayout.VERTICAL
+                orientation =
+                    LinearLayout.VERTICAL
 
                 setPadding(
                     10,
@@ -135,24 +199,34 @@ class GatheringAccessibilityService : AccessibilityService() {
                 )
 
                 setBackgroundColor(
-                    Color.rgb(65, 65, 65)
+                    Color.rgb(
+                        65,
+                        65,
+                        65
+                    )
                 )
             }
 
-        // =========================================================
+
+        // ---------------------------------------------------------
         // TITLE / DRAG HANDLE
-        // =========================================================
+        // ---------------------------------------------------------
 
         val title =
             TextView(this).apply {
 
-                text = "Lords Assistant V2"
+                text =
+                    "Lords Assistant V5"
 
-                textSize = 16f
+                textSize =
+                    16f
 
-                setTextColor(Color.WHITE)
+                setTextColor(
+                    Color.WHITE
+                )
 
-                gravity = Gravity.CENTER
+                gravity =
+                    Gravity.CENTER
 
                 setPadding(
                     8,
@@ -162,14 +236,27 @@ class GatheringAccessibilityService : AccessibilityService() {
                 )
             }
 
+
+        // ---------------------------------------------------------
+        // DRAG
+        // ---------------------------------------------------------
+
         title.setOnTouchListener(
-            object : View.OnTouchListener {
+            object :
+                View.OnTouchListener {
 
-                private var startX = 0f
-                private var startY = 0f
+                private var startX =
+                    0f
 
-                private var startParamX = 0
-                private var startParamY = 0
+                private var startY =
+                    0f
+
+                private var startParamX =
+                    0
+
+                private var startParamY =
+                    0
+
 
                 override fun onTouch(
                     view: View?,
@@ -180,36 +267,45 @@ class GatheringAccessibilityService : AccessibilityService() {
                         overlayParams
                             ?: return false
 
-                    when (event.actionMasked) {
+
+                    when (
+                        event.actionMasked
+                    ) {
 
                         MotionEvent.ACTION_DOWN -> {
 
-                            startX = event.rawX
-                            startY = event.rawY
+                            startX =
+                                event.rawX
 
-                            startParamX = params.x
-                            startParamY = params.y
+                            startY =
+                                event.rawY
+
+                            startParamX =
+                                params.x
+
+                            startParamY =
+                                params.y
 
                             return true
                         }
 
+
                         MotionEvent.ACTION_MOVE -> {
-
-                            val dx =
-                                event.rawX - startX
-
-                            val dy =
-                                event.rawY - startY
 
                             params.x =
                                 (
-                                    startParamX + dx
-                                ).toInt()
+                                    startParamX +
+                                        event.rawX -
+                                        startX
+                                    ).toInt()
 
                             params.y =
                                 (
-                                    startParamY + dy
-                                ).toInt()
+                                    startParamY +
+                                        event.rawY -
+                                        startY
+                                    ).toInt()
+
 
                             try {
 
@@ -224,7 +320,10 @@ class GatheringAccessibilityService : AccessibilityService() {
                             return true
                         }
 
-                        MotionEvent.ACTION_UP -> {
+
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL -> {
+
                             return true
                         }
                     }
@@ -234,6 +333,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
         )
 
+
         // =========================================================
         // START / STOP
         // =========================================================
@@ -241,21 +341,26 @@ class GatheringAccessibilityService : AccessibilityService() {
         val startButton =
             Button(this).apply {
 
-                text = "▶ START"
+                text =
+                    "▶ START"
+
 
                 setOnClickListener {
 
                     try {
 
                         if (running) {
+
                             stopAutomation()
+
                         } else {
+
                             startAutomation()
                         }
 
                     } catch (e: Exception) {
 
-                        updateInfo(
+                        safeStatus(
                             "Button error: " +
                                 e.javaClass.simpleName
                         )
@@ -263,14 +368,17 @@ class GatheringAccessibilityService : AccessibilityService() {
                 }
             }
 
+
         // =========================================================
-        // SCAN
+        // SCAN BUTTON
         // =========================================================
 
         val scanBtn =
             Button(this).apply {
 
-                text = "🔍 SCAN"
+                text =
+                    "🔍 SCAN"
+
 
                 setOnClickListener {
 
@@ -280,13 +388,14 @@ class GatheringAccessibilityService : AccessibilityService() {
 
                     } catch (e: Exception) {
 
-                        updateInfo(
+                        safeStatus(
                             "Scan error: " +
                                 e.javaClass.simpleName
                         )
                     }
                 }
             }
+
 
         // =========================================================
         // STATUS
@@ -296,14 +405,18 @@ class GatheringAccessibilityService : AccessibilityService() {
             TextView(this).apply {
 
                 text =
-                    "V2 Scanner ready\n" +
+                    "V5 Scanner ready\n" +
                     "SAFE TEST: no troop sent"
 
-                textSize = 11f
+                textSize =
+                    11f
 
-                setTextColor(Color.WHITE)
+                setTextColor(
+                    Color.WHITE
+                )
 
-                gravity = Gravity.CENTER
+                gravity =
+                    Gravity.CENTER
 
                 setPadding(
                     4,
@@ -313,14 +426,33 @@ class GatheringAccessibilityService : AccessibilityService() {
                 )
             }
 
-        infoText = info
-        startStopButton = startButton
-        scanButton = scanBtn
 
-        container.addView(title)
-        container.addView(startButton)
-        container.addView(scanBtn)
-        container.addView(info)
+        infoText =
+            info
+
+        startStopButton =
+            startButton
+
+        scanButton =
+            scanBtn
+
+
+        container.addView(
+            title
+        )
+
+        container.addView(
+            startButton
+        )
+
+        container.addView(
+            scanBtn
+        )
+
+        container.addView(
+            info
+        )
+
 
         // =========================================================
         // OVERLAY PARAMETERS
@@ -328,20 +460,35 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         val params =
             WindowManager.LayoutParams(
+
                 WindowManager.LayoutParams.WRAP_CONTENT,
+
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+
+                WindowManager.LayoutParams
+                    .TYPE_ACCESSIBILITY_OVERLAY,
+
+                WindowManager.LayoutParams
+                    .FLAG_NOT_FOCUSABLE,
+
                 PixelFormat.TRANSLUCENT
             )
 
+
         params.gravity =
-            Gravity.TOP or Gravity.START
+            Gravity.TOP or
+                Gravity.START
 
-        params.x = 100
-        params.y = 150
+        params.x =
+            100
 
-        overlayParams = params
+        params.y =
+            150
+
+
+        overlayParams =
+            params
+
 
         // =========================================================
         // ADD OVERLAY
@@ -354,43 +501,61 @@ class GatheringAccessibilityService : AccessibilityService() {
                 params
             )
 
-            overlayView = container
+            overlayView =
+                container
 
-            updateInfo(
-                "V2 Scanner ready\n" +
+
+            safeStatus(
+                "V5 Scanner ready\n" +
                 "Press SCAN\n" +
                 "SAFE TEST: no troop sent"
             )
 
         } catch (_: Exception) {
 
-            overlayView = null
-            overlayParams = null
+            overlayView =
+                null
 
-            infoText = null
-            startStopButton = null
-            scanButton = null
+            overlayParams =
+                null
+
+            infoText =
+                null
+
+            startStopButton =
+                null
+
+            scanButton =
+                null
+
 
             handler.postDelayed(
                 {
-                    recreateOverlay()
+                    if (serviceAlive) {
+                        recreateOverlay()
+                    }
                 },
                 1000
             )
         }
     }
 
+
     // =============================================================
-    // RECREATE
+    // RECREATE OVERLAY
     // =============================================================
 
     private fun recreateOverlay() {
 
-        try {
+        if (!serviceAlive) {
+            return
+        }
 
-            if (overlayView != null) {
-                return
-            }
+        if (overlayView != null) {
+            return
+        }
+
+        try {
 
             showFloatingControl()
 
@@ -398,8 +563,9 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
     }
 
+
     // =============================================================
-    // START
+    // START AUTOMATION
     // =============================================================
 
     private fun startAutomation() {
@@ -408,20 +574,30 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
-        running = true
+        if (!serviceAlive) {
+            return
+        }
+
+
+        running =
+            true
+
 
         updateStartStopButton()
 
-        updateInfo(
-            "V2 AUTO SCAN started\n" +
+
+        safeStatus(
+            "V5 AUTO SCAN started\n" +
             "Scanning every 4 seconds\n" +
             "No map movement\n" +
             "SAFE TEST: no troop sent"
         )
 
+
         handler.removeCallbacks(
             scanRunnable
         )
+
 
         handler.postDelayed(
             scanRunnable,
@@ -429,29 +605,36 @@ class GatheringAccessibilityService : AccessibilityService() {
         )
     }
 
+
     // =============================================================
-    // STOP
+    // STOP AUTOMATION
     // =============================================================
 
     private fun stopAutomation() {
 
-        running = false
+        running =
+            false
+
 
         handler.removeCallbacks(
             scanRunnable
         )
 
+
         updateStartStopButton()
 
-        updateInfo(
+
+        safeStatus(
             "STOPPED\n" +
+            "Scanning stopped only\n" +
             "Overlay remains active\n" +
             "SAFE TEST: no troop sent"
         )
     }
 
+
     // =============================================================
-    // AUTO SCAN LOOP
+    // AUTOMATIC SCAN LOOP
     // =============================================================
 
     private val scanRunnable =
@@ -459,9 +642,13 @@ class GatheringAccessibilityService : AccessibilityService() {
 
             override fun run() {
 
-                if (!running) {
+                if (
+                    !running ||
+                    !serviceAlive
+                ) {
                     return
                 }
+
 
                 try {
 
@@ -469,13 +656,17 @@ class GatheringAccessibilityService : AccessibilityService() {
 
                 } catch (e: Exception) {
 
-                    updateInfo(
+                    safeStatus(
                         "Scan exception: " +
                             e.javaClass.simpleName
                     )
                 }
 
-                if (running) {
+
+                if (
+                    running &&
+                    serviceAlive
+                ) {
 
                     handler.postDelayed(
                         this,
@@ -485,18 +676,24 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
         }
 
+
     // =============================================================
-    // SCREENSHOT
+    // SCREEN SCANNER
     // =============================================================
 
     private fun scanScreen() {
+
+        if (!serviceAlive) {
+            return
+        }
+
 
         if (
             Build.VERSION.SDK_INT <
                 Build.VERSION_CODES.R
         ) {
 
-            updateInfo(
+            safeStatus(
                 "Android version does not support\n" +
                 "Accessibility screenshot API"
             )
@@ -504,48 +701,87 @@ class GatheringAccessibilityService : AccessibilityService() {
             return
         }
 
+
         if (screenshotInProgress) {
 
-            updateInfo(
-                "Scan already running..."
+            safeStatus(
+                "Scan already running...\n" +
+                "Previous capture still processing"
             )
 
             return
         }
 
-        screenshotInProgress = true
+
+        screenshotInProgress =
+            true
+
 
         scanCount++
 
-        updateInfo(
-            "Scan #$scanCount - capturing..."
+
+        val thisScan =
+            scanCount
+
+
+        safeStatus(
+            "Scan #$thisScan - capturing..."
         )
+
 
         try {
 
             takeScreenshot(
+
                 android.view.Display.DEFAULT_DISPLAY,
+
                 mainExecutor,
-                object : TakeScreenshotCallback {
+
+                object :
+                    TakeScreenshotCallback {
+
 
                     override fun onSuccess(
-                        screenshot: ScreenshotResult
+                        screenshot:
+                            ScreenshotResult
                     ) {
 
+                        if (!serviceAlive) {
+
+                            closeScreenshot(
+                                screenshot
+                            )
+
+                            screenshotInProgress =
+                                false
+
+                            return
+                        }
+
+
                         processScreenshot(
-                            screenshot
+                            screenshot,
+                            thisScan
                         )
                     }
+
 
                     override fun onFailure(
                         errorCode: Int
                     ) {
 
-                        screenshotInProgress = false
+                        screenshotInProgress =
+                            false
 
-                        updateInfo(
-                            "Scan #$scanCount\n" +
-                            "Capture failed: $errorCode"
+
+                        safeStatus(
+
+                            "Scan #$thisScan\n" +
+
+                                "Capture failed: " +
+                                errorCode +
+
+                                "\nSAFE TEST: no troop sent"
                         )
                     }
                 }
@@ -553,128 +789,242 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         } catch (e: Exception) {
 
-            screenshotInProgress = false
+            screenshotInProgress =
+                false
 
-            updateInfo(
-                "Scan #$scanCount\n" +
-                "Capture exception: " +
-                e.javaClass.simpleName
+
+            safeStatus(
+
+                "Scan #$thisScan\n" +
+
+                    "Capture exception: " +
+
+                    e.javaClass.simpleName +
+
+                    "\nSAFE TEST: no troop sent"
             )
         }
     }
+
 
     // =============================================================
     // PROCESS SCREENSHOT
     // =============================================================
 
     private fun processScreenshot(
-        screenshot: ScreenshotResult
+        screenshot:
+            ScreenshotResult,
+
+        thisScan:
+            Int
     ) {
 
-        var bitmap: Bitmap? = null
+        var bitmap:
+            Bitmap? = null
+
 
         try {
 
             val hardwareBitmap =
-                Bitmap.wrapHardwareBuffer(
-                    screenshot.hardwareBuffer,
-                    screenshot.colorSpace
-                )
+                try {
 
-            if (hardwareBitmap == null) {
+                    Bitmap.wrapHardwareBuffer(
+                        screenshot.hardwareBuffer,
+                        screenshot.colorSpace
+                    )
 
-                updateInfo(
-                    "Bitmap conversion failed"
+                } catch (_: Exception) {
+
+                    null
+                }
+
+
+            if (
+                hardwareBitmap ==
+                    null
+            ) {
+
+                safeStatus(
+
+                    "Scan #$thisScan\n" +
+                    "Bitmap conversion failed\n" +
+                    "SAFE TEST: no troop sent"
                 )
 
                 return
             }
 
+
             bitmap =
-                hardwareBitmap.copy(
-                    Bitmap.Config.ARGB_8888,
-                    false
-                )
+                try {
+
+                    hardwareBitmap.copy(
+                        Bitmap.Config.ARGB_8888,
+                        false
+                    )
+
+                } catch (_: Exception) {
+
+                    null
+                }
+
 
             if (bitmap == null) {
 
-                updateInfo(
-                    "Bitmap copy failed"
+                safeStatus(
+
+                    "Scan #$thisScan\n" +
+                    "Bitmap copy failed\n" +
+                    "SAFE TEST: no troop sent"
                 )
 
                 return
             }
 
-            updateInfo(
-                "Scan #$scanCount - detecting RSS..."
+
+            safeStatus(
+                "Scan #$thisScan - analysing..."
             )
 
-            analyseScreen(
+
+            val workBitmap =
                 bitmap
-            )
+
+
+            bitmap =
+                null
+
+
+            analysisExecutor.execute {
+
+                try {
+
+                    if (serviceAlive) {
+
+                        analyseScreen(
+                            workBitmap,
+                            thisScan
+                        )
+                    }
+
+                } catch (e: Exception) {
+
+                    safeStatus(
+
+                        "Scan #$thisScan\n" +
+                        "Analysis exception: " +
+                        e.javaClass.simpleName +
+                        "\nSAFE TEST: no troop sent"
+                    )
+
+                } finally {
+
+                    /*
+                     * IMPORTANT:
+                     *
+                     * Do NOT manually recycle
+                     * this bitmap.
+                     *
+                     * Let Android/GC manage it.
+                     */
+
+                    screenshotInProgress =
+                        false
+                }
+            }
 
         } catch (e: Exception) {
 
-            updateInfo(
-                "Scan #$scanCount\n" +
-                "Analysis error: " +
-                e.javaClass.simpleName
+            safeStatus(
+
+                "Scan #$thisScan\n" +
+                "Processing error: " +
+                e.javaClass.simpleName +
+                "\nSAFE TEST: no troop sent"
             )
+
+
+            screenshotInProgress =
+                false
 
         } finally {
 
-            try {
-                screenshot.hardwareBuffer.close()
-            } catch (_: Exception) {
-            }
+            /*
+             * Screenshot hardware buffer
+             * MUST be closed.
+             */
 
-            try {
-                bitmap?.recycle()
-            } catch (_: Exception) {
-            }
-
-            screenshotInProgress = false
+            closeScreenshot(
+                screenshot
+            )
         }
     }
 
+
     // =============================================================
-    // MAIN RSS DETECTOR
+    // CLOSE SCREENSHOT
+    // =============================================================
+
+    private fun closeScreenshot(
+        screenshot:
+            ScreenshotResult
+    ) {
+
+        try {
+
+            screenshot.hardwareBuffer.close()
+
+        } catch (_: Exception) {
+        }
+    }
+
+
+    // =============================================================
+    // SCREEN ANALYSIS
     // =============================================================
 
     private fun analyseScreen(
-        bitmap: Bitmap
+        bitmap:
+            Bitmap,
+
+        thisScan:
+            Int
     ) {
 
         val candidates =
-            detectBlueRssBadges(bitmap)
+            try {
 
-        if (candidates.isEmpty()) {
+                detectBlueRssBadges(
+                    bitmap
+                )
 
-            updateInfo(
-                "Scan #$scanCount\n" +
+            } catch (_: Exception) {
+
+                emptyList()
+            }
+
+
+        if (
+            candidates.isEmpty()
+        ) {
+
+            safeStatus(
+
+                "Scan #$thisScan\n" +
                 "No RSS markers detected\n" +
-                "Try another map position\n" +
+                "Move the kingdom map and SCAN again\n" +
                 "SAFE TEST: no troop sent"
             )
 
             return
         }
 
-        // ---------------------------------------------------------
-        // Remove duplicates.
-        // ---------------------------------------------------------
-
-        val unique =
-            removeDuplicateCandidates(
-                candidates
-            )
-
-        // ---------------------------------------------------------
-        // Sort using user's RSS priority.
-        // ---------------------------------------------------------
 
         val sorted =
-            unique.sortedWith(
+            removeDuplicates(
+                candidates
+            ).sortedWith(
+
                 compareBy<RssCandidate> {
 
                     val index =
@@ -682,104 +1032,203 @@ class GatheringAccessibilityService : AccessibilityService() {
                             it.type
                         )
 
-                    if (index < 0) {
+                    if (index < 0)
                         999
-                    } else {
+                    else
                         index
-                    }
 
                 }.thenByDescending {
+
                     it.level
-                }.thenBy {
+
+                }.thenByDescending {
+
                     it.confidence
                 }
             )
 
-        // ---------------------------------------------------------
-        // Select first safe candidate.
-        // ---------------------------------------------------------
 
-        val selected =
+        val best =
             sorted.firstOrNull {
                 !it.occupied
             }
 
-        // ---------------------------------------------------------
-        // Build compact display.
-        // ---------------------------------------------------------
 
-        val builder =
+        val output =
             StringBuilder()
 
-        builder.append(
-            "Scan #$scanCount\n"
+
+        output.append(
+            "Scan #$thisScan\n"
         )
 
-        builder.append(
-            "RSS found: ${sorted.size}\n"
+
+        output.append(
+            "RSS found: "
         )
 
-        val displayCount =
-            min(
-                sorted.size,
-                6
-            )
 
-        for (i in 0 until displayCount) {
+        output.append(
+            sorted.size
+        )
 
-            val r =
+
+        output.append(
+            "\n"
+        )
+
+
+        for (
+            i in 0 until
+                min(
+                    sorted.size,
+                    8
+                )
+        ) {
+
+            val rss =
                 sorted[i]
 
-            builder.append(
-                "${i + 1}. " +
-                "${r.type} " +
-                "Lv${r.level} " +
-                "(${r.x},${r.y}) "
+
+            output.append(
+                "${i + 1}. "
             )
 
-            if (r.occupied) {
-                builder.append(
-                    "[OCCUPIED?]"
+
+            output.append(
+                rss.type
+            )
+
+
+            output.append(
+                " Lv"
+            )
+
+
+            output.append(
+                rss.level
+            )
+
+
+            output.append(
+                " ("
+            )
+
+
+            output.append(
+                rss.x
+            )
+
+
+            output.append(
+                ","
+            )
+
+
+            output.append(
+                rss.y
+            )
+
+
+            output.append(
+                ")"
+            )
+
+
+            if (
+                rss.occupied
+            ) {
+
+                output.append(
+                    " [OCCUPIED?]"
                 )
             }
 
-            builder.append("\n")
+
+            output.append(
+                "\n"
+            )
         }
 
-        if (selected != null) {
 
-            builder.append(
-                "BEST: ${selected.type} " +
-                "Lv${selected.level} " +
-                "(${selected.x},${selected.y})\n"
+        if (best != null) {
+
+            output.append(
+                "BEST: "
+            )
+
+
+            output.append(
+                best.type
+            )
+
+
+            output.append(
+                " Lv"
+            )
+
+
+            output.append(
+                best.level
+            )
+
+
+            output.append(
+                " ("
+            )
+
+
+            output.append(
+                best.x
+            )
+
+
+            output.append(
+                ","
+            )
+
+
+            output.append(
+                best.y
+            )
+
+
+            output.append(
+                ")\n"
             )
 
         } else {
 
-            builder.append(
-                "BEST: none - all candidates suspicious\n"
+            output.append(
+                "BEST: none\n"
             )
         }
 
-        builder.append(
+
+        output.append(
+            "VISIBLE SCREEN ONLY\n"
+        )
+
+
+        output.append(
             "SAFE TEST: no troop sent"
         )
 
-        updateInfo(
-            builder.toString()
+
+        safeStatus(
+            output.toString()
         )
     }
 
+
     // =============================================================
-    // BLUE RSS BADGE DETECTOR
+    // BLUE RSS BADGE DETECTION
     // =============================================================
 
     private fun detectBlueRssBadges(
-        bitmap: Bitmap
-    ): MutableList<RssCandidate> {
-
-        val result =
-            mutableListOf<RssCandidate>()
+        bitmap:
+            Bitmap
+    ): List<RssCandidate> {
 
         val width =
             bitmap.width
@@ -787,84 +1236,189 @@ class GatheringAccessibilityService : AccessibilityService() {
         val height =
             bitmap.height
 
-        // We deliberately downsample.
-        // This keeps the phone responsive.
-        val step = 3
+
+        val step =
+            3
+
 
         val gridWidth =
-            (width + step - 1) / step
+            (
+                width +
+                    step -
+                    1
+                ) / step
+
 
         val gridHeight =
-            (height + step - 1) / step
+            (
+                height +
+                    step -
+                    1
+                ) / step
+
 
         val visited =
             BooleanArray(
-                gridWidth * gridHeight
+                gridWidth *
+                    gridHeight
             )
+
 
         val queueX =
             IntArray(
-                gridWidth * gridHeight
+                gridWidth *
+                    gridHeight
             )
+
 
         val queueY =
             IntArray(
-                gridWidth * gridHeight
+                gridWidth *
+                    gridHeight
             )
 
-        for (gy in 20 until gridHeight - 10) {
 
-            for (gx in 5 until gridWidth - 5) {
+        val result =
+            mutableListOf<RssCandidate>()
 
-                val index =
-                    gy * gridWidth + gx
 
-                if (visited[index]) {
-                    continue
-                }
+        fun isBlue(
+            gx: Int,
+            gy: Int
+        ): Boolean {
 
-                val px =
-                    min(
-                        width - 1,
-                        gx * step
+            val x =
+                min(
+                    width - 1,
+                    gx * step
+                )
+
+
+            val y =
+                min(
+                    height - 1,
+                    gy * step
+                )
+
+
+            val pixel =
+                bitmap.getPixel(
+                    x,
+                    y
+                )
+
+
+            val r =
+                Color.red(
+                    pixel
+                )
+
+
+            val g =
+                Color.green(
+                    pixel
+                )
+
+
+            val b =
+                Color.blue(
+                    pixel
+                )
+
+
+            return (
+
+                b > 105 &&
+
+                    b >
+                    r * 1.20f &&
+
+                    b >
+                    g * 1.02f &&
+
+                    b - r > 25
+                )
+        }
+
+
+        for (
+            gy in
+                15 until
+                max(
+                    15,
+                    gridHeight - 10
+                )
+        ) {
+
+            for (
+                gx in
+                    4 until
+                    max(
+                        4,
+                        gridWidth - 4
                     )
+            ) {
 
-                val py =
-                    min(
-                        height - 1,
-                        gy * step
-                    )
+                val startIndex =
+                    gy *
+                        gridWidth +
+                        gx
 
-                if (!isRssBluePixel(
-                        bitmap.getPixel(px, py)
+
+                if (
+                    visited[startIndex] ||
+                    !isBlue(
+                        gx,
+                        gy
                     )
                 ) {
 
-                    visited[index] = true
+                    visited[startIndex] =
+                        true
+
                     continue
                 }
 
-                // -------------------------------------------------
-                // Flood fill.
-                // -------------------------------------------------
 
-                var head = 0
-                var tail = 0
+                var head =
+                    0
 
-                queueX[tail] = gx
-                queueY[tail] = gy
+                var tail =
+                    0
+
+
+                queueX[tail] =
+                    gx
+
+                queueY[tail] =
+                    gy
+
                 tail++
 
-                visited[index] = true
 
-                var minX = gx
-                var maxX = gx
-                var minY = gy
-                var maxY = gy
+                visited[startIndex] =
+                    true
 
-                var pixels = 0
 
-                while (head < tail) {
+                var minX =
+                    gx
+
+                var maxX =
+                    gx
+
+                var minY =
+                    gy
+
+                var maxY =
+                    gy
+
+                var pixels =
+                    0
+
+
+                while (
+                    head < tail
+                ) {
 
                     val cx =
                         queueX[head]
@@ -874,7 +1428,9 @@ class GatheringAccessibilityService : AccessibilityService() {
 
                     head++
 
+
                     pixels++
+
 
                     minX =
                         min(
@@ -882,11 +1438,13 @@ class GatheringAccessibilityService : AccessibilityService() {
                             cx
                         )
 
+
                     maxX =
                         max(
                             maxX,
                             cx
                         )
+
 
                     minY =
                         min(
@@ -894,130 +1452,136 @@ class GatheringAccessibilityService : AccessibilityService() {
                             cy
                         )
 
+
                     maxY =
                         max(
                             maxY,
                             cy
                         )
 
-                    val neighbours =
-                        arrayOf(
-                            intArrayOf(
-                                cx + 1,
-                                cy
-                            ),
-                            intArrayOf(
-                                cx - 1,
-                                cy
-                            ),
-                            intArrayOf(
-                                cx,
-                                cy + 1
-                            ),
-                            intArrayOf(
-                                cx,
-                                cy - 1
-                            )
+
+                    val nx =
+                        intArrayOf(
+                            cx + 1,
+                            cx - 1,
+                            cx,
+                            cx
                         )
 
-                    for (n in neighbours) {
 
-                        val nx = n[0]
-                        val ny = n[1]
+                    val ny =
+                        intArrayOf(
+                            cy,
+                            cy,
+                            cy + 1,
+                            cy - 1
+                        )
+
+
+                    for (
+                        k in 0..3
+                    ) {
+
+                        val x2 =
+                            nx[k]
+
+                        val y2 =
+                            ny[k]
+
 
                         if (
-                            nx < 0 ||
-                            ny < 0 ||
-                            nx >= gridWidth ||
-                            ny >= gridHeight
+                            x2 < 0 ||
+                            y2 < 0 ||
+                            x2 >= gridWidth ||
+                            y2 >= gridHeight
                         ) {
                             continue
                         }
 
-                        val ni =
-                            ny * gridWidth + nx
 
-                        if (visited[ni]) {
+                        val index =
+                            y2 *
+                                gridWidth +
+                                x2
+
+
+                        if (
+                            visited[index]
+                        ) {
                             continue
                         }
 
-                        visited[ni] = true
 
-                        val sx =
-                            min(
-                                width - 1,
-                                nx * step
-                            )
+                        visited[index] =
+                            true
 
-                        val sy =
-                            min(
-                                height - 1,
-                                ny * step
-                            )
 
                         if (
-                            isRssBluePixel(
-                                bitmap.getPixel(
-                                    sx,
-                                    sy
-                                )
-                            )
+                            isBlue(
+                                x2,
+                                y2
+                            ) &&
+                            tail <
+                            queueX.size
                         ) {
 
-                            if (
-                                tail <
-                                queueX.size
-                            ) {
+                            queueX[tail] =
+                                x2
 
-                                queueX[tail] = nx
-                                queueY[tail] = ny
-                                tail++
-                            }
+                            queueY[tail] =
+                                y2
+
+                            tail++
                         }
                     }
                 }
 
-                // -------------------------------------------------
-                // Component size.
-                // -------------------------------------------------
 
-                val componentWidth =
-                    (maxX - minX + 1) * step
+                val boxWidth =
+                    (
+                        maxX -
+                            minX +
+                            1
+                        ) * step
 
-                val componentHeight =
-                    (maxY - minY + 1) * step
 
-                val componentArea =
-                    componentWidth *
-                    componentHeight
+                val boxHeight =
+                    (
+                        maxY -
+                            minY +
+                            1
+                        ) * step
 
-                // RSS level badges are small.
-                //
-                // This deliberately rejects:
-                // - giant UI areas
-                // - large blue buttons
-                // - map-wide blue graphics
+
                 if (
-                    pixels < 12 ||
-                    pixels > 800 ||
-                    componentWidth < 8 ||
-                    componentWidth > 70 ||
-                    componentHeight < 8 ||
-                    componentHeight > 60 ||
-                    componentArea > 3500
+                    pixels !in 12..800 ||
+                    boxWidth !in 8..70 ||
+                    boxHeight !in 8..60 ||
+                    boxWidth *
+                    boxHeight > 3500
                 ) {
+
                     continue
                 }
 
+
                 val centerX =
-                    ((minX + maxX) / 2) * step
+                    (
+                        (
+                            minX +
+                                maxX
+                            ) / 2
+                        ) * step
+
 
                 val centerY =
-                    ((minY + maxY) / 2) * step
+                    (
+                        (
+                            minY +
+                                maxY
+                            ) / 2
+                        ) * step
 
-                // -------------------------------------------------
-                // Analyse resource area around badge.
-                // -------------------------------------------------
 
                 val type =
                     classifyResource(
@@ -1026,14 +1590,6 @@ class GatheringAccessibilityService : AccessibilityService() {
                         centerY
                     )
 
-                val level =
-                    estimateLevel(
-                        bitmap,
-                        centerX,
-                        centerY,
-                        componentWidth,
-                        componentHeight
-                    )
 
                 val confidence =
                     resourceConfidence(
@@ -1043,558 +1599,635 @@ class GatheringAccessibilityService : AccessibilityService() {
                         type
                     )
 
-                // Ignore very weak detections.
-                if (confidence < 25) {
+
+                if (
+                    confidence < 20
+                ) {
+
                     continue
                 }
 
-                val occupied =
-                    looksOccupied(
-                        bitmap,
-                        centerX,
-                        centerY
-                    )
 
                 result.add(
+
                     RssCandidate(
+
                         type = type,
-                        level = level,
-                        x = centerX,
-                        y = centerY,
-                        confidence = confidence,
-                        occupied = occupied
+
+                        level =
+                            estimateLevel(
+                                bitmap,
+                                centerX,
+                                centerY,
+                                boxWidth,
+                                boxHeight
+                            ),
+
+                        x =
+                            centerX,
+
+                        y =
+                            centerY,
+
+                        confidence =
+                            confidence,
+
+                        occupied =
+                            looksOccupied(
+                                bitmap,
+                                centerX,
+                                centerY
+                            )
                     )
                 )
             }
         }
 
+
         return result
     }
 
-    // =============================================================
-    // BLUE PIXEL TEST
-    // =============================================================
-
-    private fun isRssBluePixel(
-        pixel: Int
-    ): Boolean {
-
-        val r =
-            Color.red(pixel)
-
-        val g =
-            Color.green(pixel)
-
-        val b =
-            Color.blue(pixel)
-
-        return (
-            b > 105 &&
-            b > r * 1.20f &&
-            b > g * 1.02f &&
-            b - r > 25
-        )
-    }
 
     // =============================================================
     // RESOURCE CLASSIFICATION
     // =============================================================
 
     private fun classifyResource(
-        bitmap: Bitmap,
-        badgeX: Int,
-        badgeY: Int
+        bitmap:
+            Bitmap,
+
+        bx:
+            Int,
+
+        by:
+            Int
     ): String {
 
-        val width =
-            bitmap.width
+        var yellow =
+            0
 
-        val height =
-            bitmap.height
+        var brown =
+            0
 
-        /*
-         * The blue level badge is normally near the lower-right
-         * side of the RSS object.
-         *
-         * Therefore inspect a larger region above/left of it.
-         */
+        var gray =
+            0
+
+        var cyan =
+            0
+
+        var orange =
+            0
+
 
         val left =
             max(
                 0,
-                badgeX - 110
+                bx - 110
             )
+
 
         val right =
             min(
-                width - 1,
-                badgeX + 25
+                bitmap.width - 1,
+                bx + 25
             )
+
 
         val top =
             max(
                 0,
-                badgeY - 105
+                by - 105
             )
+
 
         val bottom =
             min(
-                height - 1,
-                badgeY + 20
+                bitmap.height - 1,
+                by + 20
             )
 
-        var yellow = 0
-        var brown = 0
-        var gray = 0
-        var cyan = 0
-        var orange = 0
-        var green = 0
-        var bright = 0
 
-        var samples = 0
+        var y =
+            top
 
-        var y = top
 
-        while (y <= bottom) {
+        while (
+            y <= bottom
+        ) {
 
-            var x = left
+            var x =
+                left
 
-            while (x <= right) {
 
-                val p =
+            while (
+                x <= right
+            ) {
+
+                val pixel =
                     bitmap.getPixel(
                         x,
                         y
                     )
 
+
                 val r =
-                    Color.red(p)
+                    Color.red(
+                        pixel
+                    )
+
 
                 val g =
-                    Color.green(p)
+                    Color.green(
+                        pixel
+                    )
+
 
                 val b =
-                    Color.blue(p)
+                    Color.blue(
+                        pixel
+                    )
 
-                // Ignore strong blue badge pixels.
+
                 if (
-                    !(b > 100 &&
-                    b > r * 1.2f)
+                    !(
+                        b > 100 &&
+                        b >
+                        r * 1.2f
+                    )
                 ) {
 
-                    samples++
-
-                    // Yellow / wheat / gold.
                     if (
                         r > 150 &&
                         g > 115 &&
-                        b < 100 &&
-                        r > b * 1.5f
+                        b < 100
                     ) {
                         yellow++
                     }
 
-                    // Brown / wooden material.
+
                     if (
                         r > 85 &&
-                        g > 45 &&
-                        g < 150 &&
-                        b < 90 &&
-                        r > g * 1.15f
+                        g in 45..155 &&
+                        b < 95 &&
+                        r >
+                        g * 1.10f
                     ) {
                         brown++
                     }
 
-                    // Stone.
+
                     if (
-                        abs(r - g) < 30 &&
-                        abs(g - b) < 30 &&
-                        r in 90..220
+                        abs(r - g) < 28 &&
+                        abs(g - b) < 28 &&
+                        r in 85..220
                     ) {
                         gray++
                     }
 
-                    // Ore / mineral cyan.
+
                     if (
                         b > 90 &&
                         g > 80 &&
-                        b > r * 1.20f
+                        b >
+                        r * 1.15f
                     ) {
                         cyan++
                     }
 
-                    // Orange mineral / ore.
+
                     if (
                         r > 145 &&
                         g in 65..180 &&
                         b < 110 &&
-                        r > g * 1.15f
+                        r >
+                        g * 1.12f
                     ) {
                         orange++
                     }
-
-                    // Green surroundings.
-                    if (
-                        g > 70 &&
-                        g > r * 1.15f &&
-                        g > b * 1.05f
-                    ) {
-                        green++
-                    }
-
-                    if (
-                        r > 170 &&
-                        g > 170 &&
-                        b > 120
-                    ) {
-                        bright++
-                    }
                 }
 
-                x += 4
+
+                x += 5
             }
 
-            y += 4
+
+            y += 5
         }
 
-        if (samples <= 0) {
-            return "Other"
-        }
 
-        // ---------------------------------------------------------
-        // Scores.
-        // ---------------------------------------------------------
+        val food =
+            yellow * 4
 
-        val foodScore =
-            yellow * 4 +
-            bright * 2
-
-        val goldScore =
+        val gold =
             yellow * 3 +
-            orange * 2 +
-            bright * 2
+                orange * 2
 
-        val woodScore =
-            brown * 4 +
-            green
+        val wood =
+            brown * 4
 
-        val stoneScore =
+        val stone =
             gray * 5
 
-        val oreScore =
+        val ore =
             cyan * 4 +
-            orange * 3 +
-            gray
+                orange * 3
+
 
         val best =
-            max(
-                max(
-                    max(
-                        max(
-                            foodScore,
-                            goldScore
-                        ),
-                        woodScore
-                    ),
-                    stoneScore
-                ),
-                oreScore
+            maxOf(
+                food,
+                gold,
+                wood,
+                stone,
+                ore
             )
 
-        if (best <= 0) {
-            return "Other"
-        }
 
         return when {
 
-            oreScore == best &&
-                oreScore > stoneScore * 1.15f ->
+            best <= 0 ->
+                "Other"
+
+
+            ore == best &&
+                ore >
+                stone * 1.15f ->
                 "Ore"
 
-            stoneScore == best ->
+
+            stone == best ->
                 "Stone"
 
-            woodScore == best ->
+
+            wood == best ->
                 "Wood"
 
-            goldScore == best &&
-                goldScore > foodScore * 1.10f ->
+
+            gold == best &&
+                gold >
+                food * 1.10f ->
                 "Gold"
 
-            foodScore == best ->
+
+            food == best ->
                 "Food"
+
 
             else ->
                 "Other"
         }
     }
 
+
     // =============================================================
-    // CONFIDENCE
+    // RESOURCE CONFIDENCE
     // =============================================================
 
     private fun resourceConfidence(
-        bitmap: Bitmap,
-        badgeX: Int,
-        badgeY: Int,
-        type: String
+        bitmap:
+            Bitmap,
+
+        bx:
+            Int,
+
+        by:
+            Int,
+
+        type:
+            String
     ): Int {
+
+        var total =
+            0
+
+        var match =
+            0
+
 
         val left =
             max(
                 0,
-                badgeX - 100
+                bx - 100
             )
+
 
         val right =
             min(
                 bitmap.width - 1,
-                badgeX + 20
+                bx + 20
             )
+
 
         val top =
             max(
                 0,
-                badgeY - 95
+                by - 95
             )
+
 
         val bottom =
             min(
                 bitmap.height - 1,
-                badgeY + 10
+                by + 10
             )
 
-        var relevant = 0
-        var total = 0
 
-        var y = top
+        var y =
+            top
 
-        while (y <= bottom) {
 
-            var x = left
+        while (
+            y <= bottom
+        ) {
 
-            while (x <= right) {
+            var x =
+                left
 
-                val p =
+
+            while (
+                x <= right
+            ) {
+
+                val pixel =
                     bitmap.getPixel(
                         x,
                         y
                     )
 
+
                 val r =
-                    Color.red(p)
+                    Color.red(
+                        pixel
+                    )
+
 
                 val g =
-                    Color.green(p)
+                    Color.green(
+                        pixel
+                    )
+
 
                 val b =
-                    Color.blue(p)
+                    Color.blue(
+                        pixel
+                    )
+
 
                 if (
-                    !(b > 100 &&
-                    b > r * 1.2f)
+                    !(
+                        b > 100 &&
+                        b >
+                        r * 1.2f
+                    )
                 ) {
 
                     total++
 
-                    val match =
+
+                    val matches =
                         when (type) {
 
                             "Food" ->
+
                                 r > 150 &&
-                                g > 110 &&
-                                b < 110
+                                    g > 110 &&
+                                    b < 110
+
 
                             "Gold" ->
+
                                 r > 150 &&
-                                g > 100 &&
-                                b < 120
+                                    g > 100 &&
+                                    b < 120
+
 
                             "Wood" ->
+
                                 r > 85 &&
-                                g in 45..155 &&
-                                b < 100
+                                    g in 45..155 &&
+                                    b < 100
+
 
                             "Stone" ->
+
                                 abs(r - g) < 30 &&
-                                abs(g - b) < 30 &&
-                                r in 80..220
+                                    abs(g - b) < 30 &&
+                                    r in 80..220
+
 
                             "Ore" ->
+
                                 (
                                     b > 90 &&
-                                    g > 75
-                                ) ||
-                                (
-                                    r > 140 &&
-                                    g > 60 &&
-                                    b < 110
-                                )
+                                        g > 75
+                                    ) ||
+                                    (
+                                        r > 140 &&
+                                            g > 60 &&
+                                            b < 110
+                                        )
+
 
                             else ->
                                 false
                         }
 
-                    if (match) {
-                        relevant++
+
+                    if (matches) {
+                        match++
                     }
                 }
+
 
                 x += 5
             }
 
+
             y += 5
         }
 
-        if (total == 0) {
-            return 0
-        }
 
-        return min(
-            100,
-            (
-                relevant * 100
-            ) / total
-        )
+        return if (
+            total == 0
+        ) {
+
+            0
+
+        } else {
+
+            min(
+                100,
+                match * 100 / total
+            )
+        }
     }
+
 
     // =============================================================
     // LEVEL ESTIMATION
     // =============================================================
 
     private fun estimateLevel(
-        bitmap: Bitmap,
-        badgeX: Int,
-        badgeY: Int,
-        badgeWidth: Int,
-        badgeHeight: Int
+        bitmap:
+            Bitmap,
+
+        bx:
+            Int,
+
+        by:
+            Int,
+
+        bw:
+            Int,
+
+        bh:
+            Int
     ): Int {
 
-        /*
-         * V2 uses a conservative visual estimate.
-         *
-         * The exact digit recognition will be improved after
-         * testing against your actual game screenshots.
-         */
+        var white =
+            0
 
-        val boxLeft =
+        var blue =
+            0
+
+
+        val left =
             max(
                 0,
-                badgeX - badgeWidth / 2
+                bx - bw / 2
             )
 
-        val boxRight =
+
+        val right =
             min(
                 bitmap.width - 1,
-                badgeX + badgeWidth / 2
+                bx + bw / 2
             )
 
-        val boxTop =
+
+        val top =
             max(
                 0,
-                badgeY - badgeHeight / 2
+                by - bh / 2
             )
 
-        val boxBottom =
+
+        val bottom =
             min(
                 bitmap.height - 1,
-                badgeY + badgeHeight / 2
+                by + bh / 2
             )
 
-        var whitePixels = 0
-        var bluePixels = 0
 
-        var y = boxTop
+        var y =
+            top
 
-        while (y <= boxBottom) {
 
-            var x = boxLeft
+        while (
+            y <= bottom
+        ) {
 
-            while (x <= boxRight) {
+            var x =
+                left
 
-                val p =
+
+            while (
+                x <= right
+            ) {
+
+                val pixel =
                     bitmap.getPixel(
                         x,
                         y
                     )
 
+
                 val r =
-                    Color.red(p)
+                    Color.red(
+                        pixel
+                    )
+
 
                 val g =
-                    Color.green(p)
+                    Color.green(
+                        pixel
+                    )
+
 
                 val b =
-                    Color.blue(p)
+                    Color.blue(
+                        pixel
+                    )
+
 
                 if (
                     r > 180 &&
                     g > 180 &&
                     b > 180
                 ) {
-                    whitePixels++
+                    white++
                 }
+
 
                 if (
                     b > 100 &&
-                    b > r * 1.2f
+                    b >
+                    r * 1.2f
                 ) {
-                    bluePixels++
+                    blue++
                 }
+
 
                 x += 2
             }
 
+
             y += 2
         }
 
-        /*
-         * At this stage, if the digit cannot be reliably separated,
-         * return 0 rather than inventing a level.
-         */
-        if (bluePixels < 5) {
+
+        if (
+            blue < 5
+        ) {
             return 0
         }
 
-        // Small white digit = usually 1.
-        if (whitePixels in 2..12) {
-            return 1
-        }
 
-        // Medium digit.
-        if (whitePixels in 13..28) {
-            return 2
-        }
+        return when {
 
-        // Larger / more complex digit.
-        if (whitePixels > 28) {
-            return 3
-        }
+            white in 2..12 ->
+                1
 
-        return 0
+            white in 13..28 ->
+                2
+
+            white > 28 ->
+                3
+
+            else ->
+                0
+        }
     }
 
+
     // =============================================================
-    // OCCUPIED / MARCH WARNING
+    // OCCUPIED CHECK
     // =============================================================
 
     private fun looksOccupied(
-        bitmap: Bitmap,
-        x: Int,
-        y: Int
+        bitmap:
+            Bitmap,
+
+        x:
+            Int,
+
+        y:
+            Int
     ): Boolean {
 
-        /*
-         * IMPORTANT:
-         *
-         * We are deliberately conservative.
-         *
-         * This is NOT gathering logic.
-         * It only marks a resource as suspicious when a strong
-         * non-RSS coloured feature appears very close to it.
-         *
-         * Later we will build a dedicated march/path detector.
-         */
+        var suspicious =
+            0
+
 
         val left =
             max(
@@ -1602,11 +2235,13 @@ class GatheringAccessibilityService : AccessibilityService() {
                 x - 55
             )
 
+
         val right =
             min(
                 bitmap.width - 1,
                 x + 55
             )
+
 
         val top =
             max(
@@ -1614,146 +2249,149 @@ class GatheringAccessibilityService : AccessibilityService() {
                 y - 55
             )
 
+
         val bottom =
             min(
                 bitmap.height - 1,
                 y + 55
             )
 
-        var suspicious = 0
 
-        var yy = top
+        var yy =
+            top
 
-        while (yy <= bottom) {
 
-            var xx = left
+        while (
+            yy <= bottom
+        ) {
 
-            while (xx <= right) {
+            var xx =
+                left
 
-                val p =
+
+            while (
+                xx <= right
+            ) {
+
+                val pixel =
                     bitmap.getPixel(
                         xx,
                         yy
                     )
 
-                val r =
-                    Color.red(p)
 
-                val g =
-                    Color.green(p)
+                val red =
+                    Color.red(
+                        pixel
+                    )
 
-                val b =
-                    Color.blue(p)
 
-                val redSignal =
-                    r > 175 &&
-                    r > g * 1.35f &&
-                    r > b * 1.35f
+                val green =
+                    Color.green(
+                        pixel
+                    )
 
-                val magentaSignal =
-                    r > 130 &&
-                    b > 100 &&
-                    r > g * 1.25f
 
-                val brightLine =
-                    r > 205 &&
-                    g > 205 &&
-                    b > 205
+                val blue =
+                    Color.blue(
+                        pixel
+                    )
+
 
                 if (
-                    redSignal ||
-                    magentaSignal
+
+                    (
+                        red > 175 &&
+                            red >
+                            green * 1.35f &&
+                            red >
+                            blue * 1.35f
+                        )
+
+                    ||
+
+                    (
+                        red > 130 &&
+                            blue > 100 &&
+                            red >
+                            green * 1.25f
+                        )
+
                 ) {
+
                     suspicious++
                 }
 
-                /*
-                 * Do not treat ordinary white resource graphics
-                 * as occupation by themselves.
-                 */
-                if (brightLine) {
-                    suspicious += 0
-                }
 
                 xx += 4
             }
 
+
             yy += 4
         }
 
-        /*
-         * Conservative threshold.
-         */
+
         return suspicious > 35
     }
+
 
     // =============================================================
     // REMOVE DUPLICATES
     // =============================================================
 
-    private fun removeDuplicateCandidates(
-        input: List<RssCandidate>
+    private fun removeDuplicates(
+        input:
+            List<RssCandidate>
     ): List<RssCandidate> {
 
-        val result =
+        val output =
             mutableListOf<RssCandidate>()
 
-        for (candidate in input) {
 
-            var duplicate = false
+        for (
+            candidate in input
+        ) {
 
-            for (existing in result) {
+            val existing =
+                output.indexOfFirst {
 
-                val dx =
                     abs(
-                        candidate.x -
-                            existing.x
-                    )
+                        it.x -
+                            candidate.x
+                    ) < 45 &&
 
-                val dy =
                     abs(
-                        candidate.y -
-                            existing.y
-                    )
-
-                if (
-                    dx < 45 &&
-                    dy < 45
-                ) {
-
-                    duplicate = true
-
-                    /*
-                     * Keep the stronger detection.
-                     */
-                    if (
-                        candidate.confidence >
-                        existing.confidence
-                    ) {
-
-                        result.remove(
-                            existing
-                        )
-
-                        result.add(
-                            candidate
-                        )
-                    }
-
-                    break
+                        it.y -
+                            candidate.y
+                    ) < 45
                 }
-            }
 
-            if (!duplicate) {
-                result.add(candidate)
+
+            if (
+                existing < 0
+            ) {
+
+                output.add(
+                    candidate
+                )
+
+            } else if (
+                candidate.confidence >
+                output[existing].confidence
+            ) {
+
+                output[existing] =
+                    candidate
             }
         }
 
-        return result
+
+        return output
     }
 
+
     // =============================================================
-    // UPDATE START BUTTON
+    // BUTTON UPDATE
     // =============================================================
 
     private fun updateStartStopButton() {
@@ -1763,9 +2401,13 @@ class GatheringAccessibilityService : AccessibilityService() {
             try {
 
                 startStopButton?.text =
+
                     if (running) {
+
                         "■ STOP"
+
                     } else {
+
                         "▶ START"
                     }
 
@@ -1774,13 +2416,20 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
     }
 
+
     // =============================================================
-    // UPDATE STATUS
+    // STATUS UPDATE
     // =============================================================
 
-    private fun updateInfo(
-        message: String
+    private fun safeStatus(
+        message:
+            String
     ) {
+
+        if (!serviceAlive) {
+            return
+        }
+
 
         handler.post {
 
@@ -1794,39 +2443,59 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
     }
 
+
     // =============================================================
     // ACCESSIBILITY TAP
     // =============================================================
-    // STILL NOT USED.
     //
-    // V2 IS OBSERVATION ONLY.
+    // RESERVED FOR FUTURE GATHERING ENGINE.
+    //
+    // V5 NEVER CALLS THIS.
+    //
     // =============================================================
 
     private fun tap(
-        x: Float,
-        y: Float
+        x:
+            Float,
+
+        y:
+            Float
     ) {
+
+        if (!serviceAlive) {
+            return
+        }
+
 
         try {
 
             val path =
-                Path()
+                Path().apply {
 
-            path.moveTo(
-                x,
-                y
-            )
+                    moveTo(
+                        x,
+                        y
+                    )
+                }
+
 
             val gesture =
-                GestureDescription.Builder()
+                GestureDescription
+                    .Builder()
                     .addStroke(
-                        GestureDescription.StrokeDescription(
-                            path,
-                            0,
-                            100
-                        )
+
+                        GestureDescription
+                            .StrokeDescription(
+
+                                path,
+
+                                0,
+
+                                100
+                            )
                     )
                     .build()
+
 
             dispatchGesture(
                 gesture,
@@ -1838,36 +2507,74 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
     }
 
+
     // =============================================================
-    // SERVICE DESTROY
+    // DESTROY
     // =============================================================
 
     override fun onDestroy() {
 
-        running = false
+        serviceAlive =
+            false
 
-        screenshotInProgress = false
+
+        running =
+            false
+
+
+        screenshotInProgress =
+            false
+
 
         handler.removeCallbacks(
             scanRunnable
         )
 
+
+        try {
+
+            analysisExecutor.shutdownNow()
+
+        } catch (_: Exception) {
+        }
+
+
         try {
 
             overlayView?.let {
-                windowManager?.removeView(it)
+
+                windowManager?.removeView(
+                    it
+                )
             }
 
         } catch (_: Exception) {
         }
 
-        overlayView = null
-        overlayParams = null
-        windowManager = null
 
-        infoText = null
-        startStopButton = null
-        scanButton = null
+        overlayView =
+            null
+
+
+        overlayParams =
+            null
+
+
+        windowManager =
+            null
+
+
+        infoText =
+            null
+
+
+        startStopButton =
+            null
+
+
+        scanButton =
+            null
+
 
         super.onDestroy()
     }
