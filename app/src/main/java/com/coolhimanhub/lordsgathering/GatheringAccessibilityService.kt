@@ -1080,7 +1080,7 @@ class GatheringAccessibilityService :
                 emptyList()
             }
 
-
+        showDiagnostic(candidates)
         val cleaned =
             removeDuplicates(
                 candidates
