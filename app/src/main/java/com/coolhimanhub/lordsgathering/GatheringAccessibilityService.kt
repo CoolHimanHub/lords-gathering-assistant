@@ -1,13 +1,14 @@
-package com.coolhimanhub.lordsgathering
+package com.coolhimanhub.lordsgatheringassistant
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -16,7 +17,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import java.util.concurrent.atomic.AtomicBoolean
 
 class GatheringAccessibilityService : AccessibilityService() {
 
@@ -27,14 +27,17 @@ class GatheringAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
 
     private var running = false
-    private var scanCount = 0
+    private var screenshotInProgress = false
 
     private var overlayView: LinearLayout? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var windowManager: WindowManager? = null
 
-    // Prevents two screenshots from being processed at once.
-    private val scanInProgress = AtomicBoolean(false)
+    private var infoText: TextView? = null
+    private var startStopButton: Button? = null
+    private var scanButton: Button? = null
+
+    private var scanCount = 0
 
     // =============================================================
     // ACCESSIBILITY SERVICE
@@ -43,13 +46,23 @@ class GatheringAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
 
-        handler.post {
+        try {
+            windowManager =
+                getSystemService(WINDOW_SERVICE) as WindowManager
+
             showFloatingControl()
+
+        } catch (e: Exception) {
+
+            // Do not allow an exception here to kill the service.
+            handler.post {
+                recreateOverlay()
+            }
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Reserved for future game-screen detection.
+        // Nothing required here yet.
     }
 
     override fun onInterrupt() {
@@ -62,49 +75,66 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun showFloatingControl() {
 
+        // Already visible.
         if (overlayView != null) {
             return
         }
 
-        val container = LinearLayout(this).apply {
+        val wm =
+            windowManager
+                ?: try {
+                    getSystemService(WINDOW_SERVICE) as WindowManager
+                } catch (_: Exception) {
+                    return
+                }
 
-            orientation = LinearLayout.VERTICAL
+        windowManager = wm
 
-            setPadding(
-                10,
-                8,
-                10,
-                8
-            )
+        // ---------------------------------------------------------
+        // MAIN CONTAINER
+        // ---------------------------------------------------------
 
-            setBackgroundColor(
-                Color.rgb(65, 65, 65)
-            )
-        }
+        val container =
+            LinearLayout(this).apply {
+
+                orientation = LinearLayout.VERTICAL
+
+                setPadding(
+                    10,
+                    8,
+                    10,
+                    8
+                )
+
+                setBackgroundColor(
+                    Color.rgb(65, 65, 65)
+                )
+            }
 
         // ---------------------------------------------------------
         // TITLE / DRAG HANDLE
         // ---------------------------------------------------------
 
-        val title = TextView(this).apply {
+        val title =
+            TextView(this).apply {
 
-            text = "Lords Assistant"
+                text = "Lords Assistant"
 
-            textSize = 18f
+                textSize = 16f
 
-            setTextColor(Color.WHITE)
+                setTextColor(Color.WHITE)
 
-            gravity = Gravity.CENTER
+                gravity = Gravity.CENTER
 
-            setPadding(
-                8,
-                6,
-                8,
-                10
-            )
-        }
+                setPadding(
+                    8,
+                    4,
+                    8,
+                    8
+                )
+            }
 
-        // Make title draggable.
+        // Drag functionality.
         title.setOnTouchListener(
             object : View.OnTouchListener {
 
@@ -120,7 +150,8 @@ class GatheringAccessibilityService : AccessibilityService() {
                 ): Boolean {
 
                     val params =
-                        overlayParams ?: return false
+                        overlayParams
+                            ?: return false
 
                     when (event.actionMasked) {
 
@@ -144,14 +175,18 @@ class GatheringAccessibilityService : AccessibilityService() {
                                 event.rawY - startY
 
                             params.x =
-                                (startParamX + dx).toInt()
+                                (
+                                    startParamX + dx
+                                ).toInt()
 
                             params.y =
-                                (startParamY + dy).toInt()
+                                (
+                                    startParamY + dy
+                                ).toInt()
 
                             try {
 
-                                windowManager?.updateViewLayout(
+                                wm.updateViewLayout(
                                     container,
                                     params
                                 )
@@ -176,85 +211,104 @@ class GatheringAccessibilityService : AccessibilityService() {
         // START / STOP BUTTON
         // ---------------------------------------------------------
 
-        val startStop = Button(this).apply {
+        val startButton =
+            Button(this).apply {
 
-            text = "▶ START"
+                text = "▶ START"
 
-            setOnClickListener {
+                setOnClickListener {
 
-                if (running) {
+                    try {
 
-                    stopAutomation()
+                        if (running) {
 
-                    text = "▶ START"
+                            stopAutomation()
 
-                } else {
+                        } else {
 
-                    startAutomation()
+                            startAutomation()
 
-                    text = "■ STOP"
+                        }
+
+                    } catch (e: Exception) {
+
+                        updateInfo(
+                            "Button error: " +
+                                e.javaClass.simpleName
+                        )
+                    }
                 }
             }
-        }
 
         // ---------------------------------------------------------
         // SCAN BUTTON
         // ---------------------------------------------------------
 
-        val scanButton = Button(this).apply {
+        val scanBtn =
+            Button(this).apply {
 
-            text = "🔍 SCAN"
+                text = "🔍 SCAN"
 
-            setOnClickListener {
+                setOnClickListener {
 
-                scanScreen()
+                    try {
+
+                        scanScreen()
+
+                    } catch (e: Exception) {
+
+                        updateInfo(
+                            "Scan error: " +
+                                e.javaClass.simpleName
+                        )
+                    }
+                }
             }
-        }
 
         // ---------------------------------------------------------
-        // STATUS
+        // STATUS TEXT
         // ---------------------------------------------------------
 
-        val info = TextView(this).apply {
+        val info =
+            TextView(this).apply {
 
-            text = "Scanner ready"
+                text = "Scanner ready"
 
-            textSize = 11f
+                textSize = 11f
 
-            setTextColor(Color.WHITE)
+                setTextColor(Color.WHITE)
 
-            gravity = Gravity.CENTER
+                gravity = Gravity.CENTER
 
-            setPadding(
-                5,
-                6,
-                5,
-                4
-            )
+                setPadding(
+                    4,
+                    5,
+                    4,
+                    2
+                )
+            }
 
-            maxLines = 6
-        }
+        // Save references.
+        infoText = info
+        startStopButton = startButton
+        scanButton = scanBtn
 
+        // Add views.
         container.addView(title)
-        container.addView(startStop)
-        container.addView(scanButton)
+        container.addView(startButton)
+        container.addView(scanBtn)
         container.addView(info)
 
         // ---------------------------------------------------------
-        // OVERLAY WINDOW
+        // OVERLAY PARAMETERS
         // ---------------------------------------------------------
 
         val params =
             WindowManager.LayoutParams(
-
                 WindowManager.LayoutParams.WRAP_CONTENT,
-
                 WindowManager.LayoutParams.WRAP_CONTENT,
-
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-
                 PixelFormat.TRANSLUCENT
             )
 
@@ -264,38 +318,64 @@ class GatheringAccessibilityService : AccessibilityService() {
         params.x = 100
         params.y = 150
 
-        windowManager =
-            getSystemService(
-                WINDOW_SERVICE
-            ) as WindowManager
-
         overlayParams = params
+
+        // ---------------------------------------------------------
+        // ADD OVERLAY
+        // ---------------------------------------------------------
 
         try {
 
-            windowManager?.addView(
+            wm.addView(
                 container,
                 params
             )
 
             overlayView = container
 
+            updateInfo(
+                "Scanner ready\nSAFE TEST: no troop sent"
+            )
+
         } catch (e: Exception) {
 
             overlayView = null
+            overlayParams = null
 
-            // Do not crash the Accessibility Service.
+            infoText = null
+            startStopButton = null
+            scanButton = null
+
+            // Don't crash the accessibility service.
             handler.postDelayed(
                 {
-                    showFloatingControl()
+                    recreateOverlay()
                 },
-                2000
+                1000
             )
         }
     }
 
     // =============================================================
-    // AUTOMATION
+    // RECREATE OVERLAY
+    // =============================================================
+
+    private fun recreateOverlay() {
+
+        try {
+
+            if (overlayView != null) {
+                return
+            }
+
+            showFloatingControl()
+
+        } catch (_: Exception) {
+        }
+    }
+
+    // =============================================================
+    // START AUTOMATION
     // =============================================================
 
     private fun startAutomation() {
@@ -306,14 +386,29 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         running = true
 
+        updateStartStopButton()
+
         updateInfo(
-            "AUTO TEST\nScanning only\nNo troop sent"
+            "AUTO TEST started\n" +
+                "Scanning every 3 seconds\n" +
+                "SAFE TEST: no troop sent"
         )
+
+        // IMPORTANT:
+        // Do not immediately call screenshot here.
+        // Give Android a moment after pressing START.
 
         handler.removeCallbacks(scanRunnable)
 
-        handler.post(scanRunnable)
+        handler.postDelayed(
+            scanRunnable,
+            500
+        )
     }
+
+    // =============================================================
+    // STOP AUTOMATION
+    // =============================================================
 
     private fun stopAutomation() {
 
@@ -323,10 +418,18 @@ class GatheringAccessibilityService : AccessibilityService() {
             scanRunnable
         )
 
+        updateStartStopButton()
+
         updateInfo(
-            "Stopped\nNo troop sent"
+            "STOPPED\n" +
+                "Overlay remains active\n" +
+                "SAFE TEST: no troop sent"
         )
     }
+
+    // =============================================================
+    // AUTOMATIC SCAN LOOP
+    // =============================================================
 
     private val scanRunnable =
         object : Runnable {
@@ -337,58 +440,70 @@ class GatheringAccessibilityService : AccessibilityService() {
                     return
                 }
 
-                scanScreen()
+                try {
 
-                handler.postDelayed(
-                    this,
-                    3000
-                )
+                    scanScreen()
+
+                } catch (e: Exception) {
+
+                    updateInfo(
+                        "Scan exception: " +
+                            e.javaClass.simpleName
+                    )
+                }
+
+                if (running) {
+
+                    handler.postDelayed(
+                        this,
+                        3000
+                    )
+                }
             }
         }
 
     // =============================================================
-    // SCREENSHOT
+    // SCREEN SCANNER
     // =============================================================
 
     private fun scanScreen() {
 
-        if (!running && scanCount > 0) {
-            // Manual SCAN is still allowed.
-        }
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        if (
+            Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.R
+        ) {
 
             updateInfo(
-                "Android 11+ required"
+                "Android version does not support\n" +
+                    "Accessibility screenshot API"
             )
 
             return
         }
 
-        // Don't start another screenshot while one is processing.
-        if (!scanInProgress.compareAndSet(false, true)) {
+        // Prevent two screenshots at once.
+        if (screenshotInProgress) {
 
             updateInfo(
-                "Scan busy - waiting..."
+                "Scan already running..."
             )
 
             return
         }
+
+        screenshotInProgress = true
 
         scanCount++
 
         updateInfo(
-            "Scan #$scanCount\nCapturing..."
+            "Scan #$scanCount - capturing..."
         )
 
         try {
 
             takeScreenshot(
-
-                Display.DEFAULT_DISPLAY,
-
+                android.view.Display.DEFAULT_DISPLAY,
                 mainExecutor,
-
                 object : TakeScreenshotCallback {
 
                     override fun onSuccess(
@@ -404,11 +519,12 @@ class GatheringAccessibilityService : AccessibilityService() {
                         errorCode: Int
                     ) {
 
-                        scanInProgress.set(false)
+                        screenshotInProgress = false
 
                         updateInfo(
                             "Scan #$scanCount\n" +
-                                "Capture failed: $errorCode"
+                                "Capture failed: $errorCode\n" +
+                                "SAFE TEST: no troop sent"
                         )
                     }
                 }
@@ -416,11 +532,11 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         } catch (e: Exception) {
 
-            scanInProgress.set(false)
+            screenshotInProgress = false
 
             updateInfo(
                 "Scan #$scanCount\n" +
-                    "Capture error: " +
+                    "Capture exception: " +
                     e.javaClass.simpleName
             )
         }
@@ -434,12 +550,12 @@ class GatheringAccessibilityService : AccessibilityService() {
         screenshot: ScreenshotResult
     ) {
 
-        var softwareBitmap: Bitmap? = null
+        var bitmap: Bitmap? = null
 
         try {
 
             // -----------------------------------------------------
-            // Hardware bitmap
+            // Get hardware bitmap.
             // -----------------------------------------------------
 
             val hardwareBitmap =
@@ -459,18 +575,16 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
 
             // -----------------------------------------------------
-            // Convert to software bitmap.
-            // This is important because getPixel() cannot be
-            // reliably used on HARDWARE bitmaps.
+            // Convert hardware bitmap to ARGB_8888.
             // -----------------------------------------------------
 
-            softwareBitmap =
+            bitmap =
                 hardwareBitmap.copy(
                     Bitmap.Config.ARGB_8888,
                     false
                 )
 
-            if (softwareBitmap == null) {
+            if (bitmap == null) {
 
                 updateInfo(
                     "Scan #$scanCount\n" +
@@ -481,25 +595,29 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
 
             // -----------------------------------------------------
-            // Analyse
+            // Analyse bitmap.
             // -----------------------------------------------------
 
+            updateInfo(
+                "Scan #$scanCount - analysing..."
+            )
+
             analyseScreen(
-                softwareBitmap
+                bitmap
             )
 
         } catch (e: Exception) {
 
             updateInfo(
                 "Scan #$scanCount\n" +
-                    "Processing error: " +
+                    "Analysis error: " +
                     e.javaClass.simpleName
             )
 
         } finally {
 
             // -----------------------------------------------------
-            // Always close screenshot buffer.
+            // ALWAYS release screenshot resources.
             // -----------------------------------------------------
 
             try {
@@ -507,21 +625,17 @@ class GatheringAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {
             }
 
-            // -----------------------------------------------------
-            // Recycle software bitmap.
-            // -----------------------------------------------------
-
             try {
-                softwareBitmap?.recycle()
+                bitmap?.recycle()
             } catch (_: Exception) {
             }
 
-            scanInProgress.set(false)
+            screenshotInProgress = false
         }
     }
 
     // =============================================================
-    // LIGHTWEIGHT IMAGE ANALYSIS
+    // IMAGE ANALYSIS
     // =============================================================
 
     private fun analyseScreen(
@@ -534,33 +648,24 @@ class GatheringAccessibilityService : AccessibilityService() {
         val height =
             bitmap.height
 
-        var blue = 0
-        var orange = 0
-        var green = 0
+        var bluePixels = 0
+        var orangePixels = 0
+        var greenPixels = 0
 
-        /*
-         * IMPORTANT:
-         *
-         * We intentionally sample sparsely.
-         *
-         * Previous versions created huge collections of points
-         * and performed expensive clustering.
-         *
-         * This version simply counts visual signals.
-         */
+        // Sample every 4 pixels.
+        val step = 4
 
-        val step = 12
+        var y = 80
 
-        val top = 80
-        val bottom = 40
-
-        var y = top
-
-        while (y < height - bottom) {
+        while (
+            y < height - 30
+        ) {
 
             var x = 10
 
-            while (x < width - 10) {
+            while (
+                x < width - 10
+            ) {
 
                 val pixel =
                     bitmap.getPixel(
@@ -582,27 +687,27 @@ class GatheringAccessibilityService : AccessibilityService() {
                 // -------------------------------------------------
 
                 if (
-                    b > 115 &&
-                    b > r * 1.20f &&
-                    b > g * 1.03f
+                    b > 110 &&
+                    b > r * 1.25f &&
+                    b > g * 1.05f
                 ) {
 
-                    blue++
+                    bluePixels++
                 }
 
                 // -------------------------------------------------
-                // ORANGE / YELLOW
+                // ORANGE
                 // -------------------------------------------------
 
                 if (
-                    r > 145 &&
-                    g > 65 &&
-                    g < 205 &&
-                    b < 115 &&
-                    r > g * 1.10f
+                    r > 150 &&
+                    g > 70 &&
+                    g < 190 &&
+                    b < 100 &&
+                    r > g * 1.15f
                 ) {
 
-                    orange++
+                    orangePixels++
                 }
 
                 // -------------------------------------------------
@@ -610,12 +715,12 @@ class GatheringAccessibilityService : AccessibilityService() {
                 // -------------------------------------------------
 
                 if (
-                    g > 75 &&
-                    g > r * 1.15f &&
-                    g > b * 1.08f
+                    g > 70 &&
+                    g > r * 1.20f &&
+                    g > b * 1.10f
                 ) {
 
-                    green++
+                    greenPixels++
                 }
 
                 x += step
@@ -625,27 +730,50 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
 
         // ---------------------------------------------------------
-        // Display results
+        // RESULT
         // ---------------------------------------------------------
 
         updateInfo(
 
-            "Scan #$scanCount - ${width}x$height\n" +
+            "Scan #$scanCount - " +
+                "${width}x$height\n" +
 
-                "Visual signals\n" +
+                "Visual signals: " +
 
-                "Blue: $blue\n" +
+                "blue=$bluePixels " +
 
-                "Orange: $orange\n" +
+                "orange=$orangePixels " +
 
-                "Green: $green\n" +
+                "green=$greenPixels\n" +
 
                 "SAFE TEST: no troop sent"
         )
     }
 
     // =============================================================
-    // UPDATE OVERLAY
+    // UPDATE START / STOP BUTTON
+    // =============================================================
+
+    private fun updateStartStopButton() {
+
+        handler.post {
+
+            try {
+
+                startStopButton?.text =
+                    if (running) {
+                        "■ STOP"
+                    } else {
+                        "▶ START"
+                    }
+
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    // =============================================================
+    // UPDATE STATUS
     // =============================================================
 
     private fun updateInfo(
@@ -654,19 +782,56 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         handler.post {
 
-            val container =
-                overlayView ?: return@post
+            try {
 
-            if (container.childCount < 4) {
-                return@post
+                infoText?.text =
+                    message
+
+            } catch (_: Exception) {
             }
+        }
+    }
 
-            val info =
-                container.getChildAt(3)
-                    as? TextView
-                    ?: return@post
+    // =============================================================
+    // ACCESSIBILITY TAP
+    // =============================================================
+    // Kept available for the later gathering engine.
+    // CURRENT VERSION NEVER CALLS IT.
+    // =============================================================
 
-            info.text = message
+    private fun tap(
+        x: Float,
+        y: Float
+    ) {
+
+        try {
+
+            val path =
+                Path()
+
+            path.moveTo(
+                x,
+                y
+            )
+
+            val gesture =
+                GestureDescription.Builder()
+                    .addStroke(
+                        GestureDescription.StrokeDescription(
+                            path,
+                            0,
+                            100
+                        )
+                    )
+                    .build()
+
+            dispatchGesture(
+                gesture,
+                null,
+                null
+            )
+
+        } catch (_: Exception) {
         }
     }
 
@@ -678,27 +843,28 @@ class GatheringAccessibilityService : AccessibilityService() {
 
         running = false
 
+        screenshotInProgress = false
+
         handler.removeCallbacks(
             scanRunnable
         )
 
-        scanInProgress.set(false)
+        try {
 
-        overlayView?.let {
-
-            try {
-
-                windowManager?.removeView(
-                    it
-                )
-
-            } catch (_: Exception) {
+            overlayView?.let {
+                windowManager?.removeView(it)
             }
+
+        } catch (_: Exception) {
         }
 
         overlayView = null
         overlayParams = null
         windowManager = null
+
+        infoText = null
+        startStopButton = null
+        scanButton = null
 
         super.onDestroy()
     }
