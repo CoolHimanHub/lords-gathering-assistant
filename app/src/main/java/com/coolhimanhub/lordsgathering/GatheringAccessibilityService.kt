@@ -2029,112 +2029,231 @@ val bottom =
                     if (
                         abs(r - g) < 28 &&
                         abs(g - b) < 28 &&
-                        r in 85..220
-                    ) {
+private fun classifyResource(
+    bitmap: Bitmap,
+    bx: Int,
+    by: Int
+): String {
 
-                        gray++
-                    }
+    var foodScore = 0
+    var goldScore = 0
+    var woodScore = 0
+    var stoneScore = 0
+    var oreScore = 0
 
+    /*
+     * The blue level badge is normally to the RIGHT of the RSS.
+     * We therefore analyse the area mainly to the LEFT of the badge.
+     */
 
-                    if (
-                        b > 90 &&
-                        g > 80 &&
-                        b >
-                        r * 1.15f
-                    ) {
+    val left = max(0, bx - 110)
+    val right = min(bitmap.width - 1, bx - 12)
+    val top = max(0, by - 75)
+    val bottom = min(bitmap.height - 1, by + 25)
 
-                        cyan++
-                    }
+    var y = top
 
+    while (y <= bottom) {
 
-                    if (
-                        r > 145 &&
-                        g in 65..180 &&
-                        b < 110 &&
-                        r >
-                        g * 1.12f
-                    ) {
+        var x = left
 
-                        orange++
-                    }
+        while (x <= right) {
+
+            val pixel = bitmap.getPixel(x, y)
+
+            val r = Color.red(pixel)
+            val g = Color.green(pixel)
+            val b = Color.blue(pixel)
+
+            /*
+             * Ignore blue badge pixels.
+             */
+            val isBadgeBlue =
+                b > 100 &&
+                b > r * 1.20f &&
+                b > g * 1.02f
+
+            if (!isBadgeBlue) {
+
+                // =================================================
+                // FOOD
+                // =================================================
+                //
+                // Food is mainly bright yellow/golden.
+                //
+                if (
+                    r > 165 &&
+                    g > 125 &&
+                    b < 105 &&
+                    r > b * 1.45f &&
+                    g > b * 1.20f
+                ) {
+                    foodScore += 4
                 }
 
+                // =================================================
+                // GOLD
+                // =================================================
+                //
+                // Gold is also yellow, but tends to contain
+                // stronger orange/dark-gold pixels.
+                //
+                if (
+                    r > 145 &&
+                    g > 90 &&
+                    g < 175 &&
+                    b < 100 &&
+                    r > g * 1.05f
+                ) {
+                    goldScore += 3
+                }
 
-                x += 5
+                // =================================================
+                // WOOD
+                // =================================================
+                //
+                // Brown/orange wooden logs.
+                //
+                if (
+                    r > 80 &&
+                    g > 40 &&
+                    g < 150 &&
+                    b < 90 &&
+                    r > g * 1.10f &&
+                    r > b * 1.50f
+                ) {
+                    woodScore += 5
+                }
+
+                // =================================================
+                // STONE
+                // =================================================
+                //
+                // Grey/white stone has relatively similar RGB
+                // values and low colour saturation.
+                //
+                val maxRgb =
+                    maxOf(r, g, b)
+
+                val minRgb =
+                    minOf(r, g, b)
+
+                if (
+                    maxRgb - minRgb < 32 &&
+                    r in 85..225 &&
+                    g in 85..225 &&
+                    b in 85..225
+                ) {
+                    stoneScore += 5
+                }
+
+                // =================================================
+                // ORE
+                // =================================================
+                //
+                // Normal Ore contains strong cyan/blue-green and
+                // orange mineral areas.
+                //
+                if (
+                    b > 95 &&
+                    g > 80 &&
+                    b > r * 1.12f
+                ) {
+                    oreScore += 5
+                }
+
+                if (
+                    r > 135 &&
+                    g > 65 &&
+                    b < 115 &&
+                    r > g * 1.12f
+                ) {
+                    oreScore += 3
+                }
             }
 
-
-            y += 5
+            x += 4
         }
 
-
-        val food =
-            yellow * 4
-
-
-        val gold =
-            yellow * 3 +
-                orange * 2
-
-
-        val wood =
-            brown * 4
-
-
-        val stone =
-            gray * 5
-
-
-        val ore =
-            cyan * 4 +
-                orange * 3
-
-
-        val best =
-            maxOf(
-                food,
-                gold,
-                wood,
-                stone,
-                ore
-            )
-
-
-        return when {
-
-            best <= 0 ->
-                "Other"
-
-
-            ore == best &&
-                ore >
-                stone * 1.15f ->
-                "Ore"
-
-
-            stone == best ->
-                "Stone"
-
-
-            wood == best ->
-                "Wood"
-
-
-            gold == best &&
-                gold >
-                food * 1.10f ->
-                "Gold"
-
-
-            food == best ->
-                "Food"
-
-
-            else ->
-                "Other"
-        }
+        y += 4
     }
 
+    // =============================================================
+    // NORMALISE / REDUCE AMBIGUITY
+    // =============================================================
+
+    /*
+     * Food and Gold can both contain yellow pixels.
+     * Give Gold preference only when its orange/dark-gold
+     * characteristics are sufficiently stronger.
+     */
+
+    if (
+        goldScore > 0 &&
+        foodScore > 0 &&
+        goldScore < foodScore * 0.70f
+    ) {
+        goldScore =
+            (goldScore * 70) / 100
+    }
+
+    /*
+     * Ore can contain orange pixels, so do not allow a few
+     * orange pixels to overpower obvious Wood.
+     */
+
+    if (
+        woodScore > oreScore &&
+        woodScore > foodScore &&
+        woodScore > goldScore
+    ) {
+        oreScore =
+            (oreScore * 80) / 100
+    }
+
+    // =============================================================
+    // FIND STRONGEST RESOURCE
+    // =============================================================
+
+    val best =
+        maxOf(
+            foodScore,
+            goldScore,
+            woodScore,
+            stoneScore,
+            oreScore
+        )
+
+    if (best <= 0) {
+        return "Other"
+    }
+
+    return when {
+
+        stoneScore == best &&
+            stoneScore >= 15 ->
+            "Stone"
+
+        woodScore == best &&
+            woodScore >= 15 ->
+            "Wood"
+
+        oreScore == best &&
+            oreScore >= 15 ->
+            "Ore"
+
+        goldScore == best &&
+            goldScore >= 15 ->
+            "Gold"
+
+        foodScore == best &&
+            foodScore >= 15 ->
+            "Food"
+
+        else ->
+            "Other"
+    }
+}
 
     // =============================================================
     // RESOURCE CONFIDENCE
