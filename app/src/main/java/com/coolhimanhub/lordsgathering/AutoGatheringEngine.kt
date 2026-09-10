@@ -140,7 +140,7 @@ class AutoGatheringEngine(
             .addStroke(GestureDescription.StrokeDescription(path, 0, GESTURE_DURATION))
             .build()
         
-        service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback {
+        service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 // Gesture completed successfully
             }
