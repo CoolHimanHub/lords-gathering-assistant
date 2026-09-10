@@ -7,26 +7,35 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * V14 — conservative tile/resource detector.
+ * V15
+ *
+ * Conservative Lords Mobile RSS detector.
  *
  * Pipeline:
- * blue level badge -> exact badge number -> resource artwork -> type
- * -> occupation -> confidence -> deduplicate
+ *   blue level badge
+ *        -> isolate white number
+ *        -> normalize digit
+ *        -> inspect nearby tile artwork
+ *        -> classify resource
+ *        -> occupation check
+ *        -> confidence
+ *        -> deduplicate
  *
- * Unknown/ambiguous objects are rejected.
+ * IMPORTANT:
+ * Ambiguous detections are rejected.
  */
 class ScreenAnalyzer {
 
     companion object {
+
         private const val STEP = 2
 
-        private const val MIN_BLUE = 100
-        private const val BLUE_RED_GAP = 35
-        private const val BLUE_GREEN_GAP = 10
+        private const val MIN_BLUE = 105
+        private const val BLUE_RED_GAP = 32
+        private const val BLUE_GREEN_GAP = 8
 
         /*
-         * 5 x 7 digit templates.
-         * Index 0 = Lv1, index 4 = Lv5.
+         * 5 x 7 templates for digits 1..5.
          */
         private val DIGITS = arrayOf(
             arrayOf(
@@ -93,17 +102,18 @@ class ScreenAnalyzer {
             expectedRegionY
         )
 
-        val detections = mutableListOf<RssDetection>()
+        val output = mutableListOf<RssDetection>()
 
         for (badge in badges) {
 
-            val levelResult = readLevel(bitmap, badge)
+            val level = readLevel(bitmap, badge)
                 ?: continue
 
             val resource = classifyResource(
                 bitmap,
                 badge
-            ) ?: continue
+            )
+                ?: continue
 
             val occupied = detectOccupation(
                 bitmap,
@@ -112,17 +122,17 @@ class ScreenAnalyzer {
 
             val confidence =
                 (
-                    levelResult.second * 0.40 +
-                    resource.second * 0.60
+                    level.second * 0.45 +
+                    resource.second * 0.55
                 ).toInt().coerceIn(0, 100)
 
-            if (confidence < 65) {
+            if (confidence < 68) {
                 continue
             }
 
-            detections += RssDetection(
+            output += RssDetection(
                 type = resource.first,
-                level = levelResult.first,
+                level = level.first,
                 centerX = badge.centerX,
                 centerY = badge.centerY,
                 boundingBox = badge,
@@ -132,12 +142,12 @@ class ScreenAnalyzer {
             )
         }
 
-        return deduplicate(detections)
+        return deduplicate(output)
     }
 
-    // ---------------------------------------------------------
-    // BLUE LEVEL BADGES
-    // ---------------------------------------------------------
+    // =========================================================
+    // BLUE LEVEL BADGE DETECTION
+    // =========================================================
 
     private fun findBlueBadges(
         bitmap: Bitmap,
@@ -145,17 +155,30 @@ class ScreenAnalyzer {
         regionY: IntRange
     ): List<BoundingBox> {
 
-        val gw = (bitmap.width + STEP - 1) / STEP
-        val gh = (bitmap.height + STEP - 1) / STEP
+        val gw =
+            (bitmap.width + STEP - 1) / STEP
 
-        val visited = BooleanArray(gw * gh)
-        val result = mutableListOf<BoundingBox>()
+        val gh =
+            (bitmap.height + STEP - 1) / STEP
 
-        fun valid(gx: Int, gy: Int): Boolean {
-            return gx in 0 until gw && gy in 0 until gh
+        val visited =
+            BooleanArray(gw * gh)
+
+        val result =
+            mutableListOf<BoundingBox>()
+
+        fun inside(
+            x: Int,
+            y: Int
+        ): Boolean {
+            return x in 0 until gw &&
+                y in 0 until gh
         }
 
-        fun blue(gx: Int, gy: Int): Boolean {
+        fun isBlue(
+            gx: Int,
+            gy: Int
+        ): Boolean {
 
             val x = gx * STEP
             val y = gy * STEP
@@ -164,7 +187,8 @@ class ScreenAnalyzer {
                 return false
             }
 
-            val c = bitmap.getPixel(x, y)
+            val c =
+                bitmap.getPixel(x, y)
 
             val r = Color.red(c)
             val g = Color.green(c)
@@ -178,20 +202,27 @@ class ScreenAnalyzer {
         for (gy in 0 until gh) {
             for (gx in 0 until gw) {
 
-                val index = gy * gw + gx
+                val index =
+                    gy * gw + gx
 
-                if (visited[index] || !blue(gx, gy)) {
+                if (
+                    visited[index] ||
+                    !isBlue(gx, gy)
+                ) {
                     continue
                 }
 
-                val queueX = IntArray(4096)
-                val queueY = IntArray(4096)
+                val qx =
+                    IntArray(4096)
+
+                val qy =
+                    IntArray(4096)
 
                 var head = 0
                 var tail = 0
 
-                queueX[tail] = gx
-                queueY[tail] = gy
+                qx[tail] = gx
+                qy[tail] = gy
                 tail++
 
                 visited[index] = true
@@ -200,15 +231,17 @@ class ScreenAnalyzer {
                 var maxX = gx
                 var minY = gy
                 var maxY = gy
-                var pixels = 0
+
+                var count = 0
 
                 while (head < tail) {
 
-                    val cx = queueX[head]
-                    val cy = queueY[head]
+                    val cx = qx[head]
+                    val cy = qy[head]
+
                     head++
 
-                    pixels++
+                    count++
 
                     minX = min(minX, cx)
                     maxX = max(maxX, cx)
@@ -218,26 +251,41 @@ class ScreenAnalyzer {
                     for (dy in -1..1) {
                         for (dx in -1..1) {
 
-                            if (dx == 0 && dy == 0) {
+                            if (
+                                dx == 0 &&
+                                dy == 0
+                            ) {
                                 continue
                             }
 
-                            val nx = cx + dx
-                            val ny = cy + dy
+                            val nx =
+                                cx + dx
 
-                            if (!valid(nx, ny)) {
+                            val ny =
+                                cy + dy
+
+                            if (
+                                !inside(nx, ny)
+                            ) {
                                 continue
                             }
 
-                            val ni = ny * gw + nx
+                            val ni =
+                                ny * gw + nx
 
-                            if (!visited[ni] && blue(nx, ny)) {
+                            if (
+                                !visited[ni] &&
+                                isBlue(nx, ny)
+                            ) {
 
                                 visited[ni] = true
 
-                                if (tail < queueX.size) {
-                                    queueX[tail] = nx
-                                    queueY[tail] = ny
+                                if (
+                                    tail <
+                                    qx.size
+                                ) {
+                                    qx[tail] = nx
+                                    qy[tail] = ny
                                     tail++
                                 }
                             }
@@ -252,15 +300,16 @@ class ScreenAnalyzer {
                     (maxY - minY + 1) * STEP
 
                 /*
-                 * Real level badges are small.
-                 * Large blue UI panels/buttons are rejected.
+                 * Level badges are compact.
+                 *
+                 * This rejects most blue UI elements.
                  */
                 if (
-                    pixels >= 8 &&
-                    pixels <= 450 &&
-                    width in 14..55 &&
-                    height in 14..45 &&
-                    width.toFloat() / height.toFloat() in 0.45f..2.2f
+                    count in 8..500 &&
+                    width in 14..58 &&
+                    height in 14..48 &&
+                    width.toFloat() /
+                    height.toFloat() in 0.45f..2.1f
                 ) {
 
                     result += BoundingBox(
@@ -282,55 +331,163 @@ class ScreenAnalyzer {
         return result
     }
 
-    // ---------------------------------------------------------
-    // LEVEL READING
-    // ---------------------------------------------------------
+    // =========================================================
+    // V15 LEVEL READER
+    // =========================================================
 
     private fun readLevel(
         bitmap: Bitmap,
         badge: BoundingBox
     ): Pair<Int, Int>? {
 
-        val w = badge.width
-        val h = badge.height
-
-        if (w < 14 || h < 14) {
+        if (
+            badge.width < 12 ||
+            badge.height < 12
+        ) {
             return null
         }
 
         /*
-         * Do NOT compare the entire blue badge with a digit.
+         * First find white pixels inside the badge.
          *
-         * Instead find the white digit inside it.
+         * This is the important V15 change.
          */
-        val samples = Array(7) {
-            BooleanArray(5)
+        val whitePixels =
+            mutableListOf<Pair<Int, Int>>()
+
+        for (
+            y in badge.minY..badge.maxY
+        ) {
+            for (
+                x in badge.minX..badge.maxX
+            ) {
+
+                val c =
+                    bitmap.getPixel(x, y)
+
+                val r = Color.red(c)
+                val g = Color.green(c)
+                val b = Color.blue(c)
+
+                if (
+                    r >= 165 &&
+                    g >= 165 &&
+                    b >= 165 &&
+                    max(r, max(g, b)) -
+                    min(r, min(g, b)) < 70
+                ) {
+                    whitePixels +=
+                        Pair(x, y)
+                }
+            }
         }
+
+        /*
+         * No white numeral = not a valid level badge.
+         */
+        if (whitePixels.size < 5) {
+            return null
+        }
+
+        var digitMinX =
+            whitePixels.minOf { it.first }
+
+        var digitMaxX =
+            whitePixels.maxOf { it.first }
+
+        var digitMinY =
+            whitePixels.minOf { it.second }
+
+        var digitMaxY =
+            whitePixels.maxOf { it.second }
+
+        /*
+         * Remove tiny anti-aliasing noise by requiring
+         * the digit to occupy a reasonable part of the badge.
+         */
+        val digitWidth =
+            digitMaxX - digitMinX + 1
+
+        val digitHeight =
+            digitMaxY - digitMinY + 1
+
+        if (
+            digitWidth < 3 ||
+            digitHeight < 5 ||
+            digitWidth > badge.width ||
+            digitHeight > badge.height
+        ) {
+            return null
+        }
+
+        /*
+         * Slightly pad the extracted digit.
+         */
+        digitMinX =
+            max(
+                badge.minX,
+                digitMinX - 1
+            )
+
+        digitMaxX =
+            min(
+                badge.maxX,
+                digitMaxX + 1
+            )
+
+        digitMinY =
+            max(
+                badge.minY,
+                digitMinY - 1
+            )
+
+        digitMaxY =
+            min(
+                badge.maxY,
+                digitMaxY + 1
+            )
+
+        val samples =
+            Array(7) {
+                BooleanArray(5)
+            }
+
+        val dw =
+            digitMaxX - digitMinX + 1
+
+        val dh =
+            digitMaxY - digitMinY + 1
 
         for (gy in 0 until 7) {
             for (gx in 0 until 5) {
 
                 val x0 =
-                    badge.minX +
-                        gx * w / 5
+                    digitMinX +
+                        gx * dw / 5
 
                 val x1 =
-                    badge.minX +
-                        (gx + 1) * w / 5
+                    digitMinX +
+                        (gx + 1) * dw / 5
 
                 val y0 =
-                    badge.minY +
-                        gy * h / 7
+                    digitMinY +
+                        gy * dh / 7
 
                 val y1 =
-                    badge.minY +
-                        (gy + 1) * h / 7
+                    digitMinY +
+                        (gy + 1) * dh / 7
 
                 var white = 0
                 var total = 0
 
-                for (y in y0 until max(y0 + 1, y1)) {
-                    for (x in x0 until max(x0 + 1, x1)) {
+                for (
+                    y in y0 until
+                        max(y0 + 1, y1)
+                ) {
+                    for (
+                        x in x0 until
+                            max(x0 + 1, x1)
+                    ) {
 
                         if (
                             x < 0 ||
@@ -341,24 +498,26 @@ class ScreenAnalyzer {
                             continue
                         }
 
-                        val c = bitmap.getPixel(x, y)
+                        val c =
+                            bitmap.getPixel(x, y)
 
-                        val r = Color.red(c)
-                        val g = Color.green(c)
-                        val b = Color.blue(c)
+                        val r =
+                            Color.red(c)
+
+                        val g =
+                            Color.green(c)
+
+                        val b =
+                            Color.blue(c)
 
                         total++
 
-                        /*
-                         * White number.
-                         * Gold/grey anti-aliasing is allowed.
-                         */
                         if (
-                            r >= 175 &&
-                            g >= 175 &&
-                            b >= 175 &&
+                            r >= 160 &&
+                            g >= 160 &&
+                            b >= 160 &&
                             max(r, max(g, b)) -
-                                min(r, min(g, b)) < 55
+                            min(r, min(g, b)) < 75
                         ) {
                             white++
                         }
@@ -367,17 +526,18 @@ class ScreenAnalyzer {
 
                 samples[gy][gx] =
                     total > 0 &&
-                        white * 100 >= total * 20
+                        white * 100 >=
+                        total * 18
             }
         }
 
         var bestDigit = -1
-        var bestDiff = Int.MAX_VALUE
-        var secondBest = Int.MAX_VALUE
+        var bestScore = Int.MAX_VALUE
+        var secondScore = Int.MAX_VALUE
 
         for (digit in 0..4) {
 
-            var diff = 0
+            var difference = 0
 
             for (y in 0 until 7) {
                 for (x in 0 until 5) {
@@ -385,18 +545,25 @@ class ScreenAnalyzer {
                     val expected =
                         DIGITS[digit][y][x] == '1'
 
-                    if (samples[y][x] != expected) {
-                        diff++
+                    if (
+                        samples[y][x] !=
+                        expected
+                    ) {
+                        difference++
                     }
                 }
             }
 
-            if (diff < bestDiff) {
-                secondBest = bestDiff
-                bestDiff = diff
+            if (
+                difference < bestScore
+            ) {
+                secondScore = bestScore
+                bestScore = difference
                 bestDigit = digit
-            } else if (diff < secondBest) {
-                secondBest = diff
+            } else if (
+                difference < secondScore
+            ) {
+                secondScore = difference
             }
         }
 
@@ -405,21 +572,27 @@ class ScreenAnalyzer {
         }
 
         /*
-         * Reject ambiguous digits.
+         * Strict rejection.
          */
-        if (bestDiff > 13) {
+        if (bestScore > 11) {
             return null
         }
 
+        /*
+         * Do not guess between similar digits.
+         */
         if (
-            secondBest != Int.MAX_VALUE &&
-            secondBest - bestDiff < 2
+            secondScore != Int.MAX_VALUE &&
+            secondScore - bestScore < 2
         ) {
             return null
         }
 
         val confidence =
-            (100 - bestDiff * 6).coerceIn(65, 98)
+            (
+                100 -
+                    bestScore * 7
+            ).coerceIn(70, 99)
 
         return Pair(
             bestDigit + 1,
@@ -427,9 +600,9 @@ class ScreenAnalyzer {
         )
     }
 
-    // ---------------------------------------------------------
-    // RESOURCE CLASSIFICATION
-    // ---------------------------------------------------------
+    // =========================================================
+    // RESOURCE CLASSIFIER
+    // =========================================================
 
     private fun classifyResource(
         bitmap: Bitmap,
@@ -437,22 +610,36 @@ class ScreenAnalyzer {
     ): TripleResult? {
 
         /*
-         * Resource artwork is normally LEFT/BOTTOM of the
-         * level badge.
+         * The badge is normally near the upper-right of
+         * the resource tile.
          *
-         * Keep the window tight so terrain does not dominate.
+         * Therefore inspect a compact region to its
+         * LEFT and BELOW instead of averaging the whole
+         * surrounding terrain.
          */
         val left =
-            max(0, badge.centerX - 75)
+            max(
+                0,
+                badge.centerX - 82
+            )
 
         val right =
-            min(bitmap.width - 1, badge.centerX + 15)
+            min(
+                bitmap.width - 1,
+                badge.centerX + 8
+            )
 
         val top =
-            max(0, badge.minY - 5)
+            max(
+                0,
+                badge.maxY - 2
+            )
 
         val bottom =
-            min(bitmap.height - 1, badge.maxY + 65)
+            min(
+                bitmap.height - 1,
+                badge.maxY + 62
+            )
 
         var total = 0
 
@@ -460,33 +647,49 @@ class ScreenAnalyzer {
         var brightYellow = 0
 
         var green = 0
+        var darkGreen = 0
+
         var brown = 0
+        var darkBrown = 0
 
         var grey = 0
+        var lightGrey = 0
+
         var cyan = 0
         var orange = 0
 
+        var dark = 0
         var red = 0
 
         var sumR = 0
         var sumG = 0
         var sumB = 0
 
-        for (y in top..bottom step 3) {
-            for (x in left..right step 3) {
+        for (
+            y in top..bottom step 2
+        ) {
+            for (
+                x in left..right step 2
+            ) {
 
-                val c = bitmap.getPixel(x, y)
+                val c =
+                    bitmap.getPixel(x, y)
 
-                val r = Color.red(c)
-                val g = Color.green(c)
-                val b = Color.blue(c)
+                val r =
+                    Color.red(c)
+
+                val g =
+                    Color.green(c)
+
+                val b =
+                    Color.blue(c)
 
                 /*
-                 * Ignore blue level badge itself.
+                 * Ignore the blue level badge.
                  */
                 if (
-                    b - r > 30 &&
-                    b - g > 8
+                    b > r + 28 &&
+                    b > g + 4
                 ) {
                     continue
                 }
@@ -497,212 +700,377 @@ class ScreenAnalyzer {
                 sumG += g
                 sumB += b
 
-                val mx = max(r, max(g, b))
-                val mn = min(r, min(g, b))
-                val saturation = mx - mn
+                val mx =
+                    max(r, max(g, b))
+
+                val mn =
+                    min(r, min(g, b))
+
+                val spread =
+                    mx - mn
 
                 if (
                     r > 145 &&
                     g > 125 &&
-                    r > b + 30 &&
-                    g > b + 20
+                    r > b + 28 &&
+                    g > b + 18
                 ) {
                     yellow++
                 }
 
                 if (
-                    r > 190 &&
-                    g > 165 &&
-                    b < 120
+                    r > 185 &&
+                    g > 160 &&
+                    b < 125
                 ) {
                     brightYellow++
                 }
 
                 if (
-                    g > r + 8 &&
-                    g > b + 8 &&
-                    g > 75
+                    g > r + 6 &&
+                    g > b + 6 &&
+                    g > 70
                 ) {
                     green++
                 }
 
                 if (
-                    r > b + 15 &&
+                    g > 85 &&
+                    g > r + 12 &&
+                    g > b + 8
+                ) {
+                    darkGreen++
+                }
+
+                if (
+                    r > b + 12 &&
                     g > b &&
-                    r > 65 &&
-                    g > 45
+                    r > 60 &&
+                    g > 40
                 ) {
                     brown++
                 }
 
                 if (
-                    saturation < 35 &&
-                    mx in 70..210
+                    r > b + 18 &&
+                    g < 115 &&
+                    r < 175
+                ) {
+                    darkBrown++
+                }
+
+                if (
+                    spread < 38 &&
+                    mx in 65..205
                 ) {
                     grey++
                 }
 
                 if (
-                    b > r + 25 &&
-                    b > g + 5
+                    spread < 42 &&
+                    mx > 125
+                ) {
+                    lightGrey++
+                }
+
+                /*
+                 * Ore contains conspicuous cyan/blue
+                 * mineral pieces.
+                 */
+                if (
+                    b > r + 18 &&
+                    b > g + 2 &&
+                    b > 80
                 ) {
                     cyan++
                 }
 
+                /*
+                 * Ore also commonly has warm mineral pieces.
+                 */
                 if (
-                    r > 150 &&
-                    g in 60..180 &&
-                    b < 100
+                    r > 135 &&
+                    g in 55..175 &&
+                    b < 115
                 ) {
                     orange++
                 }
 
                 if (
+                    mx < 65
+                ) {
+                    dark++
+                }
+
+                if (
                     r > 175 &&
-                    r > g * 1.45 &&
-                    r > b * 1.45
+                    r > g * 1.4 &&
+                    r > b * 1.4
                 ) {
                     red++
                 }
             }
         }
 
-        if (total < 35) {
+        if (total < 60) {
             return null
         }
+
+        val avgR =
+            sumR / total
+
+        val avgG =
+            sumG / total
+
+        val avgB =
+            sumB / total
 
         /*
-         * Monsters have strong red/dark signatures.
-         * Reject them before resource classification.
+         * Monster/artwork rejection.
          */
         if (
-            red.toFloat() / total > 0.10f
+            red.toFloat() /
+                total.toFloat() >
+                0.095f
         ) {
             return null
         }
 
-        val avgR = sumR / total
-        val avgG = sumG / total
-        val avgB = sumB / total
+        val scores =
+            mutableListOf<Pair<String, Int>>()
 
-        val scores = mutableListOf<Pair<String, Int>>()
+        // -----------------------------------------------------
+        // FOOD
+        // -----------------------------------------------------
 
-        // FOOD — wheat/fields
         if (
-            yellow >= total * 0.18 &&
-            brightYellow >= total * 0.05
+            yellow >= total * 0.16 &&
+            brightYellow >= total * 0.04
         ) {
-            scores += "Food" to
-                (70 + min(15, yellow * 20 / total))
+
+            scores +=
+                "Food" to
+                    (
+                        70 +
+                            min(
+                                16,
+                                yellow * 25 / total
+                            )
+                        )
         }
 
-        // GOLD — bright yellow/gold
+        // -----------------------------------------------------
+        // GOLD
+        // -----------------------------------------------------
+
         if (
-            brightYellow >= total * 0.12 &&
+            brightYellow >= total * 0.11 &&
             avgR > 150 &&
             avgG > 125 &&
-            avgB < 125
+            avgB < 130
         ) {
-            scores += "Gold" to
-                (78 + min(12, brightYellow * 25 / total))
+
+            scores +=
+                "Gold" to
+                    (
+                        76 +
+                            min(
+                                16,
+                                brightYellow * 30 / total
+                            )
+                        )
         }
 
-        // WOOD — brown trunks + green foliage
+        // -----------------------------------------------------
+        // WOOD
+        // -----------------------------------------------------
+
         if (
-            brown >= total * 0.15 &&
-            green >= total * 0.05
+            brown >= total * 0.13 &&
+            green >= total * 0.04 &&
+            darkBrown >= total * 0.025
         ) {
-            scores += "Wood" to
-                (72 + min(13, brown * 20 / total))
+
+            scores +=
+                "Wood" to
+                    (
+                        73 +
+                            min(
+                                15,
+                                brown * 25 / total
+                            )
+                        )
         }
 
-        // STONE — grey, low saturation
+        // -----------------------------------------------------
+        // STONE
+        // -----------------------------------------------------
+
         if (
-            grey >= total * 0.28 &&
-            avgB >= avgR - 15 &&
-            abs(avgR - avgG) < 35
+            grey >= total * 0.24 &&
+            lightGrey >= total * 0.08 &&
+            abs(avgR - avgG) < 38 &&
+            abs(avgG - avgB) < 45
         ) {
-            scores += "Stone" to
-                (74 + min(12, grey * 20 / total))
+
+            scores +=
+                "Stone" to
+                    (
+                        74 +
+                            min(
+                                15,
+                                grey * 25 / total
+                            )
+                        )
         }
 
-        // ORE — cyan/blue stones mixed with orange/brown
+        // -----------------------------------------------------
+        // ORE
+        // -----------------------------------------------------
+
         if (
-            cyan >= total * 0.06 &&
-            orange >= total * 0.03
+            cyan >= total * 0.055 &&
+            orange >= total * 0.025
         ) {
-            scores += "Ore" to
-                (78 + min(12, cyan * 25 / total))
+
+            scores +=
+                "Ore" to
+                    (
+                        79 +
+                            min(
+                                14,
+                                cyan * 30 / total
+                            )
+                        )
         }
 
         if (scores.isEmpty()) {
             return null
         }
 
-        scores.sortByDescending { it.second }
+        scores.sortByDescending {
+            it.second
+        }
 
-        val best = scores[0]
+        val best =
+            scores.first()
+
         val second =
-            scores.getOrNull(1)?.second ?: 0
+            scores.getOrNull(1)?.second
+                ?: 0
 
         /*
-         * If two resource types look almost identical,
-         * reject rather than guessing.
+         * Important:
+         * Do not convert uncertain artwork into
+         * a target.
          */
         if (
             second > 0 &&
-            best.second - second < 7
+            best.second - second < 9
         ) {
             return null
         }
 
-        val confidence =
-            best.second.coerceIn(65, 95)
+        /*
+         * Additional terrain protection.
+         *
+         * A large green field with no resource
+         * signature should not become Food/Wood.
+         */
+        if (
+            best.first == "Food" &&
+            yellow < total * 0.16
+        ) {
+            return null
+        }
+
+        if (
+            best.first == "Wood" &&
+            brown < total * 0.13
+        ) {
+            return null
+        }
+
+        if (
+            best.first == "Stone" &&
+            grey < total * 0.24
+        ) {
+            return null
+        }
+
+        if (
+            best.first == "Ore" &&
+            cyan < total * 0.055
+        ) {
+            return null
+        }
 
         return TripleResult(
             best.first,
-            confidence,
-            Triple(avgR, avgG, avgB)
+            best.second.coerceIn(68, 96),
+            Triple(
+                avgR,
+                avgG,
+                avgB
+            )
         )
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // OCCUPATION
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun detectOccupation(
         bitmap: Bitmap,
         badge: BoundingBox
     ): Boolean {
 
-        /*
-         * Incoming/assigned march indicators are commonly red.
-         * Use a reasonably broad local window.
-         */
         val left =
-            max(0, badge.minX - 75)
+            max(
+                0,
+                badge.minX - 75
+            )
 
         val right =
-            min(bitmap.width - 1, badge.maxX + 45)
+            min(
+                bitmap.width - 1,
+                badge.maxX + 45
+            )
 
         val top =
-            max(0, badge.minY - 35)
+            max(
+                0,
+                badge.minY - 35
+            )
 
         val bottom =
-            min(bitmap.height - 1, badge.maxY + 80)
+            min(
+                bitmap.height - 1,
+                badge.maxY + 85
+            )
 
         var red = 0
         var strongRed = 0
         var total = 0
 
-        for (y in top..bottom step 3) {
-            for (x in left..right step 3) {
+        for (
+            y in top..bottom step 3
+        ) {
+            for (
+                x in left..right step 3
+            ) {
 
-                val c = bitmap.getPixel(x, y)
+                val c =
+                    bitmap.getPixel(x, y)
 
-                val r = Color.red(c)
-                val g = Color.green(c)
-                val b = Color.blue(c)
+                val r =
+                    Color.red(c)
+
+                val g =
+                    Color.green(c)
+
+                val b =
+                    Color.blue(c)
 
                 total++
 
@@ -711,6 +1079,7 @@ class ScreenAnalyzer {
                     r > g * 1.35 &&
                     r > b * 1.35
                 ) {
+
                     red++
 
                     if (
@@ -729,18 +1098,20 @@ class ScreenAnalyzer {
         }
 
         return strongRed >= 5 &&
-            red.toFloat() / total >= 0.009f
+            red.toFloat() /
+            total.toFloat() >= 0.009f
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // DEDUPLICATION
-    // ---------------------------------------------------------
+    // =========================================================
 
     private fun deduplicate(
         items: List<RssDetection>
     ): List<RssDetection> {
 
-        val result = mutableListOf<RssDetection>()
+        val result =
+            mutableListOf<RssDetection>()
 
         for (
             item in items.sortedByDescending {
@@ -763,7 +1134,8 @@ class ScreenAnalyzer {
                                 item.centerY
                         )
 
-                    dx < 32 && dy < 32
+                    dx < 30 &&
+                        dy < 30
                 }
 
             if (!duplicate) {
@@ -774,9 +1146,9 @@ class ScreenAnalyzer {
         return result
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // DATA
-    // ---------------------------------------------------------
+    // =========================================================
 
     private data class TripleResult(
         val first: String,
@@ -798,10 +1170,12 @@ class ScreenAnalyzer {
             get() = maxY - minY + 1
 
         val centerX: Int
-            get() = (minX + maxX) / 2
+            get() =
+                (minX + maxX) / 2
 
         val centerY: Int
-            get() = (minY + maxY) / 2
+            get() =
+                (minY + maxY) / 2
     }
 
     data class RssDetection(
@@ -812,6 +1186,7 @@ class ScreenAnalyzer {
         val boundingBox: BoundingBox,
         val confidence: Int,
         val occupied: Boolean,
-        val dominantColor: Triple<Int, Int, Int>
+        val dominantColor:
+            Triple<Int, Int, Int>
     )
 }
