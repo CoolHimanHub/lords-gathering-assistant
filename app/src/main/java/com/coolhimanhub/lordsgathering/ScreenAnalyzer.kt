@@ -5,386 +5,551 @@ import android.graphics.Color
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
- * ScreenAnalyzer handles detection of RSS tiles from game screenshots.
- * Detects badge colors, levels, and occupancy status.
+ * Conservative RSS detector.
+ *
+ * Important design rule: a resource is never created from a generic bright/grey
+ * area. The first gate is the small blue level badge used by Lords Mobile.
+ * Only after a real badge is found do we inspect the nearby resource artwork.
  */
 class ScreenAnalyzer {
 
     companion object {
-        // Color detection thresholds
-        private const val RGB_THRESHOLD = 30
-        
-        // Badge colors for different resource types (RGB tuples)
-        private val RESOURCE_COLORS = mapOf(
-            "Emerging" to Triple(255, 215, 0),      // Gold
-            "Gold" to Triple(255, 200, 0),          // Dark Gold
-            "Ore" to Triple(128, 128, 128),         // Gray
-            "Wood" to Triple(165, 42, 42),          // Brown
-            "Food" to Triple(34, 139, 34),          // Forest Green
-            "Stone" to Triple(192, 192, 192),       // Light Gray
-            "Other" to Triple(200, 200, 200)        // Light Gray
-        )
+        private const val BLUE_MIN = 105
+        private const val BLUE_RED_GAP = 35
+        private const val BLUE_GREEN_GAP = 12
+        private const val MIN_COMPONENT = 25
+        private const val MAX_COMPONENT = 1800
 
-        // Occupied tile indicators (red flag/marker)
-        private val OCCUPIED_RED = Triple(255, 0, 0)
-        private val OCCUPIED_THRESHOLD = 40
+        private val DIGITS = arrayOf(
+            arrayOf("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+            arrayOf("11100", "00010", "00010", "00100", "01000", "10000", "11110"),
+            arrayOf("11100", "00010", "00010", "01100", "00010", "00010", "11100"),
+            arrayOf("00010", "00110", "01010", "10010", "11111", "00010", "00010"),
+            arrayOf("11110", "10000", "10000", "11100", "00010", "00010", "11100")
+        )
     }
 
-    /**
-     * Analyzes a screenshot bitmap to detect RSS tile badges
-     */
     fun analyzeScreenshot(
         bitmap: Bitmap,
         expectedRegionX: IntRange = 0 until bitmap.width,
         expectedRegionY: IntRange = 0 until bitmap.height
     ): List<RssDetection> {
+        if (bitmap.width < 100 || bitmap.height < 100) return emptyList()
 
-        val detections = mutableListOf<RssDetection>()
+        val boxes = findLevelBadgeComponents(bitmap, expectedRegionX, expectedRegionY)
+        val out = mutableListOf<RssDetection>()
 
-        // Scan for badge-like circular regions
-        val badgeRegions = findBadgeRegions(bitmap, expectedRegionX, expectedRegionY)
+        for (box in boxes) {
+            val level = readBadgeLevel(bitmap, box) ?: continue
+            val typeResult = classifyResourceArtwork(bitmap, box)
 
-        for (region in badgeRegions) {
-            val detection = analyzeRegion(bitmap, region)
-            if (detection != null) {
-                detections.add(detection)
-            }
+            if (typeResult == null) continue
+
+            val occupied = detectOccupation(bitmap, box)
+            val confidence = min(
+                100,
+                (typeResult.second * 0.65 + badgeConfidence(bitmap, box) * 0.35).toInt()
+            )
+
+            if (confidence < 45) continue
+
+            out += RssDetection(
+                type = typeResult.first,
+                level = level,
+                centerX = box.centerX,
+                centerY = box.centerY,
+                boundingBox = box,
+                confidence = confidence,
+                occupied = occupied,
+                dominantColor = typeResult.third
+            )
         }
 
-        return detections
+        return deduplicate(out)
     }
 
-    /**
-     * Find potential badge regions by scanning for concentrated colored pixels
-     */
-    private fun findBadgeRegions(
+    /** Finds connected blue badge components, not arbitrary bright regions. */
+    private fun findLevelBadgeComponents(
         bitmap: Bitmap,
         regionX: IntRange,
         regionY: IntRange
     ): List<BoundingBox> {
+        val step = 2
+        val gw = (bitmap.width + step - 1) / step
+        val gh = (bitmap.height + step - 1) / step
+        val visited = BooleanArray(gw * gh)
+        val result = mutableListOf<BoundingBox>()
 
-        val regions = mutableListOf<BoundingBox>()
-        val minBadgeSize = 30
-        val maxBadgeSize = 150
-        val badgeScanStep = 15
+        fun inside(gx: Int, gy: Int): Boolean =
+            gx in 0 until gw && gy in 0 until gh
 
-        var y = regionY.first
-        while (y < regionY.last) {
+        fun isBlue(gx: Int, gy: Int): Boolean {
+            val x = gx * step
+            val y = gy * step
+            if (x !in regionX || y !in regionY) return false
 
-            var x = regionX.first
-            while (x < regionX.last) {
+            val c = bitmap.getPixel(x, y)
+            val r = Color.red(c)
+            val g = Color.green(c)
+            val b = Color.blue(c)
 
-                // Check if pixel at (x, y) could be a badge center
-                val colorIntensity = getColorIntensity(
-                    bitmap,
-                    x,
-                    y
-                )
+            return b >= BLUE_MIN &&
+                b - r >= BLUE_RED_GAP &&
+                b - g >= BLUE_GREEN_GAP
+        }
 
-                if (colorIntensity > 100) {
-                    // Potential badge found, expand to find bounds
-                    val bbox = expandBadgeRegion(
-                        bitmap,
-                        x,
-                        y,
-                        minBadgeSize,
-                        maxBadgeSize
-                    )
+        for (gy in 0 until gh) {
+            for (gx in 0 until gw) {
+                val idx = gy * gw + gx
 
-                    if (bbox != null && !regionsOverlap(bbox, regions)) {
-                        regions.add(bbox)
-                        x += bbox.width
+                if (visited[idx] || !isBlue(gx, gy)) continue
+
+                val qx = IntArray(2048)
+                val qy = IntArray(2048)
+                var head = 0
+                var tail = 0
+
+                qx[tail] = gx
+                qy[tail++] = gy
+                visited[idx] = true
+
+                var minX = gx
+                var maxX = gx
+                var minY = gy
+                var maxY = gy
+                var count = 0
+
+                while (head < tail) {
+                    val cx = qx[head]
+                    val cy = qy[head++]
+
+                    count++
+
+                    minX = min(minX, cx)
+                    maxX = max(maxX, cx)
+                    minY = min(minY, cy)
+                    maxY = max(maxY, cy)
+
+                    for (dy in -1..1) {
+                        for (dx in -1..1) {
+                            if (dx == 0 && dy == 0) continue
+
+                            val nx = cx + dx
+                            val ny = cy + dy
+
+                            if (!inside(nx, ny)) continue
+
+                            val ni = ny * gw + nx
+
+                            if (!visited[ni] && isBlue(nx, ny)) {
+                                visited[ni] = true
+
+                                if (tail < qx.size) {
+                                    qx[tail] = nx
+                                    qy[tail++] = ny
+                                }
+                            }
+                        }
                     }
                 }
 
-                x += badgeScanStep
-            }
+                val w = (maxX - minX + 1) * step
+                val h = (maxY - minY + 1) * step
 
-            y += badgeScanStep
-        }
-
-        return regions
-    }
-
-    /**
-     * Expand from a center point to find badge boundaries
-     */
-    private fun expandBadgeRegion(
-        bitmap: Bitmap,
-        centerX: Int,
-        centerY: Int,
-        minSize: Int,
-        maxSize: Int
-    ): BoundingBox? {
-
-        var minX = centerX
-        var maxX = centerX
-        var minY = centerY
-        var maxY = centerY
-
-        // Expand outward until color intensity drops
-        for (radius in 1..maxSize step 2) {
-
-            val borderIntensity = (0..7).map { angle ->
-                val rad = Math.toRadians((angle * 45).toDouble())
-                val px = centerX + (radius * kotlin.math.cos(rad)).toInt()
-                val py = centerY + (radius * kotlin.math.sin(rad)).toInt()
-                getColorIntensity(bitmap, px, py)
-            }.average()
-
-            if (borderIntensity < 50) {
-                // Color dropped too much, use previous radius
-                val finalRadius = maxOf(radius - 2, minSize / 2)
-                minX = centerX - finalRadius
-                maxX = centerX + finalRadius
-                minY = centerY - finalRadius
-                maxY = centerY + finalRadius
-                break
-            }
-        }
-
-        val width = maxX - minX
-        val height = maxY - minY
-
-        return if (width >= minSize && height >= minSize && width <= maxSize && height <= maxSize) {
-            BoundingBox(minX, minY, maxX, maxY)
-        } else {
-            null
-        }
-    }
-
-    /**
-     * Analyze a specific region to determine resource type and level
-     */
-    private fun analyzeRegion(
-        bitmap: Bitmap,
-        bbox: BoundingBox
-    ): RssDetection? {
-
-        // Sample pixels from the region
-        val samples = sampleRegionColors(bitmap, bbox)
-
-        if (samples.isEmpty()) {
-            return null
-        }
-
-        // Determine dominant color
-        val dominantColor = findDominantColor(samples)
-        val resourceType = matchResourceColor(dominantColor)
-
-        // Check for occupation (red overlay)
-        val isOccupied = detectOccupancy(samples)
-
-        // Estimate level from badge characteristics
-        val estimatedLevel = estimateLevel(bitmap, bbox, samples)
-
-        // Calculate confidence based on color match
-        val confidence = calculateColorConfidence(dominantColor, resourceType)
-
-        return RssDetection(
-            type = resourceType,
-            level = estimatedLevel,
-            centerX = bbox.centerX,
-            centerY = bbox.centerY,
-            boundingBox = bbox,
-            confidence = confidence,
-            occupied = isOccupied,
-            dominantColor = dominantColor
-        )
-    }
-
-    /**
-     * Sample colors from badge region
-     */
-    private fun sampleRegionColors(
-        bitmap: Bitmap,
-        bbox: BoundingBox
-    ): List<Triple<Int, Int, Int>> {
-
-        val colors = mutableListOf<Triple<Int, Int, Int>>()
-        val stepSize = max(1, (bbox.width / 8))
-
-        for (y in bbox.minY..bbox.maxY step stepSize) {
-            for (x in bbox.minX..bbox.maxX step stepSize) {
-
-                if (x >= 0 && x < bitmap.width && y >= 0 && y < bitmap.height) {
-                    val pixel = bitmap.getPixel(x, y)
-                    val r = Color.red(pixel)
-                    val g = Color.green(pixel)
-                    val b = Color.blue(pixel)
-                    colors.add(Triple(r, g, b))
+                if (
+                    count in 8..(MAX_COMPONENT / 4) &&
+                    w in 12..90 &&
+                    h in 12..70 &&
+                    w.toFloat() / h.toFloat() in 0.35f..3.0f
+                ) {
+                    result += BoundingBox(
+                        minX * step,
+                        minY * step,
+                        min((maxX + 1) * step - 1, bitmap.width - 1),
+                        min((maxY + 1) * step - 1, bitmap.height - 1)
+                    )
                 }
             }
         }
 
-        return colors
+        return result
     }
 
-    /**
-     * Find the most common color in samples
-     */
-    private fun findDominantColor(
-        samples: List<Triple<Int, Int, Int>>
-    ): Triple<Int, Int, Int> {
+    private fun readBadgeLevel(
+        bitmap: Bitmap,
+        box: BoundingBox
+    ): Int? {
 
-        if (samples.isEmpty()) {
-            return Triple(128, 128, 128)
-        }
+        val left = box.minX
+        val top = box.minY
+        val right = box.maxX
+        val bottom = box.maxY
 
-        // Group similar colors together
-        val grouped = mutableMapOf<String, MutableList<Triple<Int, Int, Int>>>()
+        val w = right - left + 1
+        val h = bottom - top + 1
 
-        for (sample in samples) {
-            val key = "${sample.first / 20}-${sample.second / 20}-${sample.third / 20}"
-            grouped.getOrPut(key) { mutableListOf() }.add(sample)
-        }
+        if (w < 10 || h < 10) return null
 
-        // Find the group with most samples
-        val largestGroup = grouped.values.maxByOrNull { it.size } ?: samples
+        val samples = Array(7) { BooleanArray(5) }
 
-        // Average the group
-        val avgR = largestGroup.map { it.first }.average().toInt()
-        val avgG = largestGroup.map { it.second }.average().toInt()
-        val avgB = largestGroup.map { it.third }.average().toInt()
+        for (gy in 0 until 7) {
+            for (gx in 0 until 5) {
 
-        return Triple(avgR, avgG, avgB)
-    }
+                val x0 = left + gx * w / 5
+                val x1 = left + (gx + 1) * w / 5
+                val y0 = top + gy * h / 7
+                val y1 = top + (gy + 1) * h / 7
 
-    /**
-     * Match detected color to resource type
-     */
-    private fun matchResourceColor(
-        detectedColor: Triple<Int, Int, Int>
-    ): String {
+                var white = 0
+                var total = 0
 
-        var bestMatch = "Other"
-        var bestDistance = 255 * 3 + 1
+                for (y in y0 until max(y0 + 1, y1)) {
+                    for (x in x0 until max(x0 + 1, x1)) {
 
-        for ((resourceType, refColor) in RESOURCE_COLORS) {
-            val distance = colorDistance(detectedColor, refColor)
+                        if (x >= bitmap.width || y >= bitmap.height) continue
 
-            if (distance < bestDistance) {
-                bestDistance = distance
-                bestMatch = resourceType
+                        val c = bitmap.getPixel(x, y)
+
+                        val r = Color.red(c)
+                        val g = Color.green(c)
+                        val b = Color.blue(c)
+
+                        if (r > 180 && g > 180 && b > 180) {
+                            white++
+                        }
+
+                        total++
+                    }
+                }
+
+                samples[gy][gx] =
+                    total > 0 &&
+                    white * 100 >= total * 22
             }
         }
 
-        return bestMatch
+        var bestDigit = 1
+        var bestScore = Double.MAX_VALUE
+
+        for (d in 0 until 5) {
+
+            var diff = 0
+
+            for (y in 0 until 7) {
+                for (x in 0 until 5) {
+
+                    if (
+                        samples[y][x] !=
+                        (DIGITS[d][y][x] == '1')
+                    ) {
+                        diff++
+                    }
+                }
+            }
+
+            if (diff < bestScore) {
+                bestScore = diff.toDouble()
+                bestDigit = d + 1
+            }
+        }
+
+        return if (bestScore <= 18) bestDigit else null
     }
 
     /**
-     * Calculate Euclidean distance between two colors
+     * Inspect artwork below/left of the badge.
+     * The badge itself is excluded.
      */
-    private fun colorDistance(
-        color1: Triple<Int, Int, Int>,
-        color2: Triple<Int, Int, Int>
-    ): Int {
+    private fun classifyResourceArtwork(
+        bitmap: Bitmap,
+        badge: BoundingBox
+    ): TripleResult? {
 
-        val dr = color1.first - color2.first
-        val dg = color1.second - color2.second
-        val db = color1.third - color2.third
+        val cx = badge.centerX
+        val top = badge.maxY + 2
+        val left = cx - 58
+        val right = cx + 34
+        val bottom = badge.maxY + 82
 
-        return kotlin.math.sqrt(
-            (dr * dr + dg * dg + db * db).toDouble()
-        ).toInt()
+        val colors = mutableListOf<Triple<Int, Int, Int>>()
+
+        var resourceLike = 0
+
+        for (
+            y in max(0, top)..min(bitmap.height - 1, bottom) step 3
+        ) {
+            for (
+                x in max(0, left)..min(bitmap.width - 1, right) step 3
+            ) {
+
+                val c = bitmap.getPixel(x, y)
+
+                val r = Color.red(c)
+                val g = Color.green(c)
+                val b = Color.blue(c)
+
+                if (b - r > 30 && b - g > 10) continue
+
+                val maxC = max(r, max(g, b))
+                val minC = min(r, min(g, b))
+
+                if (maxC - minC > 25 || maxC > 145) {
+                    colors += Triple(r, g, b)
+                    resourceLike++
+                }
+            }
+        }
+
+        if (colors.size < 20 || resourceLike < 20) {
+            return null
+        }
+
+        val avg = Triple(
+            colors.map { it.first }.average().toInt(),
+            colors.map { it.second }.average().toInt(),
+            colors.map { it.third }.average().toInt()
+        )
+
+        val features = colors.map { hsv(it) }
+
+        val sat = features.map { it.second }.average()
+        val value = features.map { it.third }.average()
+
+        val redBias = avg.first - avg.second
+
+        val yellow =
+            avg.first > avg.third + 20 &&
+            avg.second > avg.third + 10
+
+        val green =
+            avg.second > avg.first + 8 &&
+            avg.second > avg.third + 5
+
+        val brown =
+            redBias > 12 &&
+            avg.second > avg.third + 5
+
+        val bluePurple =
+            avg.third > avg.first + 8 ||
+            (
+                avg.third > avg.second + 5 &&
+                sat > 0.18
+            )
+
+        val scored = mutableListOf<Pair<String, Int>>()
+
+        if (yellow && value > 0.55) {
+            scored += "Food" to 62
+        }
+
+        if (
+            yellow &&
+            value > 0.72 &&
+            avg.first > 185
+        ) {
+            scored += "Gold" to 70
+        }
+
+        if (brown) {
+            scored += "Wood" to 64
+        }
+
+        if (
+            green &&
+            sat > 0.15
+        ) {
+            scored += "Food" to 58
+        }
+
+        if (bluePurple) {
+            scored += "Ore" to 60
+        }
+
+        if (
+            sat < 0.20 &&
+            value < 0.72
+        ) {
+            scored += "Stone" to 62
+        }
+
+        if (scored.isEmpty()) return null
+
+        scored.sortByDescending { it.second }
+
+        val best = scored.first()
+        val second = scored.getOrNull(1)?.second ?: 0
+
+        val confidence =
+            (
+                best.second +
+                min(18, best.second - second + 8)
+            ).coerceIn(45, 90)
+
+        if (
+            second > 0 &&
+            best.second - second < 8
+        ) {
+            return null
+        }
+
+        return TripleResult(
+            best.first,
+            confidence,
+            avg
+        )
     }
 
-    /**
-     * Detect if tile is occupied (has red flag/marker)
-     */
-    private fun detectOccupancy(
-        samples: List<Triple<Int, Int, Int>>
+    private fun detectOccupation(
+        bitmap: Bitmap,
+        badge: BoundingBox
     ): Boolean {
 
-        val redPixels = samples.count { (r, g, b) ->
-            r > 200 && g < 100 && b < 100
+        val l = max(0, badge.minX - 70)
+        val r = min(bitmap.width - 1, badge.maxX + 50)
+        val t = max(0, badge.minY - 25)
+        val b = min(bitmap.height - 1, badge.maxY + 90)
+
+        var red = 0
+        var strongRed = 0
+        var total = 0
+
+        for (y in t..b step 3) {
+            for (x in l..r step 3) {
+
+                val c = bitmap.getPixel(x, y)
+
+                val rr = Color.red(c)
+                val gg = Color.green(c)
+                val bb = Color.blue(c)
+
+                total++
+
+                if (
+                    rr > 180 &&
+                    rr > gg * 1.45 &&
+                    rr > bb * 1.45
+                ) {
+                    red++
+
+                    if (
+                        rr > 220 &&
+                        gg < 90 &&
+                        bb < 90
+                    ) {
+                        strongRed++
+                    }
+                }
+            }
         }
 
-        return redPixels > samples.size * 0.1 // 10% of pixels are red
+        return total > 0 &&
+            strongRed >= 8 &&
+            red.toFloat() / total.toFloat() > 0.012f
     }
 
-    /**
-     * Estimate resource level from visual characteristics
-     */
-    private fun estimateLevel(
+    private fun badgeConfidence(
         bitmap: Bitmap,
-        bbox: BoundingBox,
-        samples: List<Triple<Int, Int, Int>>
+        box: BoundingBox
     ): Int {
 
-        // Level is estimated by badge size and brightness
-        val badgeSize = bbox.width
-        val avgBrightness = samples.map { (r, g, b) ->
-            (r + g + b) / 3
-        }.average()
+        var good = 0
+        var total = 0
 
-        return when {
-            badgeSize >= 120 && avgBrightness > 200 -> 5
-            badgeSize >= 100 && avgBrightness > 180 -> 4
-            badgeSize >= 80 && avgBrightness > 160 -> 3
-            badgeSize >= 60 && avgBrightness > 140 -> 2
-            else -> 1
+        for (
+            y in box.minY..box.maxY step 2
+        ) {
+            for (
+                x in box.minX..box.maxX step 2
+            ) {
+
+                val c = bitmap.getPixel(x, y)
+
+                val r = Color.red(c)
+                val g = Color.green(c)
+                val b = Color.blue(c)
+
+                total++
+
+                if (
+                    b >= BLUE_MIN &&
+                    b - r >= BLUE_RED_GAP &&
+                    b - g >= BLUE_GREEN_GAP
+                ) {
+                    good++
+                }
+            }
+        }
+
+        return if (total == 0) {
+            0
+        } else {
+            (good * 100 / total).coerceIn(0, 100)
         }
     }
 
-    /**
-     * Calculate confidence of the detection (0-100)
-     */
-    private fun calculateColorConfidence(
-        detectedColor: Triple<Int, Int, Int>,
-        matchedType: String
-    ): Int {
+    private fun deduplicate(
+        items: List<RssDetection>
+    ): List<RssDetection> {
 
-        val refColor = RESOURCE_COLORS[matchedType] ?: return 40
+        val out = mutableListOf<RssDetection>()
 
-        val distance = colorDistance(detectedColor, refColor)
-        val maxDistance = 150
+        for (
+            item in items.sortedByDescending { it.confidence }
+        ) {
 
-        return max(0, 100 - (distance * 100 / maxDistance))
-    }
-
-    /**
-     * Get overall color intensity at a pixel
-     */
-    private fun getColorIntensity(
-        bitmap: Bitmap,
-        x: Int,
-        y: Int
-    ): Int {
-
-        if (x < 0 || x >= bitmap.width || y < 0 || y >= bitmap.height) {
-            return 0
+            if (
+                out.none {
+                    abs(it.centerX - item.centerX) < 35 &&
+                    abs(it.centerY - item.centerY) < 35
+                }
+            ) {
+                out += item
+            }
         }
 
-        val pixel = bitmap.getPixel(x, y)
-        val r = Color.red(pixel)
-        val g = Color.green(pixel)
-        val b = Color.blue(pixel)
-
-        return (r + g + b) / 3
+        return out
     }
 
-    /**
-     * Check if two regions overlap
-     */
-    private fun regionsOverlap(
-        box: BoundingBox,
-        others: List<BoundingBox>
-    ): Boolean {
+    private fun hsv(
+        c: Triple<Int, Int, Int>
+    ): Triple<Float, Float, Float> {
 
-        return others.any { other ->
-            box.minX < other.maxX &&
-            box.maxX > other.minX &&
-            box.minY < other.maxY &&
-            box.maxY > other.minY
+        val r = c.first / 255f
+        val g = c.second / 255f
+        val b = c.third / 255f
+
+        val mx = max(r, max(g, b))
+        val mn = min(r, min(g, b))
+        val d = mx - mn
+
+        val h = when {
+            d == 0f -> 0f
+
+            mx == r ->
+                ((g - b) / d) % 6f
+
+            mx == g ->
+                (b - r) / d + 2f
+
+            else ->
+                (r - g) / d + 4f
         }
+
+        return Triple(
+            if (h < 0) h + 6f else h,
+            if (mx == 0f) 0f else d / mx,
+            mx
+        )
     }
 
-    // ==========================================================
-    // DATA CLASSES
-    // ==========================================================
+    private data class TripleResult(
+        val first: String,
+        val second: Int,
+        val third: Triple<Int, Int, Int>
+    )
 
     data class BoundingBox(
         val minX: Int,
@@ -393,10 +558,10 @@ class ScreenAnalyzer {
         val maxY: Int
     ) {
         val width: Int
-            get() = maxX - minX
+            get() = maxX - minX + 1
 
         val height: Int
-            get() = maxY - minY
+            get() = maxY - minY + 1
 
         val centerX: Int
             get() = (minX + maxX) / 2
