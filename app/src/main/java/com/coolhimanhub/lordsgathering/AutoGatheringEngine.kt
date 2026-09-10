@@ -94,13 +94,24 @@ class AutoGatheringEngine(
     }
 
     fun processDetectedTargets(targets: List<RssTarget>): RssTarget? {
-        if (targets.isEmpty()) return null
-        
-        // Sort by priority and return best target
-        val bestTarget = targets.sorted().firstOrNull()
-        currentTarget = bestTarget
-        return bestTarget
+    if (targets.isEmpty()) return null
+
+    // V13 SAFETY FILTER:
+    // Never gather an occupied/flagged resource.
+    // Only accept valid levels and strong detections.
+    val safeTargets = targets.filter {
+        !it.occupied &&
+        it.confidence >= 75 &&
+        it.level in 1..5 &&
+        it.type != "Other" &&
+        it.type != "Emerging"
     }
+
+    val bestTarget = safeTargets.sorted().firstOrNull()
+
+    currentTarget = bestTarget
+    return bestTarget
+}
 
     // ==========================================
     // GATHERING CYCLE
