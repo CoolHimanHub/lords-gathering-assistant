@@ -969,9 +969,7 @@ class GatheringAccessibilityService :
 
                         if (!serviceAlive) {
 
-                            closeScreenshot(
-                                screenshot
-                            )
+                            screenshot.hardwareBuffer.close()
 
                             screenshotInProgress =
                                 false
@@ -1128,10 +1126,7 @@ class GatheringAccessibilityService :
 
                     try {
 
-                        closeScreenshot(
-                            screenshot
-                        )
-
+                        screenshot.hardwareBuffer.close()
                     } catch (_: Exception) {
                     }
                 }
