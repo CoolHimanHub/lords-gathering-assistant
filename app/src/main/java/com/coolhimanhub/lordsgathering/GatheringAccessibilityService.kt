@@ -104,7 +104,7 @@ class GatheringAccessibilityService :
         4000L
 
     private val minimumConfidence =
-        8
+        60
 
     private val maximumDisplayedTargets =
         20
