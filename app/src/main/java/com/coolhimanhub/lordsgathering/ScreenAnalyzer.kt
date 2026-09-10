@@ -14,11 +14,12 @@ class ScreenAnalyzer {
     }
     data class RssDetection(val type:String,val level:Int,val centerX:Int,val centerY:Int,val boundingBox:BoundingBox,val confidence:Int,val occupied:Boolean,val dominantColor:Int,val moving:Boolean=false,val movingScore:Int=0)
     private data class Badge(val box:BoundingBox,val ratio:Float,val digit:Int)
-    companion object { private const val OCCUPIED_THRESHOLD=28; private const val MOVING_THRESHOLD=34 }
+    companion object { private const val OCCUPIED_THRESHOLD=58; private const val MOVING_THRESHOLD=48 }
 
     fun analyzeScreenshot(bitmap:Bitmap, expectedRegionX:IntRange=0 until bitmap.width, expectedRegionY:IntRange=0 until bitmap.height):List<RssDetection> {
         if(bitmap.width<600||bitmap.height<400)return emptyList()
-        val left=max(105,expectedRegionX.first); val right=min(1290,min(bitmap.width-1,expectedRegionX.last)); val top=max(65,expectedRegionY.first); val bottom=min(bitmap.height-120,expectedRegionY.last)
+        // Inspect the full usable map width. Only the top status strip and bottom HUD are excluded.
+        val left=max(0,expectedRegionX.first); val right=min(bitmap.width-1,expectedRegionX.last); val top=max(60,expectedRegionY.first); val bottom=min(bitmap.height-120,expectedRegionY.last)
         if(right<=left||bottom<=top)return emptyList()
         val out=ArrayList<RssDetection>()
         for(b in findBadges(bitmap,left,right,top,bottom)) {
@@ -27,7 +28,8 @@ class ScreenAnalyzer {
             val art=classifyArtwork(bitmap,b.box,left,top,right,bottom) ?: continue
             var conf=(b.ratio*100f*.28f+art.second*.56f+localQuality(bitmap,b.box,art.first)*.16f).toInt()
             if(occupied)conf-=8; if(moving)conf-=5; conf=conf.coerceIn(0,100)
-            if(conf>=72)out+=RssDetection(art.third,b.digit,b.box.centerX,b.box.centerY,b.box,conf,occupied,art.fourth,moving,move)
+            // Hard safety gate: blocked/occupied or moving indicators never become selectable targets.
+            if(conf>=72 && !occupied && !moving)out+=RssDetection(art.third,b.digit,b.box.centerX,b.box.centerY,b.box,conf,false,art.fourth,false,move)
         }
         return dedupe(out)
     }
