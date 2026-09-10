@@ -86,10 +86,11 @@ class GatheringAccessibilityService :
     private var scanCount = 0
 
     // =============================================================
-    // AUTO GATHERING ENGINE
+    // AUTO GATHERING ENGINE & SCREEN ANALYZER
     // =============================================================
 
     private lateinit var gatheringEngine: AutoGatheringEngine
+    private lateinit var screenAnalyzer: ScreenAnalyzer
 
     @Volatile
     private var autoGatheringActive = false
@@ -102,20 +103,9 @@ class GatheringAccessibilityService :
     private val scanInterval =
         4000L
 
-    /*
-     * We deliberately keep this low.
-     *
-     * A tile should not be rejected just because the resource
-     * classifier is uncertain.
-     */
     private val minimumConfidence =
         8
 
-    /*
-     * V6.3 displayed only six.
-     *
-     * That was confusing because many detected tiles were hidden.
-     */
     private val maximumDisplayedTargets =
         20
 
@@ -234,6 +224,9 @@ class GatheringAccessibilityService :
 
             gatheringEngine =
                 AutoGatheringEngine(this, handler)
+
+            screenAnalyzer =
+                ScreenAnalyzer()
 
             handler.post {
 
@@ -780,9 +773,8 @@ class GatheringAccessibilityService :
             "V12 AUTO SCAN started\n" +
                 "Scanning every 4 seconds\n" +
                 "Levels 1-5\n" +
-                "Flag detection ON\n" +
-                "Auto-gathering: IDLE\n" +
-                "No troop sent"
+                "Analyzing: ${rssPriority.take(3).joinToString(", ")}\n" +
+                "Status: ACTIVE"
         )
 
         handler.removeCallbacks(
@@ -813,8 +805,7 @@ class GatheringAccessibilityService :
 
         safeStatus(
             "SCAN STOPPED\n" +
-                "Scanning stopped\n" +
-                "Overlay remains active\n" +
+                "Scanning paused\n" +
                 "Auto-gathering: ${if (autoGatheringActive) "ACTIVE" else "IDLE"}\n" +
                 "Ready for input"
         )
@@ -845,8 +836,7 @@ class GatheringAccessibilityService :
         safeStatus(
             "AUTO GATHERING STARTED\n" +
                 "Gathering every 8 seconds\n" +
-                "Prioritizing: $rssPriority\n" +
-                "Sending troops\n" +
+                "Priority: ${rssPriority.joinToString(", ")}\n" +
                 "Status: ACTIVE"
         )
     }
@@ -868,7 +858,7 @@ class GatheringAccessibilityService :
         safeStatus(
             "AUTO GATHERING STOPPED\n" +
                 "Gathering halted\n" +
-                "Overlay remains active\n" +
+                "Ready to restart\n" +
                 "Status: IDLE"
         )
     }
@@ -1101,7 +1091,7 @@ class GatheringAccessibilityService :
 
             safeStatus(
                 "Scan #$thisScan\n" +
-                    "Reading RSS badges..."
+                    "Analyzing screen..."
             )
 
 
@@ -1169,77 +1159,142 @@ class GatheringAccessibilityService :
         scanNumber: Int
     ) {
 
-        val candidates = mutableListOf<RssCandidate>()
+        try {
 
-        // TODO: Implement actual screen analysis logic
-        // For now, this is a placeholder that shows the structure
+            // Use ScreenAnalyzer to detect RSS tiles
+            val detections =
+                screenAnalyzer.analyzeScreenshot(bitmap)
 
-        safeStatus(
-            "Scan #$scanNumber\n" +
-                "Found ${candidates.size} candidates\n" +
-                "Processing..."
-        )
-
-        // Convert RssCandidates to AutoGatheringEngine.RssTarget
-        val targets = candidates.map { candidate ->
-            AutoGatheringEngine.RssTarget(
-                type = candidate.type,
-                level = candidate.level,
-                x = candidate.x,
-                y = candidate.y,
-                confidence = candidate.confidence,
-                occupied = candidate.occupied,
-                flagScore = candidate.flagScore,
-                targetScore = candidate.targetScore
-            )
-        }
-
-        // If auto-gathering is active, process targets
-        if (autoGatheringActive && targets.isNotEmpty()) {
-
-            val selectedTarget =
-                gatheringEngine.processDetectedTargets(targets)
-
-            if (selectedTarget != null) {
+            if (detections.isEmpty()) {
 
                 safeStatus(
                     "Scan #$scanNumber\n" +
-                        "Target found: ${selectedTarget.type} L${selectedTarget.level}\n" +
-                        "Executing gather action..."
+                        "No RSS tiles found\n" +
+                        "Searching..."
                 )
 
-                gatheringEngine.performGatheringAction(
-                    selectedTarget
-                )
+                return
             }
 
-        } else if (running) {
+            // Filter by confidence and convert to targets
+            val targets = detections
+                .filter { it.confidence >= minimumConfidence }
+                .map { detection ->
+                    AutoGatheringEngine.RssTarget(
+                        type = detection.type,
+                        level = detection.level,
+                        x = detection.centerX,
+                        y = detection.centerY,
+                        confidence = detection.confidence,
+                        occupied = detection.occupied,
+                        flagScore = if (detection.occupied) 10 else 0,
+                        targetScore = calculateTargetScore(detection)
+                    )
+                }
+                .sortedBy { rssPriority.indexOf(it.type) }
 
-            // Just display results when scanning only
+            if (targets.isEmpty()) {
+
+                safeStatus(
+                    "Scan #$scanNumber\n" +
+                        "Found ${detections.size} tiles\n" +
+                        "Confidence too low\n" +
+                        "Confidence threshold: $minimumConfidence"
+                )
+
+                return
+            }
+
+            // Display top results
             val displayCount =
-                minOf(candidates.size, maximumDisplayedTargets)
+                minOf(targets.size, maximumDisplayedTargets)
+
+            val resultText =
+                StringBuilder()
+                    .append("Scan #$scanNumber\n")
+                    .append("Found $displayCount targets:\n")
+
+            for (i in 0 until displayCount) {
+
+                val target = targets[i]
+
+                resultText
+                    .append("${i + 1}. ${target.type} L${target.level}")
+                    .append(if (target.occupied) " ⛔" else "")
+                    .append(" (${target.confidence}%)\n")
+            }
+
+            safeStatus(resultText.toString())
+
+            // If auto-gathering is active, process best target
+            if (autoGatheringActive && targets.isNotEmpty()) {
+
+                val selectedTarget =
+                    gatheringEngine.processDetectedTargets(
+                        targets
+                    )
+
+                if (selectedTarget != null) {
+
+                    handler.post {
+
+                        safeStatus(
+                            "Scan #$scanNumber\n" +
+                                "Targeting: ${selectedTarget.type} L${selectedTarget.level}\n" +
+                                "Sending troops...\n" +
+                                "Confidence: ${selectedTarget.confidence}%"
+                        )
+                    }
+
+                    gatheringEngine.performGatheringAction(
+                        selectedTarget
+                    )
+                }
+            }
+
+        } catch (e: Exception) {
 
             safeStatus(
-                "Scan #$scanNumber\n" +
-                    "Found $displayCount targets\n" +
-                    "Auto-gather: ${if (autoGatheringActive) "ACTIVE" else "IDLE"}"
+                "Analysis error: " +
+                    e.javaClass.simpleName + "\n" +
+                    e.message
             )
         }
     }
 
 
     // =============================================================
-    // UI UPDATE HELPERS
+    // HELPER FUNCTIONS
     // =============================================================
+
+    private fun calculateTargetScore(
+        detection: ScreenAnalyzer.RssDetection
+    ): Int {
+
+        var score = detection.confidence
+
+        // Prefer higher levels
+        score += detection.level * 10
+
+        // Penalize occupied tiles
+        if (detection.occupied) {
+            score -= 30
+        }
+
+        return score
+    }
+
 
     private fun updateStartStopButton() {
 
         handler.post {
 
-            if (::startStopButton.isInitialized && startStopButton != null) {
+            try {
 
                 startStopButton?.text =
                     if (running) "⏸ STOP" else "▶ SCAN"
+
+            } catch (_: Exception) {
             }
         }
     }
@@ -1249,10 +1304,12 @@ class GatheringAccessibilityService :
 
         handler.post {
 
-            if (::gatherButton.isInitialized && gatherButton != null) {
+            try {
 
                 gatherButton?.text =
                     if (autoGatheringActive) "⏸ STOP GATHER" else "⚔ AUTO GATHER"
+
+            } catch (_: Exception) {
             }
         }
     }
@@ -1262,10 +1319,12 @@ class GatheringAccessibilityService :
 
         handler.post {
 
-            if (::infoText.isInitialized && infoText != null) {
+            try {
 
                 infoText?.text =
                     status
+
+            } catch (_: Exception) {
             }
         }
     }
