@@ -9,14 +9,19 @@ import kotlin.math.min
 import java.util.ArrayDeque
 
 /**
- * V25 RSS detector.
+ * V26 RSS detector.
  *
- * Derived from the supplied gameplay videos: RSS artwork is a cluster of
- * separate sprite pieces with a small blue level badge offset to the right.
- * Monsters/terrain can also contain blue UI elements, so the detector uses
- * badge + local artwork geometry as the candidate gate. Occupancy and motion
- * are NOT inferred from one frame; those must be verified temporally / from
- * the opened tile panel before an action is allowed.
+ * The supplied gameplay frames show that the RSS level marker is a compact
+ * BLUE badge with a white digit. Enemy/monster markers can be red or dark and
+ * must not be treated as RSS. The previous implementation searched for white
+ * glyphs first and only loosely checked nearby blue pixels; that produced
+ * false badges and, importantly, mapped visible 3/4/6 markers to L5.
+ *
+ * V26 therefore makes the badge geometry the primary gate: find compact blue
+ * badge components, require a centered white numeral, then classify the
+ * numeral using normalized 5x7 templates. Artwork/type remains a separate
+ * gate. Occupancy and motion are NOT inferred from one frame; those states
+ * must be verified temporally / from the opened tile panel before an action.
  */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
@@ -59,8 +64,6 @@ class ScreenAnalyzer {
         val result=ArrayList<RssDetection>()
         for(badge in findBadges(bitmap,left,right,top,bottom)){
             val artwork=findArtwork(bitmap,badge.box,left,top,right,bottom)?:continue
-            // A single screenshot cannot reliably prove movement or occupancy.
-            // Those states are deliberately left for the open-tile verification phase.
             val confidence=artwork.confidence
             if(confidence<MIN_CONFIDENCE)continue
             result+=RssDetection(
@@ -71,29 +74,36 @@ class ScreenAnalyzer {
         return dedupe(result)
     }
 
+    /**
+     * Locate the actual blue level badge first. This avoids white UI text,
+     * monster labels, and terrain highlights being promoted to candidates.
+     */
     private fun findBadges(bitmap:Bitmap,left:Int,right:Int,top:Int,bottom:Int):List<Badge>{
-        // The earlier blue-component detector lost badges when the badge touched
-        // blue/ore pixels. Instead, locate compact white glyphs surrounded by a
-        // blue badge neighbourhood. This is much closer to the badge geometry
-        // visible in the supplied videos.
         val step=2
         val gw=(right-left)/step+1
         val gh=(bottom-top)/step+1
         val visited=BooleanArray(gw*gh)
         val queue=ArrayDeque<Int>()
         val found=ArrayList<Badge>()
-        fun whiteAt(x:Int,y:Int):Boolean{
-            val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
-            return r>=145&&g>=145&&b>=145&&max(r,max(g,b))-min(r,min(g,b))<115
-        }
+
         fun blueAt(x:Int,y:Int):Boolean{
-            val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
+            val c=bitmap.getPixel(x,y)
+            val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
+            // Saturated game badge blue. Red enemy badges and green terrain do
+            // not satisfy this hue relationship.
             return b>=82&&b-r>=16&&b>=g*.94f&&b>=r*1.08f
         }
+        fun whiteAt(x:Int,y:Int):Boolean{
+            val c=bitmap.getPixel(x,y)
+            val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
+            return r>=145&&g>=145&&b>=145&&max(r,max(g,b))-min(r,min(g,b))<115
+        }
+
         for(gy in 0 until gh)for(gx in 0 until gw){
-            val start=gy*gw+gx;if(visited[start])continue
+            val start=gy*gw+gx
+            if(visited[start])continue
             val sx=min(right,left+gx*step);val sy=min(bottom,top+gy*step)
-            if(!whiteAt(sx,sy)){visited[start]=true;continue}
+            if(!blueAt(sx,sy)){visited[start]=true;continue}
             queue.clear();queue.add(start);visited[start]=true
             var minGX=gx;var maxGX=gx;var minGY=gy;var maxGY=gy;var count=0
             while(queue.isNotEmpty()){
@@ -101,51 +111,111 @@ class ScreenAnalyzer {
                 minGX=min(minGX,px);maxGX=max(maxGX,px);minGY=min(minGY,py);maxGY=max(maxGY,py)
                 for(dy in -1..1)for(dx in -1..1){
                     if(dx==0&&dy==0)continue
-                    val nx=px+dx;val ny=py+dy;if(nx !in 0 until gw||ny !in 0 until gh)continue
+                    val nx=px+dx;val ny=py+dy
+                    if(nx !in 0 until gw||ny !in 0 until gh)continue
                     val ni=ny*gw+nx;if(visited[ni])continue
                     val xx=min(right,left+nx*step);val yy=min(bottom,top+ny*step)
-                    if(whiteAt(xx,yy)){visited[ni]=true;queue.add(ni)}
+                    visited[ni]=true
+                    if(blueAt(xx,yy))queue.add(ni)
                 }
             }
-            if(count !in 8..220)continue
-            val glyph=BoundingBox(max(left,left+minGX*step-1),max(top,top+minGY*step-1),min(right,left+(maxGX+1)*step+1),min(bottom,top+(maxGY+1)*step+1))
-            if(glyph.width !in 3..24||glyph.height !in 7..30)continue
-            val padX=max(6,glyph.width/2+2);val padY=max(5,glyph.height/2+2)
-            val ring=BoundingBox(max(left,glyph.minX-padX),max(top,glyph.minY-padY),min(right,glyph.maxX+padX),min(bottom,glyph.maxY+padY))
-            val ratio=blueRatio(bitmap,ring)
-            if(ratio<.12f)continue
+
+            // A real RSS badge in the supplied 1536x707 frames is roughly
+            // 24-36 px wide and 18-28 px high. Allow scale variation but reject
+            // large UI panels/icons.
+            if(count !in 35..700)continue
+            val box=BoundingBox(
+                max(left,left+minGX*step-1),max(top,top+minGY*step-1),
+                min(right,left+(maxGX+1)*step+1),min(bottom,top+(maxGY+1)*step+1)
+            )
+            if(box.width !in 20..42||box.height !in 15..32)continue
+
+            val glyph=findCenteredWhiteGlyph(bitmap,box,::whiteAt)?:continue
             val digit=readBadgeDigit(bitmap,glyph)?:continue
-            val badge=BoundingBox(max(left,glyph.minX-4),max(top,glyph.minY-4),min(right,glyph.maxX+4),min(bottom,glyph.maxY+4))
-            found+=Badge(badge,ratio,digit)
+            val ratio=blueRatio(bitmap,box)
+            if(ratio<.22f)continue
+            found+=Badge(box,ratio,digit)
         }
-        return found.sortedWith(compareBy({it.box.centerY},{it.box.centerX})).fold(ArrayList()){acc,b->if(acc.none{abs(it.box.centerX-b.box.centerX)+abs(it.box.centerY-b.box.centerY)<18})acc.add(b);acc}
+
+        return found.sortedWith(compareBy({it.box.centerY},{it.box.centerX})).fold(ArrayList()){acc,b->
+            if(acc.none{abs(it.box.centerX-b.box.centerX)+abs(it.box.centerY-b.box.centerY)<20})acc.add(b)
+            acc
+        }
     }
 
+    private fun findCenteredWhiteGlyph(bitmap:Bitmap,badge:BoundingBox,whiteAt:(Int,Int)->Boolean):BoundingBox?{
+        val w=badge.width;val h=badge.height
+        val l=badge.minX+max(1,w/5);val r=badge.maxX-max(1,w/8)
+        val t=badge.minY+max(1,h/10);val b=badge.maxY-max(1,h/10)
+        if(r<=l||b<=t)return null
+        val step=1
+        val gw=r-l+1;val gh=b-t+1
+        val seen=BooleanArray(gw*gh);val q=ArrayDeque<Int>()
+        var best:BoundingBox?=null;var bestArea=0
+        for(y in 0 until gh)for(x in 0 until gw){
+            val idx=y*gw+x;if(seen[idx])continue
+            val xx=l+x;val yy=t+y
+            if(!whiteAt(xx,yy)){seen[idx]=true;continue}
+            q.clear();q.add(idx);seen[idx]=true
+            var minX=x;var maxX=x;var minY=y;var maxY=y;var area=0
+            while(q.isNotEmpty()){
+                val p=q.removeFirst();val py=p/gw;val px=p%gw;area++
+                minX=min(minX,px);maxX=max(maxX,px);minY=min(minY,py);maxY=max(maxY,py)
+                for(dy in -1..1)for(dx in -1..1){
+                    if(dx==0&&dy==0)continue
+                    val nx=px+dx;val ny=py+dy
+                    if(nx !in 0 until gw||ny !in 0 until gh)continue
+                    val ni=ny*gw+nx;if(seen[ni])continue
+                    val ax=l+nx;val ay=t+ny;seen[ni]=true
+                    if(whiteAt(ax,ay))q.add(ni)
+                }
+            }
+            val bw=maxX-minX+1;val bh=maxY-minY+1
+            val cx=(minX+maxX)/2f;val cy=(minY+maxY)/2f
+            val centered=cx in w*.25f..w*.90f && cy in h*.10f..h*.95f
+            if(area in 18..150 && bw in 6..18 && bh in 10..24 && centered && area>bestArea){
+                best=BoundingBox(l+minX,t+minY,l+maxX,t+maxY);bestArea=area
+            }
+        }
+        return best
+    }
+
+    /** Normalize the white glyph and compare against tolerant 5x7 digit masks. */
     private fun readBadgeDigit(bitmap:Bitmap,glyph:BoundingBox):Int?{
-        val w=glyph.width;val h=glyph.height
-        if(w<3||h<7)return null
-        val grid=Array(7){BooleanArray(5)}
-        for(gy in 0 until 7)for(gx in 0 until 5){
-            val xa=glyph.minX+gx*w/5;val xb=max(xa+1,glyph.minX+(gx+1)*w/5)
-            val ya=glyph.minY+gy*h/7;val yb=max(ya+1,glyph.minY+(gy+1)*h/7)
+        val templates=mapOf(
+            1 to arrayOf("00100","01100","00100","00100","00100","00100","01110"),
+            2 to arrayOf("01110","10001","00001","00010","00100","01000","11111"),
+            3 to arrayOf("11110","00001","00001","01110","00001","00001","11110"),
+            4 to arrayOf("00010","00110","01010","10010","11111","00010","00010"),
+            5 to arrayOf("11111","10000","10000","11110","00001","00001","11110"),
+            6 to arrayOf("01110","10000","10000","11110","10001","10001","01110")
+        )
+        val gw=5;val gh=7
+        val actual=Array(gh){BooleanArray(gw)}
+        val w=glyph.width.toFloat();val h=glyph.height.toFloat()
+        for(gy in 0 until gh)for(gx in 0 until gw){
+            val xa=glyph.minX+(gx*w/5f).toInt();val xb=max(xa+1,glyph.minX+((gx+1)*w/5f).toInt())
+            val ya=glyph.minY+(gy*h/7f).toInt();val yb=max(ya+1,glyph.minY+((gy+1)*h/7f).toInt())
             var on=0;var total=0
             for(y in ya until min(glyph.maxY+1,yb))for(x in xa until min(glyph.maxX+1,xb)){
                 val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);total++
                 if(r>=145&&g>=145&&b>=145&&max(r,max(g,b))-min(r,min(g,b))<115)on++
             }
-            grid[gy][gx]=total>0&&on*100>=total*12
+            actual[gy][gx]=total>0&&on*100>=total*10
         }
-        fun row(y:Int)=grid[y].count{it}/5f
-        fun col(x:Int)=(0 until 7).count{grid[it][x]}/7f
-        val top=(row(0)+row(1))/2f;val mid=(row(3)+row(4))/2f;val bot=(row(5)+row(6))/2f;val lu=(col(0)+col(1))/2f;val ru=(col(3)+col(4))/2f
-        val scores=listOf(
-            2 to top*26+mid*28+bot*30+ru*16+lu*17-lu*8-ru*6,
-            3 to top*25+mid*30+bot*27+ru*20+lu*10-lu*12,
-            4 to mid*34+ru*32+lu*17+ru*12-top*12-bot*14,
-            5 to top*29+mid*29+bot*29+lu*20+ru*15-ru*8
-        ).sortedByDescending{it.second}
-        if(scores[0].second<10f||scores[0].second-scores[1].second<1f)return null
-        return scores[0].first
+        var bestDigit:Int?=null;var best=999;var second=999
+        for((digit,rows) in templates){
+            var dist=0
+            for(y in 0 until gh)for(x in 0 until gw){
+                val expected=rows[y][x]=='1'
+                if(actual[y][x]!=expected)dist++
+            }
+            if(dist<best){second=best;best=dist;bestDigit=digit}else if(dist<second)second=dist
+        }
+        // Anti-aliasing and the game's shadow/outline can alter a few cells,
+        // but a correct glyph should still beat the next digit clearly.
+        if(bestDigit==null||best>14||second-best<1)return null
+        return bestDigit
     }
 
     /**
@@ -192,9 +262,6 @@ class ScreenAnalyzer {
         }
         val chosen=clusters.sortedWith(compareByDescending<Cluster>{it.area}.thenBy{it.dist}).firstOrNull()?:return null
         val s=chosen.stats
-        // The videos show monsters with strong red/purple bodies and a different
-        // compactness pattern. Reject only the clearly red/orange-dominant case;
-        // do not use a one-frame "movement" guess.
         if(s.red>.42f&&s.orange>.30f&&s.blue<.22f)return null
         val scores=mapOf(
             "Ore" to (s.blue*120f+s.gray*28f-s.red*25f-s.orange*12f),
