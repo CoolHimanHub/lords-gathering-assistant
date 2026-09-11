@@ -13,13 +13,14 @@ import android.os.Looper
  * 1. Receive targets detected by ScreenAnalyzer.
  * 2. Reject occupied/unsafe/weak targets.
  * 3. Reject targets with moving troop/player indicators.
- * 4. Prefer higher RSS levels and confidence.
- * 5. Expose the selected target to GatheringAccessibilityService.
+ * 4. Reject candidates carrying a triangular/flag safety warning.
+ * 5. Prefer higher RSS levels and confidence.
+ * 6. Expose the selected target to GatheringAccessibilityService.
  *
  * IMPORTANT:
  * This version deliberately does NOT perform blind coordinate taps.
- * The service/analyzer must first validate the target and the current
- * game screen before any future UI-action phase is enabled.
+ * A candidate must pass panel verification before any future Gather action
+ * is permitted.
  */
 class AutoGatheringEngine(
     private val service: AccessibilityService,
@@ -64,18 +65,11 @@ class AutoGatheringEngine(
     ) : Comparable<RssTarget> {
 
         override fun compareTo(other: RssTarget): Int {
-            if (occupied != other.occupied) {
-                return if (occupied) 1 else -1
-            }
-            if (moving != other.moving) {
-                return if (moving) 1 else -1
-            }
-            if (level != other.level) {
-                return other.level.compareTo(level)
-            }
-            if (targetScore != other.targetScore) {
-                return other.targetScore.compareTo(targetScore)
-            }
+            if (occupied != other.occupied) return if (occupied) 1 else -1
+            if (moving != other.moving) return if (moving) 1 else -1
+            if (flagScore != other.flagScore) return flagScore.compareTo(other.flagScore)
+            if (level != other.level) return other.level.compareTo(level)
+            if (targetScore != other.targetScore) return other.targetScore.compareTo(targetScore)
             return other.confidence.compareTo(confidence)
         }
     }
@@ -96,7 +90,7 @@ class AutoGatheringEngine(
 
     /**
      * Selects the safest currently detected RSS target.
-     * Hard rejection rules include occupied and moving targets.
+     * Hard rejection rules include occupied, moving and flagged targets.
      */
     fun processDetectedTargets(targets: List<RssTarget>): RssTarget? {
         val safeTargets = targets
@@ -107,6 +101,8 @@ class AutoGatheringEngine(
             .filter { it.targetScore >= MIN_TARGET_SCORE }
             .filter { !it.occupied }
             .filter { !it.moving }
+            .filter { it.movingScore <= 0 }
+            .filter { it.flagScore <= 0 }
             .filter { it.x >= 0 && it.y >= 0 }
             .sorted()
             .toList()
@@ -130,6 +126,8 @@ class AutoGatheringEngine(
                 target.targetScore >= MIN_TARGET_SCORE &&
                 !target.occupied &&
                 !target.moving &&
+                target.movingScore <= 0 &&
+                target.flagScore <= 0 &&
                 target.x >= 0 &&
                 target.y >= 0
     }
@@ -141,6 +139,8 @@ class AutoGatheringEngine(
             clearCurrentTarget()
             return
         }
+        // Deliberately no tap/click is performed here.
+        // The opened-panel verifier must approve the candidate first.
         currentTarget = target
     }
 
