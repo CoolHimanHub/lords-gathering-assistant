@@ -4,9 +4,9 @@ package com.coolhimanhub.lordsgatheringassistant
  * Verifies the text visible after a candidate RSS tile is opened.
  *
  * The supplied gameplay video shows that the opened panel is the authoritative
- * source for resource type, level and occupancy. Map-pixel analysis may only
- * nominate a candidate; this verifier decides whether it is eligible for a
- * future Gather action.
+ * source for resource type, level and whether the Gather action is available.
+ * Map-pixel analysis may only nominate a candidate; this verifier decides
+ * whether it is eligible for a Gather action.
  */
 object TilePanelVerifier {
     data class Verification(
@@ -17,11 +17,15 @@ object TilePanelVerifier {
         val gatherAvailable: Boolean,
         val reason: String
     ) {
+        /**
+         * A visible Gather control is treated as positive panel evidence that
+         * the tile is currently gatherable. An explicit "occupied" string is
+         * still a hard rejection; explicit "unoccupied" is accepted too.
+         */
         val safeToGather: Boolean
-            get() = isRss && occupied == false && type != null && level in 1..5 && gatherAvailable
+            get() = isRss && occupied != true && type != null && level in 1..5 && gatherAvailable
     }
 
-    // OCR wording observed in the supplied panel/video frames.
     private val resourceAliases = linkedMapOf(
         "gold" to "Gold",
         "ore" to "Ore",
@@ -47,8 +51,6 @@ object TilePanelVerifier {
             return Verification(false, null, null, null, false, "No panel text")
         }
 
-        // Explicit negative cases from the supplied video. These must never be
-        // treated as RSS even if a nearby object contains a level-like badge.
         if (monsterLike.any { text.contains(it, ignoreCase = true) }) {
             return Verification(false, null, null, null, false, "Opened object is not an RSS tile")
         }
@@ -61,8 +63,6 @@ object TilePanelVerifier {
             return Verification(false, null, null, null, false, "No supported RSS type in panel")
         }
 
-        // Accept both normal Android text and common OCR variants such as
-        // "Woods Lv.4" / "Wood L4" / "Level 4".
         val level = listOf(
             Regex("(?:Lv|L)\\.?\\s*([1-5])", RegexOption.IGNORE_CASE),
             Regex("\\bLevel\\s*([1-5])\\b", RegexOption.IGNORE_CASE),
@@ -88,9 +88,9 @@ object TilePanelVerifier {
         val reason = when {
             level == null -> "RSS type found but level was not verified"
             occupied == true -> "RSS tile is occupied"
-            occupied == null -> "Occupancy was not explicitly verified"
-            !gather -> "RSS tile is unoccupied but Gather control was not detected"
-            else -> "RSS tile verified: $type Lv$level, Unoccupied, Gather available"
+            !gather -> "RSS tile panel did not expose a Gather control"
+            occupied == false -> "RSS tile verified: $type Lv$level, Unoccupied, Gather available"
+            else -> "RSS tile verified by panel: $type Lv$level, Gather available"
         }
 
         return Verification(
