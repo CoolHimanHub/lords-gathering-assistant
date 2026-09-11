@@ -1,7 +1,6 @@
 package com.coolhimanhub.lordsgatheringassistant
 
 import android.graphics.PointF
-import kotlin.math.max
 
 /**
  * V33: deterministic map coverage planner.
@@ -42,7 +41,9 @@ class CoverageSweepController {
         if (changed) {
             waitingForViewportChange = false
             failedAttempts = 0
-            step++
+            // The first observation establishes the baseline; it is not a sweep.
+            // Subsequent changed observations mean the previous sweep succeeded.
+            if (lastDirection != null) step++
         } else if (waitingForViewportChange) {
             failedAttempts++
         }
@@ -57,7 +58,6 @@ class CoverageSweepController {
 
     fun nextSwipe(): SwipePlan {
         // Serpentine coverage: horizontal sweeps followed by a vertical shift.
-        // Reaching either edge reverses the next horizontal direction.
         val row = step / 2
         val evenRow = row % 2 == 0
         val direction = when (step % 4) {
@@ -67,21 +67,17 @@ class CoverageSweepController {
             else -> Direction.DOWN
         }
 
-        val plan = when (direction) {
+        return when (direction) {
             Direction.RIGHT -> SwipePlan(direction, PointF(LEFT, MID_Y), PointF(LEFT + HORIZONTAL_DRAG, MID_Y), DURATION)
             Direction.LEFT -> SwipePlan(direction, PointF(RIGHT, MID_Y), PointF(RIGHT - HORIZONTAL_DRAG, MID_Y), DURATION)
             Direction.DOWN -> SwipePlan(direction, PointF(MID_X, TOP), PointF(MID_X, TOP + VERTICAL_DRAG), DURATION)
             Direction.UP -> SwipePlan(direction, PointF(MID_X, BOTTOM), PointF(MID_X, BOTTOM - VERTICAL_DRAG), DURATION)
         }
-        return plan
     }
 
-    /**
-     * If the game ignored a swipe, retry in the opposite horizontal direction
-     * once. We never loop rapidly: the caller must wait for another screenshot.
-     */
+    /** Retry the opposite direction exactly once after an unchanged viewport. */
     fun recoverySwipe(): SwipePlan? {
-        if (!waitingForViewportChange || failedAttempts < 1 || failedAttempts > 1) return null
+        if (!waitingForViewportChange || failedAttempts != 1) return null
         return when (lastDirection) {
             Direction.RIGHT -> SwipePlan(Direction.LEFT, PointF(RIGHT, MID_Y), PointF(RIGHT - HORIZONTAL_DRAG, MID_Y), DURATION)
             Direction.LEFT -> SwipePlan(Direction.RIGHT, PointF(LEFT, MID_Y), PointF(LEFT + HORIZONTAL_DRAG, MID_Y), DURATION)
