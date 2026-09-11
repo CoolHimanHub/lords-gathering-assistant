@@ -7,13 +7,18 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * V31 — vision-only RSS candidate detector.
+ * V32 — simulation-calibrated, badge-first RSS candidate detector.
  *
- * Calibrated against the supplied 1536x707 Lords Mobile frames, including
- * ordinary grass, snow/ice and darker terrain. Detection nominates a tile;
- * resource type/level/occupancy are not guessed from artwork. The selected
- * candidate must still be opened and verified by the in-game panel before
- * Gather is allowed.
+ * The detector only nominates the small blue level badge. It deliberately does
+ * not infer resource type, level or occupancy from map artwork. Those facts
+ * must be verified from the opened tile panel before Gather is allowed.
+ *
+ * V32 fixes the main V31 regression seen in supplied 1536x707 frames:
+ * anti-aliased/white digit holes can split one blue badge into multiple
+ * connected components. A one-pixel connectivity bridge is therefore used,
+ * while confidence/density are measured from the original blue pixels. The
+ * map ROI is also widened vertically so lower RSS badges are not discarded by
+ * the bottom-toolbar boundary.
  */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
@@ -38,145 +43,156 @@ class ScreenAnalyzer {
 
     private data class Badge(val box:BoundingBox,val confidence:Int)
 
+    companion object {
+        private const val BLUE_MIN = 85
+        private const val BLUE_DELTA_R = 25
+        private const val BLUE_DELTA_G = 8
+        private const val MIN_MAP_X = 410
+        private const val MAX_MAP_X = 1420
+        private const val MIN_MAP_Y = 90
+        private const val MAX_BOTTOM_MARGIN = 42
+    }
+
     fun analyzeScreenshot(
         bitmap:Bitmap,
         expectedRegionX:IntRange=0 until bitmap.width,
         expectedRegionY:IntRange=0 until bitmap.height
     ):List<RssDetection>{
-        if(bitmap.width<600||bitmap.height<400)return emptyList()
+        if(bitmap.width<600 || bitmap.height<400) return emptyList()
 
-        // Exclude the assistant overlay and bottom/right game controls.
-        val left=max(400,expectedRegionX.first)
-        val right=min(bitmap.width-100,expectedRegionX.last)
-        val top=max(60,expectedRegionY.first)
-        val bottom=min(bitmap.height-110,expectedRegionY.last)
-        if(right<=left||bottom<=top)return emptyList()
+        // Calibrated against the supplied 1536x707 gameplay frames. Keep the
+        // broad map area while excluding the assistant overlay and fixed right
+        // controls. Lower-map badges remain inspectable.
+        val left=max(MIN_MAP_X, expectedRegionX.first)
+        val right=min(MAX_MAP_X, min(bitmap.width-1, expectedRegionX.last))
+        val top=max(MIN_MAP_Y, expectedRegionY.first)
+        val bottom=min(bitmap.height-MAX_BOTTOM_MARGIN, expectedRegionY.last)
+        if(right<=left || bottom<=top) return emptyList()
 
-        // Pass 1 is deliberately strict. Pass 2 is only used when the strict
-        // pass finds too few candidates; it is designed for snow/ice frames
-        // where anti-aliased badge edges fragment into smaller components.
-        val strict=findBadges(bitmap,left,right,top,bottom,relaxed=false)
-        val badges=if(strict.size>=2) strict else mergeAndDedupe(
-            strict + findBadges(bitmap,left,right,top,bottom,relaxed=true)
-        )
-
-        return badges.map { b ->
-            // Blue level badges sit lower/right of the resource artwork. Probe
-            // toward the artwork so verification never targets the digit.
-            val probeX=(b.box.centerX-18).coerceIn(left+8,right-8)
-            val probeY=(b.box.centerY-7).coerceIn(top+8,bottom-8)
+        return findBadges(bitmap,left,right,top,bottom).map { badge ->
+            // The badge is normally down/right of the resource artwork. Shift
+            // the probe onto the artwork, never underneath the overlay.
+            val probeX=(badge.box.centerX-18).coerceIn(left+8,right-8)
+            val probeY=(badge.box.centerY-7).coerceIn(top+8,bottom-8)
             RssDetection(
                 type="RSS?",
                 level=0,
                 centerX=probeX,
                 centerY=probeY,
-                boundingBox=b.box,
-                confidence=b.confidence,
+                boundingBox=badge.box,
+                confidence=badge.confidence,
                 occupied=false,
                 dominantColor=Color.TRANSPARENT
             )
         }
     }
 
+    /**
+     * Finds compact blue level badges. A 3x3 connectivity bridge closes the
+     * small white/anti-aliased holes caused by the badge level glyph.
+     */
     private fun findBadges(
         bitmap:Bitmap,
         left:Int,
         right:Int,
         top:Int,
-        bottom:Int,
-        relaxed:Boolean
+        bottom:Int
     ):List<Badge>{
         val width=right-left+1
         val height=bottom-top+1
         val visited=BooleanArray(width*height)
         val queue=IntArray(width*height)
         val found=ArrayList<Badge>()
-        val hsv=FloatArray(3)
 
-        fun blueAt(x:Int,y:Int):Boolean{
+        fun originalBlueAt(x:Int,y:Int):Boolean{
             val c=bitmap.getPixel(x,y)
             val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c)
-            Color.colorToHSV(c,hsv)
-            val hue=hsv[0]
-            val saturation=hsv[1]
-            val value=hsv[2]
-            if(!relaxed){
-                return b>=85 && b-r>=25 && b-g>=8 && r<=135
+            return b>=BLUE_MIN && b-r>=BLUE_DELTA_R && b-g>=BLUE_DELTA_G && r<=145
+        }
+
+        // Treat a pixel as connected when a real blue pixel is present in its
+        // immediate 3x3 neighbourhood. This bridges the white digit gap while
+        // avoiding the larger expansion of a 5x5/7x7 dilation.
+        fun connectedBlueAt(x:Int,y:Int):Boolean{
+            for(dy in -1..1) for(dx in -1..1){
+                val nx=x+dx; val ny=y+dy
+                if(nx in left..right && ny in top..bottom && originalBlueAt(nx,ny)) return true
             }
-            // Snow/ice causes the same badge to have pale anti-aliased edges.
-            // HSV catches those pixels while still rejecting near-white snow.
-            val blueHue=hue>=175f && hue<=255f
-            return value>=0.45f && saturation>=0.18f && blueHue && b-r>=8 && b-g>=-2
+            return false
         }
 
         for(y in top..bottom) for(x in left..right){
             val local=(y-top)*width+(x-left)
-            if(visited[local])continue
-            if(!blueAt(x,y)){visited[local]=true;continue}
+            if(visited[local]) continue
+            if(!connectedBlueAt(x,y)){ visited[local]=true; continue }
 
-            var head=0;var tail=0
-            queue[tail++]=local;visited[local]=true
-            var minX=x;var maxX=x;var minY=y;var maxY=y;var area=0
+            var head=0; var tail=0
+            queue[tail++]=local; visited[local]=true
+            var minX=x; var maxX=x; var minY=y; var maxY=y
 
             while(head<tail){
                 val p=queue[head++]
                 val py=p/width+top; val px=p%width+left
-                area++
-                minX=min(minX,px);maxX=max(maxX,px)
-                minY=min(minY,py);maxY=max(maxY,py)
-                for(dy in -1..1)for(dx in -1..1){
-                    if(dx==0&&dy==0)continue
-                    val nx=px+dx;val ny=py+dy
-                    if(nx !in left..right||ny !in top..bottom)continue
+                minX=min(minX,px); maxX=max(maxX,px)
+                minY=min(minY,py); maxY=max(maxY,py)
+                for(dy in -1..1) for(dx in -1..1){
+                    if(dx==0 && dy==0) continue
+                    val nx=px+dx; val ny=py+dy
+                    if(nx !in left..right || ny !in top..bottom) continue
                     val ni=(ny-top)*width+(nx-left)
-                    if(visited[ni])continue
+                    if(visited[ni]) continue
                     visited[ni]=true
-                    if(blueAt(nx,ny))queue[tail++]=ni
+                    if(connectedBlueAt(nx,ny)) queue[tail++]=ni
                 }
             }
 
             val bw=maxX-minX+1
             val bh=maxY-minY+1
-            val aspect=bw.toFloat()/bh.toFloat()
-            val density=(area.toFloat()/(bw*bh)).coerceIn(0f,1f)
+            if(bw !in 18..45 || bh !in 16..35) continue
 
-            if(!relaxed){
-                if(area !in 180..650)continue
-                if(bw !in 20..40 || bh !in 16..28)continue
-                if(aspect !in 0.95f..2.40f)continue
-                if(density<0.40f || density>0.92f)continue
-            }else{
-                // Fallback deliberately allows smaller fragmented badges but
-                // keeps their compact rectangular/trapezoid geometry.
-                if(area !in 90..900)continue
-                if(bw !in 16..48 || bh !in 12..34)continue
-                if(aspect !in 0.85f..2.80f)continue
-                if(density<0.25f || density>0.95f)continue
+            var originalArea=0
+            var whiteGlyphPixels=0
+            for(py in minY..maxY) for(px in minX..maxX){
+                if(originalBlueAt(px,py)) originalArea++
+                val c=bitmap.getPixel(px,py)
+                if(Color.red(c)>=185 && Color.green(c)>=185 && Color.blue(c)>=185) whiteGlyphPixels++
             }
 
-            val aspectScore=(1f-abs(aspect-1.35f)/1.55f).coerceIn(0f,1f)
-            val densityScore=(1f-abs(density-0.62f)/0.62f).coerceIn(0f,1f)
-            val areaScore=(1f-abs(area-380f)/480f).coerceIn(0f,1f)
-            val confidence=if(!relaxed){
-                (68f+10f*aspectScore+9f*densityScore+9f*areaScore)
-            }else{
-                // Fallback candidates are never given a fake 90%+ certainty.
-                (75f+7f*aspectScore+6f*densityScore+4f*areaScore)
-            }.toInt().coerceIn(68,92)
-            found+=Badge(BoundingBox(minX,minY,maxX,maxY),confidence)
-        }
-        return found
-    }
+            val density=originalArea.toFloat()/(bw*bh)
+            val aspect=bw.toFloat()/bh.toFloat()
+            if(originalArea !in 160..700) continue
+            if(density<0.30f || density>0.82f) continue
+            if(whiteGlyphPixels<8) continue
 
-    private fun mergeAndDedupe(found:List<Badge>):List<Badge>{
+            // Transformer/game-header artwork can contain a badge-shaped blue
+            // patch near the top-left edge. Real RSS badges in that area are
+            // lower than the header; reject only that known false-positive zone
+            // rather than globally shrinking the inspection area.
+            if(maxX<500 && minY<150) continue
+
+            val aspectScore=(1f-abs(aspect-1.35f)/1.55f).coerceIn(0f,1f)
+            val densityScore=(1f-abs(density-0.52f)/0.52f).coerceIn(0f,1f)
+            val glyphScore=(whiteGlyphPixels.coerceAtMost(80)/80f)
+            val confidence=(68f + 10f*aspectScore + 9f*densityScore + 5f*glyphScore)
+                .toInt().coerceIn(68,92)
+
+            found += Badge(BoundingBox(minX,minY,maxX,maxY),confidence)
+        }
+
+        // Deduplicate fragments produced at badge/art edges.
+        val sorted=found.sortedWith(
+            compareByDescending<Badge>{it.confidence}
+                .thenBy{it.box.centerY}
+                .thenBy{it.box.centerX}
+        )
         val out=ArrayList<Badge>()
-        for(b in found.sortedByDescending{it.confidence}){
+        for(b in sorted){
             val duplicate=out.any{
                 val dx=abs(it.box.centerX-b.box.centerX)
                 val dy=abs(it.box.centerY-b.box.centerY)
-                dx<16 && dy<16
+                dx<18 && dy<18
             }
-            if(!duplicate)out+=b
+            if(!duplicate) out+=b
         }
         return out.sortedWith(compareBy({it.box.centerY},{it.box.centerX}))
     }
