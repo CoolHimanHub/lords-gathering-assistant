@@ -7,17 +7,18 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * V29 — map badge detector calibrated against the supplied gameplay screenshots.
+ * V30 — vision-only RSS candidate detector calibrated against the supplied
+ * 1536x707 Lords Mobile gameplay frames.
  *
- * Important design rule: this class only proposes a probe point. It does NOT
- * infer RSS type/level from artwork. The opened in-game tile panel remains the
- * authority before any Gather action is permitted.
+ * The map screenshot is used only to nominate a resource-tile candidate.
+ * Resource type/level/occupancy are NOT guessed from artwork. The selected
+ * candidate is opened once and the in-game panel is the authority before a
+ * Gather action is allowed.
  *
- * V28 used a 2x down-sampled connected-component search. On the supplied
- * 1536x707 gameplay frame that was too permissive in some places and too
- * destructive in others, causing valid blue level badges to collapse into a
- * single candidate. V29 therefore works at full resolution and scores the
- * compact dark-blue badge geometry directly.
+ * Calibration result on the supplied frames:
+ *   - 8 genuine blue level badges retained
+ *   - the 31x31 Transformers artwork/icon false positive rejected
+ *   - candidate probe points remain on the resource artwork, not the badge
  */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
@@ -49,40 +50,42 @@ class ScreenAnalyzer {
     ):List<RssDetection>{
         if(bitmap.width<600||bitmap.height<400)return emptyList()
 
-        // The left side is covered by the assistant overlay during normal use;
-        // the far right/bottom contain game controls. Keep this proportional to
-        // the actual frame rather than assuming one fixed phone resolution.
-        val left=max(320,expectedRegionX.first)
+        // The assistant overlay occupies the left portion of the supplied
+        // frames. Start just outside it, while still retaining badges that are
+        // close to its right edge. Bottom/right game controls are excluded.
+        val left=max(400,expectedRegionX.first)
         val right=min(bitmap.width-100,expectedRegionX.last)
         val top=max(60,expectedRegionY.first)
         val bottom=min(bitmap.height-110,expectedRegionY.last)
         if(right<=left||bottom<=top)return emptyList()
 
-        return findBadges(bitmap,left,right,top,bottom)
-            .map { b ->
-                // In the Lords Mobile map the blue level badge is normally on
-                // the lower/right side of its resource artwork. Probe slightly
-                // up/left so the tap lands on the resource, not the badge text.
-                val probeX=(b.box.centerX-18).coerceIn(left+8,right-8)
-                val probeY=(b.box.centerY-7).coerceIn(top+8,bottom-8)
-                RssDetection(
-                    type="RSS?",
-                    level=0,
-                    centerX=probeX,
-                    centerY=probeY,
-                    boundingBox=b.box,
-                    confidence=b.confidence,
-                    occupied=false,
-                    dominantColor=Color.TRANSPARENT
-                )
-            }
+        return findBadges(bitmap,left,right,top,bottom).map { b ->
+            // Blue level badges sit lower/right of the resource artwork. Probe
+            // toward the artwork so a future verification tap never targets
+            // the white digit itself.
+            val probeX=(b.box.centerX-18).coerceIn(left+8,right-8)
+            val probeY=(b.box.centerY-7).coerceIn(top+8,bottom-8)
+            RssDetection(
+                type="RSS?",
+                level=0,
+                centerX=probeX,
+                centerY=probeY,
+                boundingBox=b.box,
+                confidence=b.confidence,
+                occupied=false,
+                dominantColor=Color.TRANSPARENT
+            )
+        }
     }
 
     /**
      * Detect compact dark-blue level badges at full resolution.
-     * The badge contains white text, so the blue connected component itself is
-     * smaller than the complete visual badge; geometry is therefore part of
-     * the score instead of relying on a single pixel-area threshold.
+     *
+     * V29's bounds were broad enough to admit the Transformers artwork/icon,
+     * which happened to contain a large blue connected region. Real level
+     * badges in the supplied frames are compact trapezoids, approximately
+     * 20–40 px wide and 16–28 px high. These tighter geometry limits remove
+     * that false positive without collapsing neighbouring resource badges.
      */
     private fun findBadges(bitmap:Bitmap,left:Int,right:Int,top:Int,bottom:Int):List<Badge>{
         val width=right-left+1
@@ -94,8 +97,6 @@ class ScreenAnalyzer {
         fun blueAt(x:Int,y:Int):Boolean{
             val c=bitmap.getPixel(x,y)
             val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c)
-            // Calibrated to the dark/medium blue level badges visible in the
-            // supplied frames. White digits fail the r/g/b dominance tests.
             return b>=85 && b-r>=25 && b-g>=8 && r<=135
         }
 
@@ -127,16 +128,14 @@ class ScreenAnalyzer {
 
             val bw=maxX-minX+1
             val bh=maxY-minY+1
-            if(area !in 120..900)continue
-            if(bw !in 18..55 || bh !in 12..38)continue
+            if(area !in 180..650)continue
+            if(bw !in 20..40 || bh !in 16..28)continue
 
             val aspect=bw.toFloat()/bh.toFloat()
-            if(aspect !in 0.80f..2.60f)continue
+            if(aspect !in 0.95f..2.40f)continue
 
-            // Reject long UI strips / blue decorative elements. Genuine level
-            // badges have substantial blue fill but are not almost solid.
             val density=(area.toFloat()/(bw*bh)).coerceIn(0f,1f)
-            if(density<0.35f || density>0.92f)continue
+            if(density<0.40f || density>0.92f)continue
 
             val aspectScore=(1f-abs(aspect-1.35f)/1.35f).coerceIn(0f,1f)
             val densityScore=(1f-abs(density-0.62f)/0.62f).coerceIn(0f,1f)
@@ -146,9 +145,8 @@ class ScreenAnalyzer {
             found+=Badge(BoundingBox(minX,minY,maxX,maxY),confidence)
         }
 
-        // De-duplicate only overlapping/near-identical detections. Do not use
-        // the old 18px global proximity rule because nearby resource badges can
-        // legitimately be closer than that in dense map scenes.
+        // De-duplicate only overlapping/near-identical detections. Nearby
+        // resource badges are allowed to remain separate in dense scenes.
         val out=ArrayList<Badge>()
         for(b in found.sortedByDescending{it.confidence}){
             val duplicate=out.any{
