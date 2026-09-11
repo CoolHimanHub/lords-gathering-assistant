@@ -3,25 +3,23 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.Bitmap
 import android.graphics.Color
 import kotlin.math.abs
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
-import java.util.ArrayDeque
 
 /**
- * V26 RSS detector.
+ * V27 - regression-driven RSS detector.
  *
- * The supplied gameplay frames show that the RSS level marker is a compact
- * BLUE badge with a white digit. Enemy/monster markers can be red or dark and
- * must not be treated as RSS. The previous implementation searched for white
- * glyphs first and only loosely checked nearby blue pixels; that produced
- * false badges and, importantly, mapped visible 3/4/6 markers to L5.
+ * Key fixes from V26:
+ *  - level recognition is based on the white glyph's stroke geometry, not a
+ *    single guessed 5x7 template;
+ *  - 3/4/2/5/6 are scored independently using row/column projections;
+ *  - a level is rejected when the shape is ambiguous;
+ *  - the blue badge remains mandatory, so monsters/HUD numbers are excluded;
+ *  - resource artwork is checked in a bounded left/up-left window;
+ *  - one frame never proves movement; occupied is only set by a compact local
+ *    red march marker.
  *
- * V26 therefore makes the badge geometry the primary gate: find compact blue
- * badge components, require a centered white numeral, then classify the
- * numeral using normalized 5x7 templates. Artwork/type remains a separate
- * gate. Occupancy and motion are NOT inferred from one frame; those states
- * must be verified temporally / from the opened tile panel before an action.
+ * This class is observation-only. It never clicks or sends troops.
  */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
@@ -31,158 +29,90 @@ class ScreenAnalyzer {
         val centerY:Int get()=(minY+maxY)/2
     }
     data class RssDetection(
-        val type:String,
-        val level:Int,
-        val centerX:Int,
-        val centerY:Int,
-        val boundingBox:BoundingBox,
-        val confidence:Int,
-        val occupied:Boolean,
-        val dominantColor:Int,
-        val moving:Boolean=false,
-        val movingScore:Int=0
+        val type:String,val level:Int,val centerX:Int,val centerY:Int,
+        val boundingBox:BoundingBox,val confidence:Int,val occupied:Boolean,
+        val dominantColor:Int,val moving:Boolean=false,val movingScore:Int=0
     )
-    private data class Badge(val box:BoundingBox,val blueRatio:Float,val digit:Int)
-    private data class Artwork(val type:String,val confidence:Int,val box:BoundingBox,val dominant:Int,val footprint:Float,val red:Float,val green:Float,val blue:Float,val gray:Float,val yellow:Float,val orange:Float)
-    private data class Blob(val box:BoundingBox,val area:Int,val dist:Double,val stats:Stats)
-    private data class Stats(val red:Float,val green:Float,val blue:Float,val gray:Float,val yellow:Float,val orange:Float)
+    private data class Badge(val box:BoundingBox,val blueRatio:Float,val digit:Int,val digitScore:Int)
+    private data class TypeResult(val name:String,val confidence:Int,val avg:Int)
 
-    companion object {
-        private const val OCCUPIED_THRESHOLD=78
-        private const val MIN_CONFIDENCE=60
-    }
+    companion object { private const val MIN_ACCEPT=78; private const val BLUE_MIN=70 }
 
     fun analyzeScreenshot(bitmap:Bitmap,expectedRegionX:IntRange=0 until bitmap.width,expectedRegionY:IntRange=0 until bitmap.height):List<RssDetection>{
         if(bitmap.width<600||bitmap.height<400)return emptyList()
-        val scale=(bitmap.width/1536f).coerceAtLeast(.5f)
-        val left=max(0,expectedRegionX.first)
-        val right=min(bitmap.width-1,expectedRegionX.last)
-        val top=max((55f*scale).toInt(),expectedRegionY.first)
-        val bottom=min(bitmap.height-1-((121f*scale).toInt()),expectedRegionY.last)
+        val left=max(0,expectedRegionX.first); val right=min(bitmap.width-1,expectedRegionX.last)
+        val top=max(45,expectedRegionY.first); val bottom=min(bitmap.height-120,expectedRegionY.last)
         if(right<=left||bottom<=top)return emptyList()
-
-        val result=ArrayList<RssDetection>()
+        val out=ArrayList<RssDetection>()
         for(badge in findBadges(bitmap,left,right,top,bottom)){
-            val artwork=findArtwork(bitmap,badge.box,left,top,right,bottom)?:continue
-            val confidence=artwork.confidence
-            if(confidence<MIN_CONFIDENCE)continue
-            result+=RssDetection(
-                artwork.type,badge.digit,artwork.box.centerX,artwork.box.centerY,
-                artwork.box,confidence,false,artwork.dominant,false,0
-            )
+            val art=classifyArtwork(bitmap,badge.box,left,top,right,bottom)?:continue
+            val occupied=detectCompactRedMarker(bitmap,badge.box)
+            var confidence=(badge.digitScore*.30f+art.confidence*.58f+badge.blueRatio*100f*.12f).toInt()
+            if(occupied)confidence-=10
+            confidence=confidence.coerceIn(0,100)
+            if(confidence<MIN_ACCEPT)continue
+            out+=RssDetection(art.name,badge.digit,badge.box.centerX,badge.box.centerY,badge.box,confidence,occupied,art.avg)
         }
-        return dedupe(result)
+        return dedupe(out)
     }
 
-    /**
-     * Locate the actual blue level badge first. This avoids white UI text,
-     * monster labels, and terrain highlights being promoted to candidates.
-     */
     private fun findBadges(bitmap:Bitmap,left:Int,right:Int,top:Int,bottom:Int):List<Badge>{
-        val step=2
-        val gw=(right-left)/step+1
-        val gh=(bottom-top)/step+1
-        val visited=BooleanArray(gw*gh)
-        val queue=ArrayDeque<Int>()
-        val found=ArrayList<Badge>()
-
-        fun blueAt(x:Int,y:Int):Boolean{
-            val c=bitmap.getPixel(x,y)
-            val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
-            // Saturated game badge blue. Red enemy badges and green terrain do
-            // not satisfy this hue relationship.
-            return b>=82&&b-r>=16&&b>=g*.94f&&b>=r*1.08f
-        }
-        fun whiteAt(x:Int,y:Int):Boolean{
-            val c=bitmap.getPixel(x,y)
-            val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
-            return r>=145&&g>=145&&b>=145&&max(r,max(g,b))-min(r,min(g,b))<115
-        }
-
+        val step=2; val gw=(right-left)/step+1; val gh=(bottom-top)/step+1
+        val visited=BooleanArray(gw*gh); val found=ArrayList<Badge>(); val queue=IntArray(gw*gh)
+        fun blueAt(x:Int,y:Int):Boolean{ val c=bitmap.getPixel(x,y); val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c); return b>=BLUE_MIN&&b-r>=12&&b>=g*.94f }
+        fun whiteAt(x:Int,y:Int):Boolean{ val c=bitmap.getPixel(x,y); val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c); val mx=max(r,max(g,b)); val mn=min(r,min(g,b)); return mn>=130&&mx>=165&&mx-mn<=115 }
         for(gy in 0 until gh)for(gx in 0 until gw){
-            val start=gy*gw+gx
-            if(visited[start])continue
-            val sx=min(right,left+gx*step);val sy=min(bottom,top+gy*step)
+            val start=gy*gw+gx; if(visited[start])continue
+            val sx=left+gx*step; val sy=top+gy*step
             if(!blueAt(sx,sy)){visited[start]=true;continue}
-            queue.clear();queue.add(start);visited[start]=true
-            var minGX=gx;var maxGX=gx;var minGY=gy;var maxGY=gy;var count=0
-            while(queue.isNotEmpty()){
-                val p=queue.removeFirst();val py=p/gw;val px=p%gw;count++
+            var head=0;var tail=0;queue[tail++]=start;visited[start]=true
+            var minGX=gx;var maxGX=gx;var minGY=gy;var maxGY=gy;var area=0
+            while(head<tail){
+                val p=queue[head++];val py=p/gw;val px=p%gw;area++
                 minGX=min(minGX,px);maxGX=max(maxGX,px);minGY=min(minGY,py);maxGY=max(maxGY,py)
                 for(dy in -1..1)for(dx in -1..1){
-                    if(dx==0&&dy==0)continue
-                    val nx=px+dx;val ny=py+dy
+                    if(dx==0&&dy==0)continue;val nx=px+dx;val ny=py+dy
                     if(nx !in 0 until gw||ny !in 0 until gh)continue
-                    val ni=ny*gw+nx;if(visited[ni])continue
-                    val xx=min(right,left+nx*step);val yy=min(bottom,top+ny*step)
-                    visited[ni]=true
-                    if(blueAt(xx,yy))queue.add(ni)
+                    val ni=ny*gw+nx;if(visited[ni])continue;visited[ni]=true
+                    if(blueAt(left+nx*step,top+ny*step))queue[tail++]=ni
                 }
             }
-
-            // A real RSS badge in the supplied 1536x707 frames is roughly
-            // 24-36 px wide and 18-28 px high. Allow scale variation but reject
-            // large UI panels/icons.
-            if(count !in 35..700)continue
-            val box=BoundingBox(
-                max(left,left+minGX*step-1),max(top,top+minGY*step-1),
-                min(right,left+(maxGX+1)*step+1),min(bottom,top+(maxGY+1)*step+1)
-            )
+            if(area !in 20..700)continue
+            val box=BoundingBox(max(left,left+minGX*step-1),max(top,top+minGY*step-1),min(right,left+(maxGX+1)*step+1),min(bottom,top+(maxGY+1)*step+1))
             if(box.width !in 20..42||box.height !in 15..32)continue
-
-            val glyph=findCenteredWhiteGlyph(bitmap,box,::whiteAt)?:continue
-            val digit=readBadgeDigit(bitmap,glyph)?:continue
-            val ratio=blueRatio(bitmap,box)
-            if(ratio<.22f)continue
-            found+=Badge(box,ratio,digit)
+            val glyph=findWhiteGlyph(bitmap,box,::whiteAt)?:continue
+            val read=readDigit(bitmap,glyph)?:continue
+            val ratio=blueRatio(bitmap,box,::blueAt);if(ratio<.20f)continue
+            found+=Badge(box,ratio,read.first,read.second)
         }
-
-        return found.sortedWith(compareBy({it.box.centerY},{it.box.centerX})).fold(ArrayList()){acc,b->
-            if(acc.none{abs(it.box.centerX-b.box.centerX)+abs(it.box.centerY-b.box.centerY)<20})acc.add(b)
-            acc
-        }
+        val sorted=found.sortedWith(compareBy({it.box.centerY},{it.box.centerX}));val out=ArrayList<Badge>()
+        for(b in sorted)if(out.none{abs(it.box.centerX-b.box.centerX)<18&&abs(it.box.centerY-b.box.centerY)<18})out+=b
+        return out
     }
 
-    private fun findCenteredWhiteGlyph(bitmap:Bitmap,badge:BoundingBox,whiteAt:(Int,Int)->Boolean):BoundingBox?{
-        val w=badge.width;val h=badge.height
-        val l=badge.minX+max(1,w/5);val r=badge.maxX-max(1,w/8)
-        val t=badge.minY+max(1,h/10);val b=badge.maxY-max(1,h/10)
+    private fun findWhiteGlyph(bitmap:Bitmap,badge:BoundingBox,whiteAt:(Int,Int)->Boolean):BoundingBox?{
+        val l=badge.minX+max(2,badge.width/6);val r=badge.maxX-max(2,badge.width/10);val t=badge.minY+max(1,badge.height/10);val b=badge.maxY-max(1,badge.height/10)
         if(r<=l||b<=t)return null
-        val step=1
-        val gw=r-l+1;val gh=b-t+1
-        val seen=BooleanArray(gw*gh);val q=ArrayDeque<Int>()
-        var best:BoundingBox?=null;var bestArea=0
-        for(y in 0 until gh)for(x in 0 until gw){
-            val idx=y*gw+x;if(seen[idx])continue
-            val xx=l+x;val yy=t+y
-            if(!whiteAt(xx,yy)){seen[idx]=true;continue}
-            q.clear();q.add(idx);seen[idx]=true
-            var minX=x;var maxX=x;var minY=y;var maxY=y;var area=0
-            while(q.isNotEmpty()){
-                val p=q.removeFirst();val py=p/gw;val px=p%gw;area++
-                minX=min(minX,px);maxX=max(maxX,px);minY=min(minY,py);maxY=max(maxY,py)
+        val w=r-l+1;val h=b-t+1;val seen=BooleanArray(w*h);val q=IntArray(w*h);var best:BoundingBox?=null;var bestArea=0
+        for(yy in 0 until h)for(xx in 0 until w){
+            val idx=yy*w+xx;if(seen[idx])continue;val px=l+xx;val py=t+yy
+            if(!whiteAt(px,py)){seen[idx]=true;continue}
+            var head=0;var tail=0;q[tail++]=idx;seen[idx]=true;var minX=xx;var maxX=xx;var minY=yy;var maxY=yy;var area=0
+            while(head<tail){
+                val p=q[head++];val cy=p/w;val cx=p%w;area++;minX=min(minX,cx);maxX=max(maxX,cx);minY=min(minY,cy);maxY=max(maxY,cy)
                 for(dy in -1..1)for(dx in -1..1){
-                    if(dx==0&&dy==0)continue
-                    val nx=px+dx;val ny=py+dy
-                    if(nx !in 0 until gw||ny !in 0 until gh)continue
-                    val ni=ny*gw+nx;if(seen[ni])continue
-                    val ax=l+nx;val ay=t+ny;seen[ni]=true
-                    if(whiteAt(ax,ay))q.add(ni)
+                    if(dx==0&&dy==0)continue;val nx=cx+dx;val ny=cy+dy;if(nx !in 0 until w||ny !in 0 until h)continue
+                    val ni=ny*w+nx;if(seen[ni])continue;seen[ni]=true;if(whiteAt(l+nx,t+ny))q[tail++]=ni
                 }
             }
             val bw=maxX-minX+1;val bh=maxY-minY+1
-            val cx=(minX+maxX)/2f;val cy=(minY+maxY)/2f
-            val centered=cx in w*.25f..w*.90f && cy in h*.10f..h*.95f
-            if(area in 18..150 && bw in 6..18 && bh in 10..24 && centered && area>bestArea){
-                best=BoundingBox(l+minX,t+minY,l+maxX,t+maxY);bestArea=area
-            }
+            if(area in 18..160&&bw in 6..18&&bh in 10..24&&bh>=bw&&area>bestArea){bestArea=area;best=BoundingBox(l+minX,t+minY,l+maxX,t+maxY)}
         }
         return best
     }
 
-    /** Normalize the white glyph and compare against tolerant 5x7 digit masks. */
-    private fun readBadgeDigit(bitmap:Bitmap,glyph:BoundingBox):Int?{
-        val templates=mapOf(
+    private fun readDigit(bitmap:Bitmap,glyph:BoundingBox):Pair<Int,Int>?{
+        val masks=mapOf(
             1 to arrayOf("00100","01100","00100","00100","00100","00100","01110"),
             2 to arrayOf("01110","10001","00001","00010","00100","01000","11111"),
             3 to arrayOf("11110","00001","00001","01110","00001","00001","11110"),
@@ -190,108 +120,82 @@ class ScreenAnalyzer {
             5 to arrayOf("11111","10000","10000","11110","00001","00001","11110"),
             6 to arrayOf("01110","10000","10000","11110","10001","10001","01110")
         )
-        val gw=5;val gh=7
-        val actual=Array(gh){BooleanArray(gw)}
-        val w=glyph.width.toFloat();val h=glyph.height.toFloat()
-        for(gy in 0 until gh)for(gx in 0 until gw){
-            val xa=glyph.minX+(gx*w/5f).toInt();val xb=max(xa+1,glyph.minX+((gx+1)*w/5f).toInt())
-            val ya=glyph.minY+(gy*h/7f).toInt();val yb=max(ya+1,glyph.minY+((gy+1)*h/7f).toInt())
+        val actual=sampleGlyph(bitmap,glyph);val scores=ArrayList<Pair<Int,Int>>()
+        for((digit,mask) in masks){
+            var diff=0;for(y in 0 until 7)for(x in 0 until 5)if(actual[y][x]!=(mask[y][x]=='1'))diff++
+            scores+=digit to (diff*7-projectionScore(actual,digit))
+        }
+        scores.sortBy{it.second};val best=scores[0];val second=scores[1]
+        val margin=second.second-best.second;val rawDiff=(best.second+projectionScore(actual,best.first))/7
+        if(rawDiff>18||margin<5)return null
+        return best.first to (100-rawDiff*4+margin*2).coerceIn(72,98)
+    }
+
+    private fun sampleGlyph(bitmap:Bitmap,box:BoundingBox):Array<BooleanArray>{
+        val out=Array(7){BooleanArray(5)};val w=box.width.toFloat();val h=box.height.toFloat()
+        for(gy in 0 until 7)for(gx in 0 until 5){
+            val x0=box.minX+(gx*w/5f).toInt();val x1=max(x0+1,box.minX+((gx+1)*w/5f).toInt())
+            val y0=box.minY+(gy*h/7f).toInt();val y1=max(y0+1,box.minY+((gy+1)*h/7f).toInt())
             var on=0;var total=0
-            for(y in ya until min(glyph.maxY+1,yb))for(x in xa until min(glyph.maxX+1,xb)){
-                val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);total++
-                if(r>=145&&g>=145&&b>=145&&max(r,max(g,b))-min(r,min(g,b))<115)on++
+            for(y in y0 until min(box.maxY+1,y1))for(x in x0 until min(box.maxX+1,x1)){
+                val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);val mx=max(r,max(g,b));val mn=min(r,min(g,b));total++;if(mn>=125&&mx>=160&&mx-mn<=120)on++
             }
-            actual[gy][gx]=total>0&&on*100>=total*10
+            out[gy][gx]=total>0&&on*100>=total*16
         }
-        var bestDigit:Int?=null;var best=999;var second=999
-        for((digit,rows) in templates){
-            var dist=0
-            for(y in 0 until gh)for(x in 0 until gw){
-                val expected=rows[y][x]=='1'
-                if(actual[y][x]!=expected)dist++
-            }
-            if(dist<best){second=best;best=dist;bestDigit=digit}else if(dist<second)second=dist
-        }
-        // Anti-aliasing and the game's shadow/outline can alter a few cells,
-        // but a correct glyph should still beat the next digit clearly.
-        if(bestDigit==null||best>14||second-best<1)return null
-        return bestDigit
+        return out
     }
 
-    /**
-     * Video-derived geometry: RSS sprites are made of several nearby pieces,
-     * so the old "nearest single blob" rule is too small. Build nearby blob
-     * clusters and score the whole cluster.
-     */
-    private fun findArtwork(bitmap:Bitmap,badge:BoundingBox,left:Int,top:Int,right:Int,bottom:Int):Artwork?{
-        val cx=badge.centerX;val cy=badge.centerY
-        val bw=max(12,badge.width);val bh=max(10,badge.height)
-        val l=max(left,cx-6*bw);val r=min(right,cx-bw/3);val t=max(top,cy-4*bh);val b=min(bottom,cy+4*bh)
-        if(r<=l||b<=t)return null
-        val step=2;val gw=(r-l)/step+1;val gh=(b-t)/step+1;val seen=BooleanArray(gw*gh);val q=ArrayDeque<Int>();val blobs=ArrayList<Blob>()
-        fun fg(x:Int,y:Int):Boolean{
-            val c=bitmap.getPixel(x,y);val rr=Color.red(c);val gg=Color.green(c);val bb=Color.blue(c);val mx=max(rr,max(gg,bb));val mn=min(rr,min(gg,bb));val ch=mx-mn
-            val greenBackground=gg>rr*1.035f&&gg>bb*1.035f&&gg>62&&ch<85
-            return !greenBackground&&mx>52&&ch>14
-        }
-        for(gy in 0 until gh)for(gx in 0 until gw){
-            val idx=gy*gw+gx;if(seen[idx])continue;val x=l+gx*step;val y=t+gy*step
-            if(!fg(x,y)){seen[idx]=true;continue}
-            q.clear();q.add(idx);seen[idx]=true;var minGX=gx;var maxGX=gx;var minGY=gy;var maxGY=gy;var area=0
-            while(q.isNotEmpty()){
-                val p=q.removeFirst();val py=p/gw;val px=p%gw;area++;minGX=min(minGX,px);maxGX=max(maxGX,px);minGY=min(minGY,py);maxGY=max(maxGY,py)
-                for(dy in -1..1)for(dx in -1..1){if(dx==0&&dy==0)continue;val nx=px+dx;val ny=py+dy;if(nx !in 0 until gw||ny !in 0 until gh)continue;val ni=ny*gw+nx;if(seen[ni])continue;val xx=l+nx*step;val yy=t+ny*step;if(fg(xx,yy)){seen[ni]=true;q.add(ni)}}
-            }
-            if(area<10||area>2200)continue
-            val box=BoundingBox(max(l,l+minGX*step-1),max(t,t+minGY*step-1),min(r,l+(maxGX+1)*step+1),min(b,t+(maxGY+1)*step+1))
-            if(box.width<6||box.height<6||box.width>6*bw||box.height>5*bh)continue
-            val dist=hypot(box.centerX-cx.toDouble(),box.centerY-cy.toDouble())
-            if(dist>4.8*bw||box.centerX>=cx-bw*.05f)continue
-            blobs+=Blob(box,area,dist,stats(bitmap,box))
-        }
-        if(blobs.isEmpty())return null
-        data class Cluster(val box:BoundingBox,val area:Int,val stats:Stats,val dist:Double)
-        val clusters=ArrayList<Cluster>()
-        for(seed in blobs){
-            val members=blobs.filter{hypot(it.box.centerX-seed.box.centerX.toDouble(),it.box.centerY-seed.box.centerY.toDouble())<=2.8*bw}
-            var minX=seed.box.minX;var minY=seed.box.minY;var maxX=seed.box.maxX;var maxY=seed.box.maxY;var area=0
-            for(m in members){minX=min(minX,m.box.minX);minY=min(minY,m.box.minY);maxX=max(maxX,m.box.maxX);maxY=max(maxY,m.box.maxY);area+=m.area}
-            val ub=BoundingBox(minX,minY,maxX,maxY)
-            if(ub.centerX>=cx-bw*.05f)continue
-            clusters+=Cluster(ub,area,stats(bitmap,ub),hypot(ub.centerX-cx.toDouble(),ub.centerY-cy.toDouble()))
-        }
-        val chosen=clusters.sortedWith(compareByDescending<Cluster>{it.area}.thenBy{it.dist}).firstOrNull()?:return null
-        val s=chosen.stats
-        if(s.red>.42f&&s.orange>.30f&&s.blue<.22f)return null
-        val scores=mapOf(
-            "Ore" to (s.blue*120f+s.gray*28f-s.red*25f-s.orange*12f),
-            "Stone" to (s.gray*115f+s.blue*24f-s.orange*30f-s.red*18f),
-            "Wood" to (s.green*75f+s.orange*50f+s.yellow*18f-s.blue*18f-s.red*18f),
-            "Food" to (s.yellow*125f+s.orange*60f+s.green*20f-s.blue*25f-s.red*12f)
-        ).toList().sortedByDescending{it.second}
-        val best=scores[0];val second=scores[1]
-        if(best.second<18f||best.second-second.second<3f)return null
-        val footprint=(chosen.area.toFloat()/max(1,chosen.box.width*chosen.box.height)).coerceIn(0f,1f)
-        val conf=(54f+best.second*.40f+footprint*16f).toInt().coerceIn(0,96)
-        return Artwork(best.first,conf,chosen.box,dominant(bitmap,chosen.box),footprint,s.red,s.green,s.blue,s.gray,s.yellow,s.orange)
+    private fun projectionScore(a:Array<BooleanArray>,d:Int):Int{
+        fun row(y:Int)= (0 until 5).count{a[y][it]}; fun col(x:Int)= (0 until 7).count{a[it][x]};var s=0
+        when(d){
+            1->{if(col(2)>=4)s+=8;if(row(6)>=3)s+=3}
+            2->{if(row(0)>=3)s+=5;if(row(3)>=2)s+=4;if(row(6)>=3)s+=5;if(col(4)>=4)s+=3;if(col(0)<=2)s+=2}
+            3->{if(row(0)>=3)s+=5;if(row(3)>=2)s+=5;if(row(6)>=3)s+=5;if(col(4)>=4)s+=4;if(col(0)<=2)s+=2}
+            4->{if(row(4)>=3)s+=6;if(col(4)>=5)s+=4;if(col(0)>=2)s+=2;if(row(0)<=2)s+=2;if(row(6)<=2)s+=2}
+            5->{if(row(0)>=3)s+=5;if(row(3)>=3)s+=4;if(row(6)>=3)s+=5;if(col(0)>=3)s+=3;if(col(4)>=3)s+=2}
+            6->{if(row(3)>=3)s+=5;if(row(6)>=3)s+=4;if(col(0)>=4)s+=3;if(col(4)>=3)s+=2}
+        };return s
     }
 
-    private fun stats(bitmap:Bitmap,box:BoundingBox):Stats{
-        var n=0;var red=0;var green=0;var blue=0;var gray=0;var yellow=0;var orange=0
-        for(y in box.minY..box.maxY step 2)for(x in box.minX..box.maxX step 2){
-            val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);val mx=max(r,max(g,b));val mn=min(r,min(g,b));val ch=mx-mn;n++
-            if(r>g*1.15f&&r>b*1.15f&&r>90)red++
-            if(g>r*1.05f&&g>b*1.05f&&g>65)green++
-            if(b>r*1.08f&&b>=g*.96f&&ch>28)blue++
-            if(ch<52&&mx in 80..225)gray++
-            if(r>145&&g>125&&b<140&&g>b*1.10f)yellow++
-            if(r>g*1.05f&&g>b*1.15f&&r>100)orange++
+    private fun classifyArtwork(bitmap:Bitmap,badge:BoundingBox,left:Int,top:Int,right:Int,bottom:Int):TypeResult?{
+        val cx=badge.centerX;val l=max(left,cx-90);val r=min(right,cx+12);val t=max(top,badge.minY-82);val b=min(bottom,badge.maxY+5);if(r<=l||b<=t)return null
+        var cyan=0;var brown=0;var yellow=0;var grey=0;var green=0;var strong=0;var total=0;var sr=0L;var sg=0L;var sb=0L
+        for(y in t..b step 2)for(x in l..r step 2){
+            if(x in badge.minX..badge.maxX&&y in badge.minY..badge.maxY)continue
+            val c=bitmap.getPixel(x,y);val rr=Color.red(c);val gg=Color.green(c);val bb=Color.blue(c);val mx=max(rr,max(gg,bb));val mn=min(rr,min(gg,bb));val spread=mx-mn
+            if(mx<55)continue;total++;sr+=rr;sg+=gg;sb+=bb;if(spread>55)strong++
+            if(bb>rr*1.16f&&bb>gg*1.01f&&bb>90)cyan++
+            if(rr>gg*1.12f&&gg>bb*1.02f&&rr>80)brown++
+            if(rr>145&&gg>120&&bb<gg*.88f)yellow++
+            if(gg>rr*1.05f&&gg>bb*1.06f&&spread>25)green++
+            if(spread<42&&mx in 75..210)grey++
         }
-        if(n==0)return Stats(0f,0f,0f,0f,0f,0f)
-        return Stats(red.toFloat()/n,green.toFloat()/n,blue.toFloat()/n,gray.toFloat()/n,yellow.toFloat()/n,orange.toFloat()/n)
+        if(total<40)return null
+        val scores=ArrayList<Pair<String,Int>>()
+        val ore=(cyan*120/total+min(18,strong)).coerceAtMost(94);val stone=(grey*115/total+min(20,strong*2)).coerceAtMost(94)
+        val wood=(brown*115/total+min(16,green*20/total)).coerceAtMost(94);val food=(yellow*120/total+min(18,strong*2)).coerceAtMost(94)
+        if(cyan*100>=total*14&&ore>=48)scores+="Ore" to ore
+        if(grey*100>=total*22&&stone>=48)scores+="Stone" to stone
+        if(brown*100>=total*11&&wood>=48)scores+="Wood" to wood
+        if(yellow*100>=total*10&&food>=48)scores+="Food" to food
+        if(scores.isEmpty())return null;scores.sortByDescending{it.second};val best=scores[0];val second=scores.getOrNull(1)?.second?:0
+        if(second>0&&best.second-second<12||best.second<58)return null
+        val avg=Color.rgb((sr/total).toInt().coerceIn(0,255),(sg/total).toInt().coerceIn(0,255),(sb/total).toInt().coerceIn(0,255))
+        return TypeResult(best.first,best.second,avg)
     }
 
-    private fun dominant(bitmap:Bitmap,box:BoundingBox):Int{var r=0;var g=0;var b=0;var n=0;for(y in box.minY..box.maxY step 2)for(x in box.minX..box.maxX step 2){val c=bitmap.getPixel(x,y);r+=Color.red(c);g+=Color.green(c);b+=Color.blue(c);n++};return if(n==0)Color.BLACK else Color.rgb(r/n,g/n,b/n)}
-    private fun blueRatio(bitmap:Bitmap,box:BoundingBox):Float{var q=0;var n=0;for(y in box.minY..box.maxY step 2)for(x in box.minX..box.maxX step 2){n++;val c=bitmap.getPixel(x,y);val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);if(b>=82&&b-r>=16&&b>=g*.94f&&b>=r*1.08f)q++};return if(n==0)0f else q.toFloat()/n}
-    private fun dedupe(input:List<RssDetection>):List<RssDetection>{val out=ArrayList<RssDetection>();for(d in input)if(out.none{abs(d.centerX-it.centerX)+abs(d.centerY-it.centerY)<24})out+=d;return out.sortedWith(compareByDescending<RssDetection>{it.confidence}.thenByDescending{it.level})}
+    private fun detectCompactRedMarker(bitmap:Bitmap,badge:BoundingBox):Boolean{
+        val l=max(0,badge.minX-42);val r=min(bitmap.width-1,badge.maxX+30);val t=max(0,badge.minY-32);val b=min(bitmap.height-1,badge.maxY+42)
+        var red=0;var total=0
+        for(y in t..b step 2)for(x in l..r step 2){val c=bitmap.getPixel(x,y);val rr=Color.red(c);val gg=Color.green(c);val bb=Color.blue(c);total++;if(rr>205&&rr>gg*1.65f&&rr>bb*1.65f&&gg<120&&bb<120)red++}
+        return red>=6&&red*100>total*2
+    }
+
+    private fun blueRatio(bitmap:Bitmap,box:BoundingBox,blueAt:(Int,Int)->Boolean):Float{
+        var n=0;var total=0;for(y in box.minY..box.maxY step 2)for(x in box.minX..box.maxX step 2){total++;if(blueAt(x,y))n++};return if(total==0)0f else n.toFloat()/total
+    }
+
+    private fun dedupe(items:List<RssDetection>):List<RssDetection>{
+        val out=ArrayList<RssDetection>();for(item in items.sortedByDescending{it.confidence})if(out.none{abs(it.centerX-item.centerX)<30&&abs(it.centerY-item.centerY)<30})out+=item;return out
+    }
 }
