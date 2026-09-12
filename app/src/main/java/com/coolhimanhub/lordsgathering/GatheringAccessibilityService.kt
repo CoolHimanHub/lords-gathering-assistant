@@ -25,7 +25,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.Executors
 import kotlin.math.min
 
-/** V38: fast scanner with game-coordinate RSS reporting. */
+/** V41: adaptive grid calibration is actually fed with cross-viewport RSS matches. */
 class GatheringAccessibilityService : AccessibilityService() {
     private val handler=Handler(Looper.getMainLooper())
     private val analysisExecutor=Executors.newSingleThreadExecutor()
@@ -66,10 +66,10 @@ class GatheringAccessibilityService : AccessibilityService() {
             windowManager=getSystemService(WINDOW_SERVICE) as WindowManager
             gatheringEngine=AutoGatheringEngine(this,handler)
             screenAnalyzer=ScreenAnalyzer()
-            viewportTracker.reset();sweepController.reset()
+            viewportTracker.reset();sweepController.reset();coordinateMapper.reset()
             handler.post{if(serviceAlive)showFloatingControl()}
         }catch(_:Exception){
-            safeStatus("V38 service ready\nOverlay retrying...")
+            safeStatus("V41 service ready\nOverlay retrying...")
             handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)
         }
     }
@@ -84,7 +84,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             orientation=LinearLayout.VERTICAL;setPadding(10,8,10,8);setBackgroundColor(Color.rgb(65,65,65))
         }
         val title=TextView(this).apply{
-            text="Lords Assistant V38";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
+            text="Lords Assistant V41";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
         }
         title.setOnTouchListener(object:View.OnTouchListener{
             private var startX=0f;private var startY=0f;private var startParamX=0;private var startParamY=0
@@ -107,7 +107,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             text="⚔ AUTO GATHER";setOnClickListener{try{if(autoGatheringActive)stopAutoGathering()else startAutoGathering()}catch(e:Exception){safeStatus("Gather error: ${e.javaClass.simpleName}")}}
         }
         val info=TextView(this).apply{
-            text="V38 Scanner ready\nGame X/Y RSS locations\nFast focused viewport OCR\nResolution-aware map coverage\nOpened-panel verification required"
+            text="V41 Scanner ready\nAdaptive tile grid calibration\nGame X/Y RSS locations\nFast focused viewport OCR\nPanel verification before Gather"
             textSize=10.5f;setTextColor(Color.WHITE);gravity=Gravity.LEFT;setPadding(6,5,6,2);setLineSpacing(0f,1.05f)
         }
         infoText=info;startStopButton=startButton;scanButton=scanBtn;gatherButton=gatherBtn
@@ -117,7 +117,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         container.addView(scroll,LinearLayout.LayoutParams(470,520))
         val params=WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT)
         params.gravity=Gravity.TOP or Gravity.START;params.x=100;params.y=80;overlayParams=params
-        try{wm.addView(container,params);overlayView=container;safeStatus("V38 Scanner ready\nGame X/Y RSS locations enabled\nResolution-aware coverage ready")}
+        try{wm.addView(container,params);overlayView=container;safeStatus("V41 Scanner ready\nAdaptive grid: LEARNING\nGame X/Y RSS locations enabled")}
         catch(_:Exception){overlayView=null;overlayParams=null;infoText=null;startStopButton=null;scanButton=null;gatherButton=null;handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)}
     }
 
@@ -125,8 +125,8 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun startAutomation(){
         if(running||!serviceAlive)return
-        running=true;scanCount=0;seenCandidates.clear();viewportTracker.reset();sweepController.reset();sweepInProgress=false
-        updateStartStopButton();safeStatus("V38 AUTO SCAN started\nEstablishing map viewport...\nGame-coordinate reporting enabled")
+        running=true;scanCount=0;seenCandidates.clear();viewportTracker.reset();sweepController.reset();coordinateMapper.reset();sweepInProgress=false
+        updateStartStopButton();safeStatus("V41 AUTO SCAN started\nEstablishing map viewport...\nGrid calibration: LEARNING")
         handler.removeCallbacks(scanRunnable);handler.postDelayed(scanRunnable,500)
     }
 
@@ -137,7 +137,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun startAutoGathering(){
         if(autoGatheringActive||!serviceAlive)return
-        autoGatheringActive=true;updateGatherButton();gatheringEngine.startGathering();safeStatus("AUTO GATHER ACTIVE\nNew viewport -> candidate -> panel -> OCR -> verify")
+        autoGatheringActive=true;updateGatherButton();gatheringEngine.startGathering();safeStatus("AUTO GATHER ACTIVE\nViewport -> grid calibration -> candidate -> panel -> verify")
         if(!running)startAutomation()
     }
 
@@ -190,23 +190,40 @@ class GatheringAccessibilityService : AccessibilityService() {
     private fun recognizeViewport(scanNumber:Int,moveAfterScan:Boolean,detections:List<ScreenAnalyzer.RssDetection>,bitmap:Bitmap){
         val viewport=viewportTracker.parse("")
         if(viewport==null){screenshotInProgress=false;safeStatus("Scan #$scanNumber\nViewport X/Y not readable\nCoverage sweep PAUSED");recycleBitmap(bitmap);return}
-        val changed=viewportTracker.update(viewport);sweepController.onViewportObserved(changed)
+        val changed=viewportTracker.update(viewport)
+
+        // THIS WAS THE MISSING V40 LINK: feed the exact RSS screen points from
+        // this screenshot into the mapper before converting them to game X/Y.
+        // The mapper compares them with the previous viewport's points and only
+        // learns when the viewport X/Y actually changed.
+        val screenPoints=detections.map{it.centerX to it.centerY}
+        coordinateMapper.observe(viewport,screenPoints,bitmap.width,bitmap.height)
+        sweepController.onViewportObserved(changed)
+
         handleScanResult(scanNumber,detections,viewport,changed,moveAfterScan,bitmap.width,bitmap.height)
         screenshotInProgress=false;recycleBitmap(bitmap)
     }
 
     private fun handleScanResult(scanNumber:Int,detections:List<ScreenAnalyzer.RssDetection>,viewport:MapViewportTracker.Viewport,viewportChanged:Boolean,moveAfterScan:Boolean,screenWidth:Int,screenHeight:Int){
+        val calibration=coordinateMapper.calibration()
         val targets=detections.filter{it.confidence>=minimumConfidence}.map{d->
             val game=coordinateMapper.map(d.centerX,d.centerY,viewport.x,viewport.y,screenWidth,screenHeight)
             TargetWithGame(d,AutoGatheringEngine.RssTarget("RSS?",0,d.centerX,d.centerY,d.confidence,false,0,d.confidence,false,0),game)
         }.sortedByDescending{it.detection.confidence}
+
         val displayCount=min(targets.size,maximumDisplayedTargets)
-        val status=StringBuilder().append("Scan #$scanNumber  View X:${viewport.x} Y:${viewport.y}\n")
+        val gridState=if(calibration.ready)"LOCKED"else"LEARNING"
+        val status=StringBuilder()
+            .append("Scan #$scanNumber  View X:${viewport.x} Y:${viewport.y}\n")
             .append(if(viewportChanged)"NEW VIEWPORT\n"else"SAME VIEWPORT\n")
+            .append("Grid: $gridState  Q:${calibration.quality}%  S:${calibration.samples}\n")
+            .append("Tile basis: ${"%.1f".format(calibration.halfTileW)}/${"%.1f".format(calibration.halfTileH)} px\n")
             .append("RSS locations (game coordinates):\n")
+
         for(i in 0 until displayCount){
             val t=targets[i]
-            status.append("${i+1}. RSS @ X:${t.game.x} Y:${t.game.y} (${t.detection.confidence}%)\n")
+            val mapState=if(calibration.ready)"OK"else"CAL"
+            status.append("${i+1}. X:${t.game.x} Y:${t.game.y}  [${t.detection.confidence}%/$mapState]\n")
         }
         if(displayCount==0)status.append("No validated RSS badge candidates\n")
         safeStatus(status.toString())
