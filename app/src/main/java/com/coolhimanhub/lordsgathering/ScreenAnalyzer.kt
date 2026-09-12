@@ -2,23 +2,23 @@ package com.coolhimanhub.lordsgatheringassistant
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * V32 — simulation-calibrated, badge-first RSS candidate detector.
+ * V34 — simulation-calibrated, badge-first RSS candidate detector.
  *
  * The detector only nominates the small blue level badge. It deliberately does
  * not infer resource type, level or occupancy from map artwork. Those facts
  * must be verified from the opened tile panel before Gather is allowed.
  *
- * V32 fixes the main V31 regression seen in supplied 1536x707 frames:
- * anti-aliased/white digit holes can split one blue badge into multiple
- * connected components. A one-pixel connectivity bridge is therefore used,
- * while confidence/density are measured from the original blue pixels. The
- * map ROI is also widened vertically so lower RSS badges are not discarded by
- * the bottom-toolbar boundary.
+ * V34 additionally performs focused X/Y OCR during the same screenshot
+ * analysis pass. This avoids relying on full-frame OCR to find the tiny map
+ * coordinate HUD while keeping the existing GatheringAccessibilityService
+ * flow and its X/Y change gate intact.
  */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
@@ -59,6 +59,19 @@ class ScreenAnalyzer {
         expectedRegionY:IntRange=0 until bitmap.height
     ):List<RssDetection>{
         if(bitmap.width<600 || bitmap.height<400) return emptyList()
+
+        // V34: read the coordinate HUD from focused crops while the screenshot
+        // is already on the analysis executor. The result is cached for the
+        // existing service callback, which then performs the normal viewport
+        // change validation.
+        val viewportRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        try {
+            ViewportOcrCache.set(ViewportOcrReader.read(bitmap, viewportRecognizer))
+        } catch (_: Exception) {
+            ViewportOcrCache.clear()
+        } finally {
+            try { viewportRecognizer.close() } catch (_: Exception) {}
+        }
 
         // Calibrated against the supplied 1536x707 gameplay frames. Keep the
         // broad map area while excluding the assistant overlay and fixed right
@@ -165,9 +178,8 @@ class ScreenAnalyzer {
             if(whiteGlyphPixels<8) continue
 
             // Transformer/game-header artwork can contain a badge-shaped blue
-            // patch near the top-left edge. Real RSS badges in that area are
-            // lower than the header; reject only that known false-positive zone
-            // rather than globally shrinking the inspection area.
+            // patch near the top-left edge. Reject only that known false-positive
+            // zone rather than globally shrinking the inspection area.
             if(maxX<500 && minY<150) continue
 
             val aspectScore=(1f-abs(aspect-1.35f)/1.55f).coerceIn(0f,1f)
