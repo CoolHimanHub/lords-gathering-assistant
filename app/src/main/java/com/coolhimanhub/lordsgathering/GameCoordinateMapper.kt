@@ -4,18 +4,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * V42 robust isometric coordinate mapper.
+ * V44 stable isometric coordinate mapper.
  *
- * V41 used the current (possibly wrong) tile basis to predict where every RSS
- * should move before matching it. That creates a circular dependency: a bad
- * initial basis can prevent the correct RSS pairs from ever being accepted,
- * leaving calibration at S:0 forever.
- *
- * V42 breaks that loop. Between two genuinely different viewports it first
- * finds conservative one-to-one RSS matches from the observed screen motion,
- * then estimates the horizontal/vertical tile basis from the matched pairs.
- * Median estimates are used to reject accidental matches and only stable
- * observations update the learned basis.
+ * V42 learned the tile basis from cross-viewport RSS matches. V44 keeps that
+ * useful approach but makes the temporal model stricter: repeated screenshots
+ * of the SAME viewport are verification frames, not new calibration frames.
+ * This prevents detector jitter on an unchanged map from replacing the
+ * reference point set and creating unstable RSS coordinates.
  *
  * Physical taps remain screen-pixel based. Game X/Y is reporting/identity only.
  */
@@ -42,9 +37,9 @@ class GameCoordinateMapper {
 
         // RSS art can move a little between frames because of animation.
         private const val PAIR_RADIUS=125f
-        private const val MIN_MATCHES_FOR_UPDATE=1
+        private const val MIN_MATCHES_FOR_UPDATE=2
         private const val MAX_MATCHES_PER_FRAME=40
-        private const val STABILITY_RATIO=0.35f
+        private const val STABILITY_RATIO=0.25f
 
         private fun scaleX(screenWidth:Int)=screenWidth/REF_W
         private fun scaleY(screenHeight:Int)=screenHeight/REF_H
@@ -69,6 +64,17 @@ class GameCoordinateMapper {
     ){
         val oldViewport=previousViewport
         val oldPoints=previousPoints
+
+        // Same viewport is deliberately a verification frame. Do NOT replace
+        // the reference points: OCR/detection jitter on an unchanged screen
+        // must not alter the calibration baseline.
+        if(oldViewport!=null && viewport==oldViewport){
+            if(points.isNotEmpty() && oldPoints.isNotEmpty()){
+                val matches=matchPoints(oldPoints,points)
+                if(matches.size>=MIN_MATCHES_FOR_UPDATE) goodFrames++ else badFrames++
+            }
+            return
+        }
 
         if(oldViewport!=null && oldPoints.isNotEmpty() && points.isNotEmpty()){
             val dvx=viewport.x-oldViewport.x
@@ -125,14 +131,15 @@ class GameCoordinateMapper {
             }
         }
 
+        // A changed viewport becomes the new temporal reference. A same-view
+        // frame never reaches this assignment because it returned above.
         previousViewport=viewport
         previousPoints=points
     }
 
     /**
      * Match observations by actual screen displacement rather than by the
-     * currently learned basis. This is the key V42 change: matching no longer
-     * depends on calibration already being correct.
+     * currently learned basis. This avoids circular dependency during learning.
      */
     private fun matchPoints(
         oldPoints:List<Pair<Int,Int>>,
@@ -156,7 +163,7 @@ class GameCoordinateMapper {
         val usedOld=HashSet<Int>()
         val usedNew=HashSet<Int>()
         val result=ArrayList<Pair<Int,Int>>()
-        for((distance,i,j) in candidates){
+        for((_,i,j) in candidates){
             if(i in usedOld||j in usedNew)continue
             usedOld+=i;usedNew+=j;result+=i to j
         }
@@ -182,8 +189,7 @@ class GameCoordinateMapper {
 
     @Synchronized
     fun calibration():Calibration {
-        // A single clean cross-viewport pair can be enough to get a useful
-        // estimate, but LOCKED requires repeated successful frames.
+        // LOCKED still requires repeated successful cross-viewport learning.
         val ready=goodFrames>=3 && samples>=4
         val sampleQuality=(samples*7).coerceAtMost(55)
         val frameQuality=(goodFrames*8).coerceAtMost(32)
