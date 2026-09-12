@@ -3,11 +3,11 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.PointF
 
 /**
- * V33: deterministic map coverage planner.
+ * V45: broader deterministic map coverage planner.
  *
- * It generates bounded swipes inside the playable map and advances only after
- * the next screenshot proves that the viewport changed. This prevents the old
- * "scan the same screen forever" behaviour.
+ * Uses long, bounded serpentine moves so each accepted viewport covers a
+ * materially larger area than V44. A move is only counted after the following
+ * screenshot confirms that the game X/Y viewport changed.
  */
 class CoverageSweepController {
     enum class Direction { RIGHT, DOWN, LEFT, UP }
@@ -25,24 +25,23 @@ class CoverageSweepController {
     private var failedAttempts = 0
 
     companion object {
+        // Keep gestures inside the playable map area while using most of the
+        // visible width/height. V44 used 500x260; V45 expands this to 760x420.
         private const val LEFT = 450f
         private const val RIGHT = 1280f
         private const val TOP = 125f
         private const val BOTTOM = 545f
         private const val MID_X = 865f
         private const val MID_Y = 335f
-        private const val HORIZONTAL_DRAG = 500f
-        private const val VERTICAL_DRAG = 260f
-        private const val DURATION = 650L
+        private const val HORIZONTAL_DRAG = 760f
+        private const val VERTICAL_DRAG = 420f
+        private const val DURATION = 900L
     }
 
-    /** Call when a screenshot is captured and its viewport OCR has been parsed. */
     fun onViewportObserved(changed: Boolean) {
         if (changed) {
             waitingForViewportChange = false
             failedAttempts = 0
-            // The first observation establishes the baseline; it is not a sweep.
-            // Subsequent changed observations mean the previous sweep succeeded.
             if (lastDirection != null) step++
         } else if (waitingForViewportChange) {
             failedAttempts++
@@ -57,7 +56,9 @@ class CoverageSweepController {
     fun needsViewportChange(): Boolean = waitingForViewportChange
 
     fun nextSwipe(): SwipePlan {
-        // Serpentine coverage: horizontal sweeps followed by a vertical shift.
+        // Serpentine route: sweep a row, shift one row, reverse direction.
+        // The route repeats indefinitely so long-running scans keep expanding
+        // coverage instead of oscillating inside a tiny local area.
         val row = step / 2
         val evenRow = row % 2 == 0
         val direction = when (step % 4) {
@@ -75,7 +76,7 @@ class CoverageSweepController {
         }
     }
 
-    /** Retry the opposite direction exactly once after an unchanged viewport. */
+    /** Retry once in the opposite direction if the requested move produced no viewport change. */
     fun recoverySwipe(): SwipePlan? {
         if (!waitingForViewportChange || failedAttempts != 1) return null
         return when (lastDirection) {
