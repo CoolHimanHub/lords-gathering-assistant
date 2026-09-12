@@ -6,15 +6,20 @@ import kotlin.math.roundToInt
 /**
  * V40 adaptive isometric coordinate mapper.
  *
- * The mapper keeps the V38/V39 API but learns the pixel basis from repeated
- * viewport changes.  A single screenshot is never allowed to redefine the
- * grid: calibration requires a changed X/Y viewport and matching RSS badge
- * observations across two frames.  Physical taps remain screen-pixel based.
+ * The mapper learns the pixel basis only from repeated viewport movement and
+ * matching RSS observations. A single screenshot never redefines the grid.
+ * Physical taps remain screen-pixel based; game X/Y is reporting/identity only.
  */
 class GameCoordinateMapper {
     data class GameLocation(val x:Int,val y:Int)
 
-    data class Calibration(val halfTileW:Float,val halfTileH:Float,val samples:Int,val ready:Boolean)
+    data class Calibration(
+        val halfTileW:Float,
+        val halfTileH:Float,
+        val samples:Int,
+        val ready:Boolean,
+        val quality:Int
+    )
 
     companion object {
         private const val REF_W=1536f
@@ -25,7 +30,7 @@ class GameCoordinateMapper {
         private const val MAX_HALF_W=60f
         private const val MIN_HALF_H=9f
         private const val MAX_HALF_H=30f
-        private const val MATCH_RADIUS=120f
+        private const val MATCH_RADIUS=95f
 
         private fun scaleX(screenWidth:Int)=screenWidth/REF_W
         private fun scaleY(screenHeight:Int)=screenHeight/REF_H
@@ -36,44 +41,74 @@ class GameCoordinateMapper {
     private var samples=0
     private var previousViewport:MapViewportTracker.Viewport?=null
     private var previousPoints:List<Pair<Int,Int>> = emptyList()
+    private var acceptedPairs=0
+    private var rejectedPairs=0
 
     @Synchronized
-    fun observe(viewport:MapViewportTracker.Viewport, points:List<Pair<Int,Int>>, screenWidth:Int, screenHeight:Int){
+    fun observe(
+        viewport:MapViewportTracker.Viewport,
+        points:List<Pair<Int,Int>>,
+        screenWidth:Int,
+        screenHeight:Int
+    ){
         val oldViewport=previousViewport
         val oldPoints=previousPoints
+
         if(oldViewport!=null && oldPoints.isNotEmpty() && points.isNotEmpty()){
             val dvx=viewport.x-oldViewport.x
             val dvy=viewport.y-oldViewport.y
             if(abs(dvx)<=80 && abs(dvy)<=80 && (dvx!=0 || dvy!=0)){
-                val sx=scaleX(screenWidth); val sy=scaleY(screenHeight)
+                val sx=scaleX(screenWidth)
+                val sy=scaleY(screenHeight)
                 val expectedDx=-halfTileW*sx*(dvx-dvy)
                 val expectedDy=-halfTileH*sy*(dvx+dvy)
+                val used=HashSet<Int>()
+
                 for(p in points){
-                    val match=oldPoints.minByOrNull{q->
+                    var bestIndex=-1
+                    var bestDistance=Float.MAX_VALUE
+                    for(i in oldPoints.indices){
+                        if(i in used)continue
+                        val q=oldPoints[i]
                         val dx=(p.first-q.first).toFloat()-expectedDx
                         val dy=(p.second-q.second).toFloat()-expectedDy
-                        dx*dx+dy*dy
-                    } ?: continue
+                        val distance=dx*dx+dy*dy
+                        if(distance<bestDistance){bestDistance=distance;bestIndex=i}
+                    }
+                    if(bestIndex<0)continue
+                    val match=oldPoints[bestIndex]
                     val mdx=p.first-match.first
                     val mdy=p.second-match.second
-                    val denomW=(dvx-dvy)
-                    val denomH=(dvx+dvy)
+                    val residualX=abs(mdx-expectedDx)
+                    val residualY=abs(mdy-expectedDy)
+                    if(residualX>=MATCH_RADIUS*1.6f && residualY>=MATCH_RADIUS*1.6f){
+                        rejectedPairs++
+                        continue
+                    }
+                    used+=bestIndex
+                    acceptedPairs++
+
+                    val denomW=dvx-dvy
+                    val denomH=dvx+dvy
                     if(denomW!=0){
                         val estimate=(-mdx.toFloat()/denomW)/sx
-                        if(estimate in MIN_HALF_W..MAX_HALF_W && abs(mdx-expectedDx)<MATCH_RADIUS){
-                            halfTileW=blend(halfTileW,estimate,0.18f); samples++
+                        if(estimate in MIN_HALF_W..MAX_HALF_W && residualX<MATCH_RADIUS){
+                            halfTileW=blend(halfTileW,estimate,0.18f)
+                            samples++
                         }
                     }
                     if(denomH!=0){
                         val estimate=(-mdy.toFloat()/denomH)/sy
-                        if(estimate in MIN_HALF_H..MAX_HALF_H && abs(mdy-expectedDy)<MATCH_RADIUS){
-                            halfTileH=blend(halfTileH,estimate,0.18f); samples++
+                        if(estimate in MIN_HALF_H..MAX_HALF_H && residualY<MATCH_RADIUS){
+                            halfTileH=blend(halfTileH,estimate,0.18f)
+                            samples++
                         }
                     }
-                    if(samples>=60)break
+                    if(samples>=80)break
                 }
             }
         }
+
         previousViewport=viewport
         previousPoints=points
     }
@@ -81,19 +116,34 @@ class GameCoordinateMapper {
     private fun blend(old:Float,new:Float,weight:Float):Float = old*(1f-weight)+new*weight
 
     @Synchronized
-    fun calibration():Calibration = Calibration(
-        halfTileW,halfTileH,samples,samples>=4
-    )
-
-    @Synchronized
-    fun reset(){
-        halfTileW=DEFAULT_HALF_W;halfTileH=DEFAULT_HALF_H;samples=0
-        previousViewport=null;previousPoints= emptyList()
+    fun calibration():Calibration {
+        val sampleQuality=(samples*3).coerceAtMost(70)
+        val pairQuality=(acceptedPairs*2).coerceAtMost(20)
+        val rejectionPenalty=(rejectedPairs.coerceAtMost(10)*2)
+        val quality=(sampleQuality+pairQuality-rejectionPenalty).coerceIn(0,100)
+        return Calibration(halfTileW,halfTileH,samples,samples>=4,quality)
     }
 
     @Synchronized
-    fun map(screenX:Int,screenY:Int,viewportX:Int,viewportY:Int,
-            screenWidth:Int,screenHeight:Int):GameLocation {
+    fun reset(){
+        halfTileW=DEFAULT_HALF_W
+        halfTileH=DEFAULT_HALF_H
+        samples=0
+        acceptedPairs=0
+        rejectedPairs=0
+        previousViewport=null
+        previousPoints=emptyList()
+    }
+
+    @Synchronized
+    fun map(
+        screenX:Int,
+        screenY:Int,
+        viewportX:Int,
+        viewportY:Int,
+        screenWidth:Int,
+        screenHeight:Int
+    ):GameLocation {
         val sx=scaleX(screenWidth)
         val sy=scaleY(screenHeight)
         val centreX=screenWidth/2f
