@@ -4,11 +4,20 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * V40 adaptive isometric coordinate mapper.
+ * V42 robust isometric coordinate mapper.
  *
- * The mapper learns the pixel basis only from repeated viewport movement and
- * matching RSS observations. A single screenshot never redefines the grid.
- * Physical taps remain screen-pixel based; game X/Y is reporting/identity only.
+ * V41 used the current (possibly wrong) tile basis to predict where every RSS
+ * should move before matching it. That creates a circular dependency: a bad
+ * initial basis can prevent the correct RSS pairs from ever being accepted,
+ * leaving calibration at S:0 forever.
+ *
+ * V42 breaks that loop. Between two genuinely different viewports it first
+ * finds conservative one-to-one RSS matches from the observed screen motion,
+ * then estimates the horizontal/vertical tile basis from the matched pairs.
+ * Median estimates are used to reject accidental matches and only stable
+ * observations update the learned basis.
+ *
+ * Physical taps remain screen-pixel based. Game X/Y is reporting/identity only.
  */
 class GameCoordinateMapper {
     data class GameLocation(val x:Int,val y:Int)
@@ -30,7 +39,12 @@ class GameCoordinateMapper {
         private const val MAX_HALF_W=60f
         private const val MIN_HALF_H=9f
         private const val MAX_HALF_H=30f
-        private const val MATCH_RADIUS=95f
+
+        // RSS art can move a little between frames because of animation.
+        private const val PAIR_RADIUS=125f
+        private const val MIN_MATCHES_FOR_UPDATE=1
+        private const val MAX_MATCHES_PER_FRAME=40
+        private const val STABILITY_RATIO=0.35f
 
         private fun scaleX(screenWidth:Int)=screenWidth/REF_W
         private fun scaleY(screenHeight:Int)=screenHeight/REF_H
@@ -43,6 +57,8 @@ class GameCoordinateMapper {
     private var previousPoints:List<Pair<Int,Int>> = emptyList()
     private var acceptedPairs=0
     private var rejectedPairs=0
+    private var goodFrames=0
+    private var badFrames=0
 
     @Synchronized
     fun observe(
@@ -57,54 +73,54 @@ class GameCoordinateMapper {
         if(oldViewport!=null && oldPoints.isNotEmpty() && points.isNotEmpty()){
             val dvx=viewport.x-oldViewport.x
             val dvy=viewport.y-oldViewport.y
-            if(abs(dvx)<=80 && abs(dvy)<=80 && (dvx!=0 || dvy!=0)){
+
+            // Only learn from a real viewport change. Small header OCR jitter is
+            // ignored, while normal map movement is accepted.
+            if(abs(dvx)<=120 && abs(dvy)<=120 && (dvx!=0 || dvy!=0)){
                 val sx=scaleX(screenWidth)
                 val sy=scaleY(screenHeight)
-                val expectedDx=-halfTileW*sx*(dvx-dvy)
-                val expectedDy=-halfTileH*sy*(dvx+dvy)
-                val used=HashSet<Int>()
+                val matches=matchPoints(oldPoints,points)
+                val wEstimates=ArrayList<Float>()
+                val hEstimates=ArrayList<Float>()
 
-                for(p in points){
-                    var bestIndex=-1
-                    var bestDistance=Float.MAX_VALUE
-                    for(i in oldPoints.indices){
-                        if(i in used)continue
-                        val q=oldPoints[i]
-                        val dx=(p.first-q.first).toFloat()-expectedDx
-                        val dy=(p.second-q.second).toFloat()-expectedDy
-                        val distance=dx*dx+dy*dy
-                        if(distance<bestDistance){bestDistance=distance;bestIndex=i}
-                    }
-                    if(bestIndex<0)continue
-                    val match=oldPoints[bestIndex]
-                    val mdx=p.first-match.first
-                    val mdy=p.second-match.second
-                    val residualX=abs(mdx-expectedDx)
-                    val residualY=abs(mdy-expectedDy)
-                    if(residualX>=MATCH_RADIUS*1.6f && residualY>=MATCH_RADIUS*1.6f){
-                        rejectedPairs++
-                        continue
-                    }
-                    used+=bestIndex
-                    acceptedPairs++
+                for(match in matches.take(MAX_MATCHES_PER_FRAME)){
+                    val old=oldPoints[match.first]
+                    val now=points[match.second]
+                    val mdx=(now.first-old.first).toFloat()
+                    val mdy=(now.second-old.second).toFloat()
 
                     val denomW=dvx-dvy
                     val denomH=dvx+dvy
+
                     if(denomW!=0){
-                        val estimate=(-mdx.toFloat()/denomW)/sx
-                        if(estimate in MIN_HALF_W..MAX_HALF_W && residualX<MATCH_RADIUS){
-                            halfTileW=blend(halfTileW,estimate,0.18f)
-                            samples++
-                        }
+                        val estimate=(-mdx/denomW)/sx
+                        if(estimate in MIN_HALF_W..MAX_HALF_W)wEstimates+=estimate
                     }
                     if(denomH!=0){
-                        val estimate=(-mdy.toFloat()/denomH)/sy
-                        if(estimate in MIN_HALF_H..MAX_HALF_H && residualY<MATCH_RADIUS){
-                            halfTileH=blend(halfTileH,estimate,0.18f)
-                            samples++
-                        }
+                        val estimate=(-mdy/denomH)/sy
+                        if(estimate in MIN_HALF_H..MAX_HALF_H)hEstimates+=estimate
                     }
-                    if(samples>=80)break
+                }
+
+                val wMedian=median(wEstimates)
+                val hMedian=median(hEstimates)
+                val stableW=wMedian!=null && isStable(wEstimates,wMedian)
+                val stableH=hMedian!=null && isStable(hEstimates,hMedian)
+
+                if(matches.size>=MIN_MATCHES_FOR_UPDATE && (stableW||stableH)){
+                    if(stableW){
+                        halfTileW=blend(halfTileW,wMedian!!,0.30f)
+                        samples++
+                    }
+                    if(stableH){
+                        halfTileH=blend(halfTileH,hMedian!!,0.30f)
+                        samples++
+                    }
+                    acceptedPairs+=matches.size
+                    goodFrames++
+                }else{
+                    rejectedPairs+=matches.size.coerceAtLeast(1)
+                    badFrames++
                 }
             }
         }
@@ -113,15 +129,67 @@ class GameCoordinateMapper {
         previousPoints=points
     }
 
+    /**
+     * Match observations by actual screen displacement rather than by the
+     * currently learned basis. This is the key V42 change: matching no longer
+     * depends on calibration already being correct.
+     */
+    private fun matchPoints(
+        oldPoints:List<Pair<Int,Int>>,
+        newPoints:List<Pair<Int,Int>>
+    ):List<Pair<Int,Int>>{
+        val candidates=ArrayList<Triple<Float,Int,Int>>()
+        for(i in oldPoints.indices){
+            val old=oldPoints[i]
+            for(j in newPoints.indices){
+                val now=newPoints[j]
+                val dx=(now.first-old.first).toFloat()
+                val dy=(now.second-old.second).toFloat()
+                val distance=(dx*dx+dy*dy).toDouble().let{Math.sqrt(it)}.toFloat()
+                if(distance<=PAIR_RADIUS)candidates+=Triple(distance,i,j)
+            }
+        }
+
+        // Greedy nearest-neighbour assignment is deterministic and prevents
+        // one RSS from explaining multiple RSS observations.
+        candidates.sortBy{it.first}
+        val usedOld=HashSet<Int>()
+        val usedNew=HashSet<Int>()
+        val result=ArrayList<Pair<Int,Int>>()
+        for((distance,i,j) in candidates){
+            if(i in usedOld||j in usedNew)continue
+            usedOld+=i;usedNew+=j;result+=i to j
+        }
+        return result
+    }
+
+    private fun median(values:List<Float>):Float?{
+        if(values.isEmpty())return null
+        val sorted=values.sorted()
+        val mid=sorted.size/2
+        return if(sorted.size%2==0)(sorted[mid-1]+sorted[mid])/2f else sorted[mid]
+    }
+
+    private fun isStable(values:List<Float>,centre:Float):Boolean{
+        if(values.size<2)return true
+        val maxDeviation=values.maxOf{abs(it-centre)}
+        return maxDeviation<=max(centre*STABILITY_RATIO,2.5f)
+    }
+
+    private fun max(a:Float,b:Float)=if(a>b)a else b
+
     private fun blend(old:Float,new:Float,weight:Float):Float = old*(1f-weight)+new*weight
 
     @Synchronized
     fun calibration():Calibration {
-        val sampleQuality=(samples*3).coerceAtMost(70)
-        val pairQuality=(acceptedPairs*2).coerceAtMost(20)
-        val rejectionPenalty=(rejectedPairs.coerceAtMost(10)*2)
-        val quality=(sampleQuality+pairQuality-rejectionPenalty).coerceIn(0,100)
-        return Calibration(halfTileW,halfTileH,samples,samples>=4,quality)
+        // A single clean cross-viewport pair can be enough to get a useful
+        // estimate, but LOCKED requires repeated successful frames.
+        val ready=goodFrames>=3 && samples>=4
+        val sampleQuality=(samples*7).coerceAtMost(55)
+        val frameQuality=(goodFrames*8).coerceAtMost(32)
+        val rejectionPenalty=(badFrames.coerceAtMost(8)*2)
+        val quality=(sampleQuality+frameQuality-rejectionPenalty).coerceIn(0,100)
+        return Calibration(halfTileW,halfTileH,samples,ready,quality)
     }
 
     @Synchronized
@@ -131,6 +199,8 @@ class GameCoordinateMapper {
         samples=0
         acceptedPairs=0
         rejectedPairs=0
+        goodFrames=0
+        badFrames=0
         previousViewport=null
         previousPoints=emptyList()
     }
