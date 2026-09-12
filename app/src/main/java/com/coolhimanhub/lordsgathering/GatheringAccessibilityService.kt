@@ -25,19 +25,14 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.Executors
 import kotlin.math.min
 
-/**
- * V37 service.
- *
- * The live recordings exposed two bottlenecks: the old fixed 1536x707 map ROI
- * missed most of the 2756x1268 capture, and every scan performed a focused OCR
- * pass followed by an unnecessary full-screen OCR pass. V37 fixes both.
- */
+/** V38: fast scanner with game-coordinate RSS reporting. */
 class GatheringAccessibilityService : AccessibilityService() {
     private val handler=Handler(Looper.getMainLooper())
     private val analysisExecutor=Executors.newSingleThreadExecutor()
     private val textRecognizer:TextRecognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val viewportTracker=MapViewportTracker()
     private val sweepController=CoverageSweepController()
+    private val coordinateMapper=GameCoordinateMapper()
 
     @Volatile private var running=false
     @Volatile private var screenshotInProgress=false
@@ -58,7 +53,6 @@ class GatheringAccessibilityService : AccessibilityService() {
     private lateinit var screenAnalyzer:ScreenAnalyzer
     @Volatile private var autoGatheringActive=false
 
-    // Faster now that coordinate OCR is focused and there is no duplicate OCR.
     private val scanInterval=2200L
     private val panelWait=650L
     private val sweepWait=700L
@@ -67,17 +61,15 @@ class GatheringAccessibilityService : AccessibilityService() {
     private val seenCandidates=LinkedHashSet<String>()
 
     override fun onServiceConnected(){
-        super.onServiceConnected()
-        serviceAlive=true
+        super.onServiceConnected();serviceAlive=true
         try{
             windowManager=getSystemService(WINDOW_SERVICE) as WindowManager
             gatheringEngine=AutoGatheringEngine(this,handler)
             screenAnalyzer=ScreenAnalyzer()
-            viewportTracker.reset()
-            sweepController.reset()
+            viewportTracker.reset();sweepController.reset()
             handler.post{if(serviceAlive)showFloatingControl()}
         }catch(_:Exception){
-            safeStatus("V37 service ready\nOverlay retrying...")
+            safeStatus("V38 service ready\nOverlay retrying...")
             handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)
         }
     }
@@ -89,16 +81,13 @@ class GatheringAccessibilityService : AccessibilityService() {
         if(!serviceAlive||overlayView!=null)return
         val wm=windowManager?:return
         val container=LinearLayout(this).apply{
-            orientation=LinearLayout.VERTICAL
-            setPadding(10,8,10,8)
-            setBackgroundColor(Color.rgb(65,65,65))
+            orientation=LinearLayout.VERTICAL;setPadding(10,8,10,8);setBackgroundColor(Color.rgb(65,65,65))
         }
         val title=TextView(this).apply{
-            text="Lords Assistant V37"; textSize=16f; setTextColor(Color.WHITE)
-            gravity=Gravity.CENTER; setPadding(8,4,8,8)
+            text="Lords Assistant V38";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
         }
         title.setOnTouchListener(object:View.OnTouchListener{
-            private var startX=0f; private var startY=0f; private var startParamX=0; private var startParamY=0
+            private var startX=0f;private var startY=0f;private var startParamX=0;private var startParamY=0
             override fun onTouch(view:View?,event:MotionEvent):Boolean{
                 val p=overlayParams?:return false
                 when(event.actionMasked){
@@ -109,19 +98,16 @@ class GatheringAccessibilityService : AccessibilityService() {
             }
         })
         val startButton=Button(this).apply{
-            text="▶ SCAN"
-            setOnClickListener{try{if(running)stopAutomation()else startAutomation()}catch(e:Exception){safeStatus("Button error: ${e.javaClass.simpleName}")}}
+            text="▶ SCAN";setOnClickListener{try{if(running)stopAutomation()else startAutomation()}catch(e:Exception){safeStatus("Button error: ${e.javaClass.simpleName}")}}
         }
         val scanBtn=Button(this).apply{
-            text="🔍 ONE SCAN"
-            setOnClickListener{try{scanScreen(moveAfterScan=false)}catch(e:Exception){safeStatus("Scan error: ${e.javaClass.simpleName}")}}
+            text="🔍 ONE SCAN";setOnClickListener{try{scanScreen(false)}catch(e:Exception){safeStatus("Scan error: ${e.javaClass.simpleName}")}}
         }
         val gatherBtn=Button(this).apply{
-            text="⚔ AUTO GATHER"
-            setOnClickListener{try{if(autoGatheringActive)stopAutoGathering()else startAutoGathering()}catch(e:Exception){safeStatus("Gather error: ${e.javaClass.simpleName}")}}
+            text="⚔ AUTO GATHER";setOnClickListener{try{if(autoGatheringActive)stopAutoGathering()else startAutoGathering()}catch(e:Exception){safeStatus("Gather error: ${e.javaClass.simpleName}")}}
         }
         val info=TextView(this).apply{
-            text="V37 Scanner ready\nFast focused viewport OCR\nResolution-aware map coverage\nOpened-panel verification required"
+            text="V38 Scanner ready\nGame X/Y RSS locations\nFast focused viewport OCR\nResolution-aware map coverage\nOpened-panel verification required"
             textSize=10.5f;setTextColor(Color.WHITE);gravity=Gravity.LEFT;setPadding(6,5,6,2);setLineSpacing(0f,1.05f)
         }
         infoText=info;startStopButton=startButton;scanButton=scanBtn;gatherButton=gatherBtn
@@ -129,14 +115,9 @@ class GatheringAccessibilityService : AccessibilityService() {
         val scroll=ScrollView(this).apply{isFillViewport=false;setPadding(0,2,0,0)}
         scroll.addView(info,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT))
         container.addView(scroll,LinearLayout.LayoutParams(470,520))
-        val params=WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT
-        )
-        params.gravity=Gravity.TOP or Gravity.START;params.x=100;params.y=80
-        overlayParams=params
-        try{wm.addView(container,params);overlayView=container;safeStatus("V37 Scanner ready\nFast X/Y validation enabled\nResolution-aware coverage ready")}
+        val params=WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT)
+        params.gravity=Gravity.TOP or Gravity.START;params.x=100;params.y=80;overlayParams=params
+        try{wm.addView(container,params);overlayView=container;safeStatus("V38 Scanner ready\nGame X/Y RSS locations enabled\nResolution-aware coverage ready")}
         catch(_:Exception){overlayView=null;overlayParams=null;infoText=null;startStopButton=null;scanButton=null;gatherButton=null;handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)}
     }
 
@@ -145,8 +126,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     private fun startAutomation(){
         if(running||!serviceAlive)return
         running=true;scanCount=0;seenCandidates.clear();viewportTracker.reset();sweepController.reset();sweepInProgress=false
-        updateStartStopButton()
-        safeStatus("V37 AUTO SCAN started\nEstablishing map viewport...\nFast focused X/Y validation")
+        updateStartStopButton();safeStatus("V38 AUTO SCAN started\nEstablishing map viewport...\nGame-coordinate reporting enabled")
         handler.removeCallbacks(scanRunnable);handler.postDelayed(scanRunnable,500)
     }
 
@@ -157,21 +137,19 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun startAutoGathering(){
         if(autoGatheringActive||!serviceAlive)return
-        autoGatheringActive=true;updateGatherButton();gatheringEngine.startGathering()
-        safeStatus("AUTO GATHER ACTIVE\nNew viewport -> candidate -> panel -> OCR -> verify")
+        autoGatheringActive=true;updateGatherButton();gatheringEngine.startGathering();safeStatus("AUTO GATHER ACTIVE\nNew viewport -> candidate -> panel -> OCR -> verify")
         if(!running)startAutomation()
     }
 
     private fun stopAutoGathering(){
-        autoGatheringActive=false
-        try{gatheringEngine.stopGathering()}catch(_:Exception){}
+        autoGatheringActive=false;try{gatheringEngine.stopGathering()}catch(_:Exception){}
         updateGatherButton();safeStatus("AUTO GATHER STOPPED\nNo further Gather action will be sent")
     }
 
     private val scanRunnable=object:Runnable{
         override fun run(){
             if(!running||!serviceAlive)return
-            try{scanScreen(moveAfterScan=true)}catch(e:Exception){safeStatus("Scan exception: ${e.javaClass.simpleName}")}
+            try{scanScreen(true)}catch(e:Exception){safeStatus("Scan exception: ${e.javaClass.simpleName}")}
             if(running&&serviceAlive)handler.postDelayed(this,scanInterval)
         }
     }
@@ -197,71 +175,54 @@ class GatheringAccessibilityService : AccessibilityService() {
             val hb=try{Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer,screenshot.colorSpace)}catch(_:Exception){null}
             if(hb==null){screenshotInProgress=false;try{screenshot.hardwareBuffer.close()}catch(_:Exception){};return}
             val bitmap=try{hb.copy(Bitmap.Config.ARGB_8888,false)}catch(_:Exception){null}
-            try{hb.recycle()}catch(_:Exception){}
-            try{screenshot.hardwareBuffer.close()}catch(_:Exception){}
+            try{hb.recycle()}catch(_:Exception){};try{screenshot.hardwareBuffer.close()}catch(_:Exception){}
             if(bitmap==null){screenshotInProgress=false;return}
-
             analysisExecutor.execute{
                 try{
                     if(!serviceAlive){recycleBitmap(bitmap);return@execute}
                     val detections=screenAnalyzer.analyzeScreenshot(bitmap)
-                    // V37: focused OCR already ran on this exact bitmap. Do not
-                    // perform a second full-screen OCR pass.
                     recognizeViewport(thisScan,moveAfterScan,detections,bitmap)
-                }catch(e:Exception){
-                    safeStatus("Analysis error: ${e.javaClass.simpleName}\n${e.message?:"unknown"}")
-                    screenshotInProgress=false;recycleBitmap(bitmap)
-                }
+                }catch(e:Exception){safeStatus("Analysis error: ${e.javaClass.simpleName}\n${e.message?:"unknown"}");screenshotInProgress=false;recycleBitmap(bitmap)}
             }
         }catch(e:Exception){screenshotInProgress=false;safeStatus("Screenshot processing error: ${e.javaClass.simpleName}")}
     }
 
-    private fun recognizeViewport(
-        scanNumber:Int,
-        moveAfterScan:Boolean,
-        detections:List<ScreenAnalyzer.RssDetection>,
-        bitmap:Bitmap
-    ){
+    private fun recognizeViewport(scanNumber:Int,moveAfterScan:Boolean,detections:List<ScreenAnalyzer.RssDetection>,bitmap:Bitmap){
         val viewport=viewportTracker.parse("")
-        if(viewport==null){
-            screenshotInProgress=false
-            safeStatus("Scan #$scanNumber\nViewport X/Y not readable\nCoverage sweep PAUSED")
-            recycleBitmap(bitmap);return
-        }
-        val changed=viewportTracker.update(viewport)
-        sweepController.onViewportObserved(changed)
-        handleScanResult(scanNumber,detections,viewport,changed,moveAfterScan)
-        screenshotInProgress=false
-        recycleBitmap(bitmap)
+        if(viewport==null){screenshotInProgress=false;safeStatus("Scan #$scanNumber\nViewport X/Y not readable\nCoverage sweep PAUSED");recycleBitmap(bitmap);return}
+        val changed=viewportTracker.update(viewport);sweepController.onViewportObserved(changed)
+        handleScanResult(scanNumber,detections,viewport,changed,moveAfterScan,bitmap.width,bitmap.height)
+        screenshotInProgress=false;recycleBitmap(bitmap)
     }
 
-    private fun handleScanResult(
-        scanNumber:Int,
-        detections:List<ScreenAnalyzer.RssDetection>,
-        viewport:MapViewportTracker.Viewport,
-        viewportChanged:Boolean,
-        moveAfterScan:Boolean
-    ){
+    private fun handleScanResult(scanNumber:Int,detections:List<ScreenAnalyzer.RssDetection>,viewport:MapViewportTracker.Viewport,viewportChanged:Boolean,moveAfterScan:Boolean,screenWidth:Int,screenHeight:Int){
         val targets=detections.filter{it.confidence>=minimumConfidence}.map{d->
-            AutoGatheringEngine.RssTarget("RSS?",0,d.centerX,d.centerY,d.confidence,false,0,d.confidence,false,0)
-        }.sortedByDescending{it.confidence}
+            val game=coordinateMapper.map(d.centerX,d.centerY,viewport.x,viewport.y,screenWidth,screenHeight)
+            TargetWithGame(d,AutoGatheringEngine.RssTarget("RSS?",0,d.centerX,d.centerY,d.confidence,false,0,d.confidence,false,0),game)
+        }.sortedByDescending{it.detection.confidence}
         val displayCount=min(targets.size,maximumDisplayedTargets)
-        val status=StringBuilder().append("Scan #$scanNumber  X:${viewport.x} Y:${viewport.y}\n")
+        val status=StringBuilder().append("Scan #$scanNumber  View X:${viewport.x} Y:${viewport.y}\n")
             .append(if(viewportChanged)"NEW VIEWPORT\n"else"SAME VIEWPORT\n")
-            .append("Found $displayCount badge candidates:\n")
-        for(i in 0 until displayCount){val t=targets[i];status.append("${i+1}. RSS? @ ${t.x},${t.y} (${t.confidence}%)\n")}
+            .append("RSS locations (game coordinates):\n")
+        for(i in 0 until displayCount){
+            val t=targets[i]
+            status.append("${i+1}. RSS @ X:${t.game.x} Y:${t.game.y} (${t.detection.confidence}%)\n")
+        }
+        if(displayCount==0)status.append("No validated RSS badge candidates\n")
         safeStatus(status.toString())
 
         if(autoGatheringActive&&viewportChanged&&!actionInProgress){
-            val fresh=targets.filter{markCandidateSeen(viewport,it)}
+            val fresh=targets.filter{markCandidateSeen(viewport,it.target,it.game)}
             if(fresh.isNotEmpty())probeBestCandidate(fresh)
             else safeStatus(status.append("No new candidates in this viewport").toString())
         }
         if(moveAfterScan&&running&&!actionInProgress&&!sweepInProgress)scheduleCoverageSweep()
     }
 
-    private fun markCandidateSeen(viewport:MapViewportTracker.Viewport,target:AutoGatheringEngine.RssTarget):Boolean{
-        val key="${viewport.x}:${viewport.y}:${target.x/32}:${target.y/32}"
+    private data class TargetWithGame(val detection:ScreenAnalyzer.RssDetection,val target:AutoGatheringEngine.RssTarget,val game:GameCoordinateMapper.GameLocation)
+
+    private fun markCandidateSeen(viewport:MapViewportTracker.Viewport,target:AutoGatheringEngine.RssTarget,game:GameCoordinateMapper.GameLocation):Boolean{
+        val key="${game.x}:${game.y}"
         return seenCandidates.add(key)
     }
 
@@ -282,13 +243,13 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun probeBestCandidate(targets:List<AutoGatheringEngine.RssTarget>){
-        val candidate=targets.maxByOrNull{it.confidence}?:return
-        actionInProgress=true;safeStatus("Opening NEW candidate\n@ ${candidate.x},${candidate.y}\nWaiting for tile panel...")
+    private fun probeBestCandidate(targets:List<TargetWithGame>){
+        val candidate=targets.maxByOrNull{it.detection.confidence}?:return
+        actionInProgress=true;safeStatus("Opening NEW candidate\nGame location X:${candidate.game.x} Y:${candidate.game.y}\nWaiting for tile panel...")
         handler.post{
             if(!serviceAlive){actionInProgress=false;return@post}
-            if(!tapAt(candidate.x,candidate.y)){actionInProgress=false;safeStatus("Candidate tap failed\nNo Gather action sent");return@post}
-            handler.postDelayed({capturePanelForVerification(candidate)},panelWait)
+            if(!tapAt(candidate.target.x,candidate.target.y)){actionInProgress=false;safeStatus("Candidate tap failed\nNo Gather action sent");return@post}
+            handler.postDelayed({capturePanelForVerification(candidate.target)},panelWait)
         }
     }
 
@@ -299,14 +260,13 @@ class GatheringAccessibilityService : AccessibilityService() {
                 override fun onSuccess(screenshot:ScreenshotResult){
                     val hb=try{Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer,screenshot.colorSpace)}catch(_:Exception){null}
                     val bitmap=try{hb?.copy(Bitmap.Config.ARGB_8888,false)}catch(_:Exception){null}
-                    try{hb?.recycle()}catch(_:Exception){}
-                    try{screenshot.hardwareBuffer.close()}catch(_:Exception){}
+                    try{hb?.recycle()}catch(_:Exception){};try{screenshot.hardwareBuffer.close()}catch(_:Exception){ }
                     if(bitmap==null){actionInProgress=false;safeStatus("Panel screenshot failed\nNo Gather action sent");return}
                     runPanelOcr(bitmap,candidate)
                 }
                 override fun onFailure(errorCode:Int){actionInProgress=false;safeStatus("Panel capture failed: $errorCode\nNo Gather action sent")}
             })
-        }catch(e:Exception){actionInProgress=false;safeStatus("Panel capture exception: ${e.javaClass.simpleName}")}
+        }catch(e:Exception){actionInProgress=false;safeStatus("Panel capture exception: ${e.javaClass.simpleName}\nNo Gather action sent")}
     }
 
     private fun runPanelOcr(bitmap:Bitmap,candidate:AutoGatheringEngine.RssTarget){
@@ -349,7 +309,6 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     private fun recycleBitmap(bitmap:Bitmap){try{if(!bitmap.isRecycled)bitmap.recycle()}catch(_:Exception){}}
-
     private fun updateStartStopButton(){handler.post{try{startStopButton?.text=if(running)"⏸ STOP"else"▶ SCAN"}catch(_:Exception){}}}
     private fun updateGatherButton(){handler.post{try{gatherButton?.text=if(autoGatheringActive)"⏸ STOP GATHER"else"⚔ AUTO GATHER"}catch(_:Exception){}}}
     private fun safeStatus(status:String){handler.post{try{infoText?.text=status}catch(_:Exception){}}}
@@ -362,7 +321,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         try{analysisExecutor.shutdownNow()}catch(_:Exception){}
         try{textRecognizer.close()}catch(_:Exception){}
         try{overlayView?.let{windowManager?.removeView(it)}}catch(_:Exception){}
-        overlayView=null
+        overlayView=null;overlayParams=null;infoText=null;startStopButton=null;scanButton=null;gatherButton=null
         super.onDestroy()
     }
 }
