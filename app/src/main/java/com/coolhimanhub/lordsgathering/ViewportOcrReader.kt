@@ -2,7 +2,8 @@ package com.coolhimanhub.lordsgatheringassistant
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Rect
 import com.google.android.gms.tasks.Tasks
@@ -12,16 +13,13 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 /**
- * V35 focused map-coordinate OCR.
+ * V36 focused map-coordinate OCR.
  *
- * The game renders X/Y in a small HUD near the upper-middle of the map. V34
- * used broad crops, which allowed unrelated numbers and map text to compete
- * with the coordinate pair. V35 uses a tight crop first, then progressively
- * wider fallbacks. Each crop is tested in several visual variants and only an
- * explicit, plausible X/Y pair is accepted.
- *
- * A failed read is a safe failure: the caller must pause coverage rather than
- * guessing a viewport from pixels or stale OCR.
+ * The viewport used by the scanner must come from the same captured frame as
+ * the badge detections. This reader therefore performs focused OCR only on
+ * that bitmap and accepts only an explicit, plausible X/Y pair. If it cannot
+ * prove the pair, the caller must pause rather than fall back to unrelated
+ * full-screen OCR.
  */
 object ViewportOcrReader {
     data class Result(val x: Int, val y: Int)
@@ -35,23 +33,20 @@ object ViewportOcrReader {
         val h = bitmap.height
         if (w < 600 || h < 400) return null
 
-        // Calibrated from the supplied 1536x707 recordings. The first crop is
-        // intentionally tight around the visible "X:### Y:###" HUD. Wider
-        // crops are fallbacks for devices/scales where the HUD moves slightly.
+        // Multiple normalized crops make the reader tolerant of the different
+        // capture sizes/aspect ratios seen in the live-game recording and the
+        // earlier 1536x707 screenshots.
         val crops = listOf(
-            Crop((w * 0.455f).toInt(), (h * 0.065f).toInt(), (w * 0.635f).toInt(), (h * 0.19f).toInt()),
             Crop((w * 0.40f).toInt(), (h * 0.035f).toInt(), (w * 0.70f).toInt(), (h * 0.21f).toInt()),
+            Crop((w * 0.455f).toInt(), (h * 0.065f).toInt(), (w * 0.635f).toInt(), (h * 0.19f).toInt()),
             Crop((w * 0.32f).toInt(), (h * 0.015f).toInt(), (w * 0.80f).toInt(), (h * 0.25f).toInt()),
-            // Last fallback: the whole top HUD strip, still excluding most of
-            // the map and the bottom fixed controls.
             Crop((w * 0.25f).toInt(), 0, (w * 0.86f).toInt(), (h * 0.30f).toInt())
         )
 
         for (definition in crops) {
             val crop = makeCrop(bitmap, definition) ?: continue
             try {
-                val variants = makeVariants(crop)
-                for (variant in variants) {
+                for (variant in makeVariants(crop)) {
                     try {
                         val scaled = Bitmap.createScaledBitmap(
                             variant,
@@ -100,30 +95,20 @@ object ViewportOcrReader {
         return try { Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top) } catch (_: Exception) { null }
     }
 
-    /**
-     * Keep the original RGB crop plus two cheap preprocessing variants. The
-     * coordinate text is bright over a dark/translucent HUD, so grayscale and
-     * high-contrast variants often succeed when the raw crop does not.
-     */
     private fun makeVariants(source: Bitmap): List<Bitmap> {
         val gray = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
         val highContrast = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-        val canvasGray = Canvas(gray)
-        val canvasContrast = Canvas(highContrast)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val grayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         val contrastPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        val matrix = android.graphics.ColorMatrix().apply { setSaturation(0f) }
-        val contrastMatrix = android.graphics.ColorMatrix(floatArrayOf(
+        grayPaint.colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
+        contrastPaint.colorFilter = ColorMatrixColorFilter(ColorMatrix(floatArrayOf(
             2.2f, 0f, 0f, 0f, -170f,
             0f, 2.2f, 0f, 0f, -170f,
             0f, 0f, 2.2f, 0f, -170f,
             0f, 0f, 0f, 1f, 0f
-        ))
-        paint.colorFilter = android.graphics.ColorMatrixColorFilter(matrix)
-        contrastPaint.colorFilter = android.graphics.ColorMatrixColorFilter(contrastMatrix)
-        canvasGray.drawBitmap(source, null, Rect(0, 0, source.width, source.height), paint)
-        canvasContrast.drawBitmap(source, null, Rect(0, 0, source.width, source.height), contrastPaint)
+        )))
+        Canvas(gray).drawBitmap(source, null, Rect(0, 0, source.width, source.height), grayPaint)
+        Canvas(highContrast).drawBitmap(source, null, Rect(0, 0, source.width, source.height), contrastPaint)
         return listOf(source, gray, highContrast)
     }
 
@@ -143,11 +128,6 @@ object ViewportOcrReader {
         return null
     }
 
-    /**
-     * ML Kit commonly confuses the HUD glyphs X/Y and punctuation. Normalize
-     * only characters that are plausible OCR substitutions; never manufacture
-     * missing digits.
-     */
     private fun normalize(text: String): String = text
         .replace('\n', ' ')
         .replace('\r', ' ')
@@ -162,11 +142,7 @@ object ViewportOcrReader {
         .replace(Regex("\\s+"), " ")
         .trim()
 
-    private fun repair(text: String): String {
-        val normalized = normalize(text)
-        // OCR sometimes inserts a space between a label and punctuation.
-        return normalized
-            .replace(Regex("(?i)\\bX\\s*[:;.]?\\s*(?=\\d)"), "X:")
-            .replace(Regex("(?i)\\bY\\s*[:;.]?\\s*(?=\\d)"), "Y:")
-    }
+    private fun repair(text: String): String = normalize(text)
+        .replace(Regex("(?i)\\bX\\s*[:;.]?\\s*(?=\\d)"), "X:")
+        .replace(Regex("(?i)\\bY\\s*[:;.]?\\s*(?=\\d)"), "Y:")
 }
