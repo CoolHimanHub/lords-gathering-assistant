@@ -1,6 +1,6 @@
 package com.coolhimanhub.lordsgatheringassistant
 
-/** V54: OCR bridge that preserves the last confirmed coordinate as fallback. */
+/** V54: OCR bridge with an explicit authoritative/fallback distinction. */
 object ViewportOcrCache {
     @Volatile private var latest: ViewportOcrReader.Result? = null
     @Volatile private var lastConfirmed: ViewportOcrReader.Result? = null
@@ -10,7 +10,8 @@ object ViewportOcrCache {
         if(result!=null) lastConfirmed=result
     }
 
-    fun get():ViewportOcrReader.Result? = latest ?: lastConfirmed ?: ViewportOcrReader.Result(0,0)
+    /** Latest OCR result, or the last confirmed result when OCR missed this frame. */
+    fun get():ViewportOcrReader.Result? = latest ?: lastConfirmed
 
     fun clear() {
         latest=null
