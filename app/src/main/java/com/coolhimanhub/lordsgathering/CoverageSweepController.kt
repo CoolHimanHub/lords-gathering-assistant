@@ -3,16 +3,11 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.PointF
 
 /**
- * V53: resilient serpentine coverage controller.
+ * V54: OCR-independent serpentine coverage controller.
  *
- * Coverage gestures must stay in the game-map lanes and must never start
- * inside the floating Assistant overlay. The overlay is fixed at the upper
- * left in the current UI, so horizontal sweeps use the central/lower map
- * lane and vertical sweeps use the right map lane.
- *
- * The route advances only after movement is confirmed by a fresh viewport
- * observation. A stalled step is never silently converted into the next
- * route step.
+ * X/Y OCR is calibration/reporting data, not a hard navigation dependency.
+ * A dispatched swipe advances the route; later OCR or visual analysis can
+ * validate the resulting viewport without freezing the sweep.
  */
 class CoverageSweepController {
     enum class Direction { RIGHT, DOWN, LEFT, UP }
@@ -25,13 +20,10 @@ class CoverageSweepController {
     )
 
     private var step = 0
-    private var waitingForViewportChange = false
     private var lastDirection: Direction? = null
     private var failedAttempts = 0
 
     companion object {
-        // Keep every automated swipe clear of the fixed Assistant overlay.
-        // Overlay occupies approximately x=100..570 in the reference layout.
         private const val LEFT = 700f
         private const val RIGHT = 1320f
         private const val TOP = 150f
@@ -41,8 +33,6 @@ class CoverageSweepController {
         private const val HORIZONTAL_DRAG = 560f
         private const val VERTICAL_DRAG = 300f
         private const val NORMAL_DURATION = 620L
-
-        // Recovery lanes are also kept away from the overlay.
         private const val RECOVERY_LEFT = 720f
         private const val RECOVERY_RIGHT = 1280f
         private const val RECOVERY_TOP = 180f
@@ -53,41 +43,32 @@ class CoverageSweepController {
         private const val MAX_RECOVERY_ATTEMPTS = 6
     }
 
+    /** Kept for compatibility with the service; movement OCR is advisory only. */
     fun onViewportObserved(changed: Boolean, authoritative: Boolean = true) {
-        if (!authoritative) return
-        if (changed) {
-            if (waitingForViewportChange && lastDirection != null) step++
-            waitingForViewportChange = false
-            failedAttempts = 0
-        } else if (waitingForViewportChange) {
-            failedAttempts++
-        }
+        if (changed && authoritative) failedAttempts = 0
     }
 
     fun markSwipeIssued(direction: Direction) {
-        waitingForViewportChange = true
         lastDirection = direction
+        failedAttempts = 0
+        // Advance immediately. The next screenshot is responsible for sensing
+        // what actually became visible; OCR failure must not stall navigation.
+        step++
     }
 
     fun markDispatchFailure(direction: Direction) {
-        waitingForViewportChange = true
         lastDirection = direction
         failedAttempts++
     }
 
-    fun needsViewportChange(): Boolean = waitingForViewportChange
+    fun needsViewportChange(): Boolean = false
     fun failureCount(): Int = failedAttempts
 
     fun nextSwipe(): SwipePlan {
-        // Never advance the serpentine route while the previous step is still
-        // awaiting movement confirmation.
-        if (waitingForViewportChange && lastDirection != null) {
-            return normalSwipe(lastDirection!!)
-        }
-
-        val row = step / 2
+        val routeStep = step
+        val row = routeStep / 2
         val evenRow = row % 2 == 0
-        val direction = when (step % 4) {
+        val direction = when (routeStep % 4) {
             0 -> if (evenRow) Direction.RIGHT else Direction.LEFT
             1 -> Direction.DOWN
             2 -> if (evenRow) Direction.LEFT else Direction.RIGHT
@@ -97,81 +78,47 @@ class CoverageSweepController {
     }
 
     private fun normalSwipe(direction: Direction): SwipePlan = when (direction) {
-        Direction.RIGHT -> SwipePlan(
-            direction,
-            PointF(LEFT, MID_Y),
-            PointF(LEFT + HORIZONTAL_DRAG, MID_Y),
-            NORMAL_DURATION
-        )
-
-        Direction.LEFT -> SwipePlan(
-            direction,
-            PointF(RIGHT, MID_Y),
-            PointF(RIGHT - HORIZONTAL_DRAG, MID_Y),
-            NORMAL_DURATION
-        )
-
-        Direction.DOWN -> SwipePlan(
-            direction,
-            PointF(MID_X, TOP),
-            PointF(MID_X, TOP + VERTICAL_DRAG),
-            NORMAL_DURATION
-        )
-
-        Direction.UP -> SwipePlan(
-            direction,
-            PointF(MID_X, BOTTOM),
-            PointF(MID_X, BOTTOM - VERTICAL_DRAG),
-            NORMAL_DURATION
-        )
+        Direction.RIGHT -> SwipePlan(direction, PointF(LEFT, MID_Y), PointF(LEFT + HORIZONTAL_DRAG, MID_Y), NORMAL_DURATION)
+        Direction.LEFT -> SwipePlan(direction, PointF(RIGHT, MID_Y), PointF(RIGHT - HORIZONTAL_DRAG, MID_Y), NORMAL_DURATION)
+        Direction.DOWN -> SwipePlan(direction, PointF(MID_X, TOP), PointF(MID_X, TOP + VERTICAL_DRAG), NORMAL_DURATION)
+        Direction.UP -> SwipePlan(direction, PointF(MID_X, BOTTOM), PointF(MID_X, BOTTOM - VERTICAL_DRAG), NORMAL_DURATION)
     }
 
-    /** Retry the SAME intended direction when the viewport did not move. */
+    /** Retry the last intended direction only when gesture dispatch itself failed. */
     fun recoverySwipe(): SwipePlan? {
-        if (!waitingForViewportChange) return null
         val direction = lastDirection ?: return null
         if (failedAttempts !in 1..MAX_RECOVERY_ATTEMPTS) return null
-
         val attempt = failedAttempts
-        val (sx, sy) = when (attempt) {
-            1 -> RECOVERY_RIGHT to RECOVERY_BOTTOM
-            2 -> RECOVERY_LEFT to RECOVERY_TOP
-            3 -> RECOVERY_RIGHT to RECOVERY_TOP
-            4 -> RECOVERY_LEFT to RECOVERY_BOTTOM
-            5 -> MID_X to RECOVERY_TOP
-            else -> MID_X to RECOVERY_BOTTOM
+        val sx: Float
+        val sy: Float
+        when (attempt) {
+            1 -> { sx = RECOVERY_RIGHT; sy = RECOVERY_BOTTOM }
+            2 -> { sx = RECOVERY_LEFT; sy = RECOVERY_TOP }
+            3 -> { sx = RECOVERY_RIGHT; sy = RECOVERY_TOP }
+            4 -> { sx = RECOVERY_LEFT; sy = RECOVERY_BOTTOM }
+            5 -> { sx = MID_X; sy = RECOVERY_TOP }
+            else -> { sx = MID_X; sy = RECOVERY_BOTTOM }
         }
-
         val drag = if (attempt >= 5) MICRO_DRAG else RECOVERY_DRAG
-
         val ex = when (direction) {
             Direction.RIGHT -> sx + drag
             Direction.LEFT -> sx - drag
             Direction.DOWN, Direction.UP -> sx
         }
-
         val ey = when (direction) {
             Direction.DOWN -> sy + drag
             Direction.UP -> sy - drag
             Direction.RIGHT, Direction.LEFT -> sy
         }
-
-        return SwipePlan(
-            direction,
-            PointF(sx, sy),
-            PointF(ex, ey),
-            RECOVERY_DURATION
-        )
+        return SwipePlan(direction, PointF(sx, sy), PointF(ex, ey), RECOVERY_DURATION)
     }
 
     fun releaseStall() {
-        waitingForViewportChange = false
         failedAttempts = 0
     }
 
     fun reset() {
         step = 0
-        waitingForViewportChange = false
         lastDirection = null
         failedAttempts = 0
     }
