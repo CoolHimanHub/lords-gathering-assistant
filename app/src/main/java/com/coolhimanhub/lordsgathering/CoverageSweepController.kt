@@ -3,17 +3,11 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.PointF
 
 /**
- * V46: movement-first deterministic map coverage planner.
+ * V47: movement-first deterministic map coverage planner.
  *
- * The V45 screenshots showed that the planner could keep issuing coverage
- * commands while the game stayed on the same X/Y viewport. V46 therefore
- * treats movement as a state machine: a step is never accepted until a later
- * screenshot proves that the world X/Y changed.
- *
- * The first attempt uses a normal long drag. If the viewport does not change,
- * recovery attempts keep the SAME intended direction but use a different
- * touch anchor and shorter stroke. This avoids immediately undoing a partially
- * successful pan with an opposite-direction recovery gesture.
+ * A sweep step is accepted ONLY after a fresh HUD X/Y observation proves that
+ * the viewport changed. A stalled gesture never advances the route and never
+ * silently switches to the opposite direction.
  */
 class CoverageSweepController {
     enum class Direction { RIGHT, DOWN, LEFT, UP }
@@ -32,7 +26,7 @@ class CoverageSweepController {
 
     companion object {
         // 1536x707 reference viewport from the supplied phone screenshots.
-        // Keep every gesture inside the actual map area and away from the
+        // Keep gestures inside the actual map area and away from the
         // bottom action bar / right-side controls.
         private const val LEFT = 520f
         private const val RIGHT = 1250f
@@ -45,19 +39,34 @@ class CoverageSweepController {
         private const val VERTICAL_DRAG = 315f
         private const val NORMAL_DURATION = 620L
 
-        private const val RECOVERY_LEFT = 720f
-        private const val RECOVERY_RIGHT = 1080f
-        private const val RECOVERY_TOP = 185f
-        private const val RECOVERY_BOTTOM = 455f
-        private const val RECOVERY_DRAG = 300f
-        private const val RECOVERY_DURATION = 480L
+        // Recovery anchors deliberately stay away from the normal gesture
+        // anchors. All recovery gestures preserve the intended direction.
+        private const val RECOVERY_LEFT = 700f
+        private const val RECOVERY_RIGHT = 1110f
+        private const val RECOVERY_TOP = 175f
+        private const val RECOVERY_BOTTOM = 465f
+        private const val RECOVERY_DRAG = 270f
+        private const val RECOVERY_DURATION = 500L
+
+        private const val MAX_RECOVERY_ATTEMPTS = 4
     }
 
-    fun onViewportObserved(changed: Boolean) {
+    /**
+     * Consume a viewport observation.
+     *
+     * Only a fresh/authoritative coordinate can confirm movement. A fallback
+     * coordinate is intentionally ignored by the sweep state machine.
+     */
+    fun onViewportObserved(changed: Boolean, authoritative: Boolean = true) {
+        if (!authoritative) return
+
         if (changed) {
+            // A route step advances only when we were actually waiting for the
+            // gesture to be validated. User movement before the first sweep
+            // must not consume a route step.
+            if (waitingForViewportChange && lastDirection != null) step++
             waitingForViewportChange = false
             failedAttempts = 0
-            if (lastDirection != null) step++
         } else if (waitingForViewportChange) {
             failedAttempts++
         }
@@ -68,7 +77,18 @@ class CoverageSweepController {
         lastDirection = direction
     }
 
+    fun markDispatchFailure(direction: Direction) {
+        // The intended direction remains active so the next scan retries that
+        // direction instead of advancing the serpentine route.
+        waitingForViewportChange = true
+        lastDirection = direction
+        failedAttempts++
+    }
+
     fun needsViewportChange(): Boolean = waitingForViewportChange
+
+    /** Number of fresh same-viewport observations since the last swipe. */
+    fun failureCount(): Int = failedAttempts
 
     fun nextSwipe(): SwipePlan {
         val row = step / 2
@@ -109,17 +129,22 @@ class CoverageSweepController {
     }
 
     /**
-     * Up to two recovery attempts for the same intended movement.
-     * Recovery is deliberately not the opposite direction.
+     * Retry the SAME intended movement when the previous gesture did not move
+     * the viewport. No recovery ever reverses direction.
      */
     fun recoverySwipe(): SwipePlan? {
         if (!waitingForViewportChange) return null
         val direction = lastDirection ?: return null
-        if (failedAttempts !in 1..2) return null
+        if (failedAttempts !in 1..MAX_RECOVERY_ATTEMPTS) return null
 
-        val alternate = failedAttempts == 2
-        val sx = if (alternate) RECOVERY_LEFT else RECOVERY_RIGHT
-        val sy = if (alternate) RECOVERY_TOP else RECOVERY_BOTTOM
+        val attempt = failedAttempts
+        val (sx, sy) = when (attempt) {
+            1 -> RECOVERY_RIGHT to RECOVERY_BOTTOM
+            2 -> RECOVERY_LEFT to RECOVERY_TOP
+            3 -> RECOVERY_RIGHT to RECOVERY_TOP
+            else -> RECOVERY_LEFT to RECOVERY_BOTTOM
+        }
+
         val ex = when (direction) {
             Direction.RIGHT -> sx + RECOVERY_DRAG
             Direction.LEFT -> sx - RECOVERY_DRAG
@@ -132,6 +157,16 @@ class CoverageSweepController {
         }
 
         return SwipePlan(direction, PointF(sx, sy), PointF(ex, ey), RECOVERY_DURATION)
+    }
+
+    /**
+     * Release a stalled movement without advancing the route. The next normal
+     * swipe therefore retries the same intended direction.
+     */
+    fun releaseStall() {
+        waitingForViewportChange = false
+        failedAttempts = 0
+        // Keep step and lastDirection unchanged deliberately.
     }
 
     fun reset() {
