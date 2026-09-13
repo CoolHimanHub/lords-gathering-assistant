@@ -9,14 +9,17 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/** V39: resolution-aware RSS detection with game-coordinate support.
+/** V50: resolution-aware RSS badge detection tuned against the supplied
+ * 1536x707 live screenshots.
  *
- * The live 2756x1268 recording exposed a V38 validation bug: the white level
- * number is drawn inside/over the blue badge but is not itself a blue pixel.
- * V38 therefore counted white glyph pixels only while traversing the blue
- * component and rejected valid badges. V39 validates the glyph in the badge
- * bounding box instead. The 3x3 dilation was also removed because it multiplied
- * work on roughly 1.8M pixels without being necessary for the game's badges.
+ * V49's badge detector used a white-pixel threshold of 185 across the badge
+ * neighbourhood. In the supplied game screenshots the level glyph is a
+ * bright lavender/white anti-aliased glyph (often below RGB 185), so real
+ * badges were rejected even though the blue badge itself was detected.
+ *
+ * V50 validates the light level glyph INSIDE the blue component, using a
+ * lower brightness threshold and a neutral/light-pixel test. This also
+ * rejects blue resource artwork which happens to contain bright crystals.
  */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
@@ -55,12 +58,19 @@ class ScreenAnalyzer {
         private const val BLUE_DELTA_R=25
         private const val BLUE_DELTA_G=8
         private const val RED_MAX=145
+
+        // V50: the game's anti-aliased badge digit is light lavender/white,
+        // not pure white. Keep the test deliberately local to the badge box.
+        private const val GLYPH_MIN_RGB=150
+        private const val GLYPH_MAX_SAT=125
+        private const val GLYPH_MIN_PIXELS=8
     }
 
     fun analyzeScreenshot(
         bitmap:Bitmap,
         expectedRegionX:IntRange=0 until bitmap.width,
-        expectedRegionY:IntRange=0 until bitmap.height
+        expectedRegionY:IntRange=0 until bitmap.height,
+        ignoredRegions:List<BoundingBox> = emptyList()
     ):List<RssDetection>{
         if(bitmap.width<600 || bitmap.height<400){
             ViewportOcrCache.clear()
@@ -82,7 +92,7 @@ class ScreenAnalyzer {
         val bottom=min(bitmap.height-1-(REF_BOTTOM_MARGIN*sy).toInt(),expectedRegionY.last)
         if(right<=left || bottom<=top)return emptyList()
 
-        return findBadges(bitmap,left,right,top,bottom,sx,sy).map{badge->
+        return findBadges(bitmap,left,right,top,bottom,sx,sy,ignoredRegions).map{badge->
             // The blue level badge is normally down/right of the resource art.
             val probeX=(badge.box.centerX-(18f*sx).toInt()).coerceIn(left+8,right-8)
             val probeY=(badge.box.centerY-(7f*sy).toInt()).coerceIn(top+8,bottom-8)
@@ -106,7 +116,8 @@ class ScreenAnalyzer {
         top:Int,
         bottom:Int,
         sx:Float,
-        sy:Float
+        sy:Float,
+        ignoredRegions:List<BoundingBox>
     ):List<Badge>{
         val width=right-left+1
         val height=bottom-top+1
@@ -114,10 +125,23 @@ class ScreenAnalyzer {
         val pixels=IntArray(size)
         bitmap.getPixels(pixels,0,width,left,top,width,height)
 
+        fun ignored(absX:Int,absY:Int):Boolean = ignoredRegions.any{
+            absX in it.minX..it.maxX && absY in it.minY..it.maxY
+        }
+
         // Direct 8-connected blue components. No full-frame dilation pass.
         val blue=BooleanArray(size)
         var i=0
         while(i<size){
+            val localX=i%width
+            val localY=i/width
+            val absX=left+localX
+            val absY=top+localY
+            if(ignored(absX,absY)){
+                blue[i]=false
+                i++
+                continue
+            }
             val c=pixels[i]
             val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
             blue[i]=b>=BLUE_MIN && b-r>=BLUE_DELTA_R && b-g>=BLUE_DELTA_G && r<=RED_MAX
@@ -163,39 +187,43 @@ class ScreenAnalyzer {
             val density=originalArea.toFloat()/(bw*bh).toFloat()
             if(density<0.30f||density>0.82f)continue
 
-            // IMPORTANT: the white level glyph is not blue, so inspect a small
-            // padded region around the blue component instead of the component
-            // mask itself. This is the V38 false-negative fix.
-            val padX=max(4,(4f*sx).toInt())
-            val padY=max(4,(4f*sy).toInt())
-            val checkLeft=max(0,minX-padX)
-            val checkTop=max(0,minY-padY)
-            val checkRight=min(width-1,maxX+padX)
-            val checkBottom=min(height-1,maxY+padY)
-            var whiteGlyphPixels=0
-            var cy=checkTop
-            while(cy<=checkBottom){
-                var cx=checkLeft
-                while(cx<=checkRight){
-                    val c=pixels[cy*width+cx]
-                    if(Color.red(c)>=185&&Color.green(c)>=185&&Color.blue(c)>=185)whiteGlyphPixels++
-                    cx++
+            // V50: the level glyph is INSIDE the blue badge. Testing only the
+            // padded neighbourhood allowed bright resource artwork to pass.
+            var lightGlyphPixels=0
+            var gy=minY
+            while(gy<=maxY){
+                var gx=minX
+                while(gx<=maxX){
+                    val c=pixels[gy*width+gx]
+                    val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c)
+                    val maxRgb=maxOf(r,g,b)
+                    val minRgb=minOf(r,g,b)
+                    val saturation=maxRgb-minRgb
+                    if(r>=GLYPH_MIN_RGB && g>=GLYPH_MIN_RGB && b>=GLYPH_MIN_RGB && saturation<=GLYPH_MAX_SAT){
+                        lightGlyphPixels++
+                    }
+                    gx++
                 }
-                cy++
+                gy++
             }
-            if(whiteGlyphPixels<8)continue
+            if(lightGlyphPixels<GLYPH_MIN_PIXELS)continue
 
             val absoluteMinX=left+minX
             val absoluteMinY=top+minY
-            if(absoluteMinX<(500f*sx).toInt()&&absoluteMinY<(150f*sy).toInt())continue
+            val absoluteMaxX=left+maxX
+            val absoluteMaxY=top+maxY
+            if(ignoredRegions.any{
+                absoluteMinX<=it.maxX && absoluteMaxX>=it.minX &&
+                    absoluteMinY<=it.maxY && absoluteMaxY>=it.minY
+            })continue
 
             val aspect=bw.toFloat()/bh.toFloat()
             val aspectScore=(1f-abs(aspect-1.35f)/1.55f).coerceIn(0f,1f)
             val densityScore=(1f-abs(density-0.52f)/0.52f).coerceIn(0f,1f)
-            val glyphScore=(whiteGlyphPixels.coerceAtMost(160)/160f)
-            val confidence=(68f+10f*aspectScore+9f*densityScore+5f*glyphScore)
-                .toInt().coerceIn(68,92)
-            found+=Badge(BoundingBox(absoluteMinX,absoluteMinY,left+maxX,top+maxY),confidence)
+            val glyphScore=(lightGlyphPixels.coerceAtMost(80)/80f)
+            val confidence=(70f+10f*aspectScore+9f*densityScore+6f*glyphScore)
+                .toInt().coerceIn(70,95)
+            found+=Badge(BoundingBox(absoluteMinX,absoluteMinY,absoluteMaxX,absoluteMaxY),confidence)
         }
 
         val sorted=found.sortedWith(
