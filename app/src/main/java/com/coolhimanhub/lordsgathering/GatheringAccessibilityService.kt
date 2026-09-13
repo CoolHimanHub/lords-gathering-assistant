@@ -10,8 +10,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
@@ -27,7 +25,7 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * V52: final isometric-grid gathering service.
+ * V53: final isometric-grid gathering service.
  *
  * Flow:
  * screenshot -> RSS detection + authoritative viewport OCR ->
@@ -35,6 +33,9 @@ import kotlin.math.min
  * coverage sweep -> candidate tap -> live tile-panel verification -> Gather.
  *
  * AUTO GATHER is blocked until the grid mapper is LOCKED.
+ *
+ * The floating Assistant is screen-pinned. Automatic map swipes are kept
+ * outside its bounds so a coverage gesture can never drag the overlay.
  */
 class GatheringAccessibilityService : AccessibilityService() {
     private val handler=Handler(Looper.getMainLooper())
@@ -68,6 +69,13 @@ class GatheringAccessibilityService : AccessibilityService() {
     private val maximumDisplayedTargets=20
     private val seenCandidates=LinkedHashSet<String>()
 
+    // Screen-pinned overlay origin. CoverageSweepController deliberately
+    // keeps all automatic swipe lanes outside this area.
+    private companion object {
+        const val OVERLAY_X=100
+        const val OVERLAY_Y=80
+    }
+
     override fun onServiceConnected(){
         super.onServiceConnected();serviceAlive=true
         try{
@@ -76,7 +84,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             viewportTracker.reset();sweepController.reset();coordinateMapper.reset()
             handler.post{if(serviceAlive)showFloatingControl()}
         }catch(_:Exception){
-            safeStatus("V52 service ready\nOverlay retrying...")
+            safeStatus("V53 service ready\nOverlay retrying...")
             handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)
         }
     }
@@ -91,19 +99,11 @@ class GatheringAccessibilityService : AccessibilityService() {
             orientation=LinearLayout.VERTICAL;setPadding(10,8,10,8);setBackgroundColor(Color.rgb(65,65,65))
         }
         val title=TextView(this).apply{
-            text="Lords Assistant V52";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
+            text="Lords Assistant V53";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
+            isClickable=false
+            isLongClickable=false
         }
-        title.setOnTouchListener(object:View.OnTouchListener{
-            private var startX=0f;private var startY=0f;private var startParamX=0;private var startParamY=0
-            override fun onTouch(view:View?,event:MotionEvent):Boolean{
-                val p=overlayParams?:return false
-                when(event.actionMasked){
-                    MotionEvent.ACTION_DOWN->{startX=event.rawX;startY=event.rawY;startParamX=p.x;startParamY=p.y;return true}
-                    MotionEvent.ACTION_MOVE->{p.x=(startParamX+event.rawX-startX).toInt();p.y=(startParamY+event.rawY-startY).toInt();try{wm.updateViewLayout(container,p)}catch(_:Exception){};return true}
-                    else->return true
-                }
-            }
-        })
+        // Deliberately no drag listener here. The Assistant is screen-pinned.
         val startButton=Button(this).apply{
             text="▶ SCAN";setOnClickListener{try{if(running)stopAutomation()else startAutomation()}catch(e:Exception){safeStatus("Button error: ${e.javaClass.simpleName}")}}
         }
@@ -114,7 +114,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             text="⚔ AUTO GATHER";setOnClickListener{try{if(autoGatheringActive)stopAutoGathering()else startAutoGathering()}catch(e:Exception){safeStatus("Gather error: ${e.javaClass.simpleName}")}}
         }
         val info=TextView(this).apply{
-            text="V52 Scanner ready\nIsometric tile-grid engine\nAdaptive 32/16 px basis\nAuthoritative viewport OCR\nGrid LOCK required for AUTO GATHER\nLive tile-panel verification"
+            text="V53 Scanner ready\nIsometric tile-grid engine\nAdaptive 32/16 px basis\nAuthoritative viewport OCR\nGrid LOCK required for AUTO GATHER\nLive tile-panel verification"
             textSize=10.5f;setTextColor(Color.WHITE);gravity=Gravity.LEFT;setPadding(6,5,6,2);setLineSpacing(0f,1.05f)
         }
         infoText=info;startStopButton=startButton;gatherButton=gatherBtn
@@ -123,23 +123,34 @@ class GatheringAccessibilityService : AccessibilityService() {
         scroll.addView(info,LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT))
         container.addView(scroll,LinearLayout.LayoutParams(470,520))
         val params=WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT)
-        params.gravity=Gravity.TOP or Gravity.START;params.x=100;params.y=80;overlayParams=params
-        try{wm.addView(container,params);overlayView=container;safeStatus("V52 Scanner ready\nGrid: LEARNING\nGame X/Y RSS locations enabled")}
+        params.gravity=Gravity.TOP or Gravity.START;params.x=OVERLAY_X;params.y=OVERLAY_Y;overlayParams=params
+        try{wm.addView(container,params);overlayView=container;safeStatus("V53 Scanner ready\nGrid: LEARNING\nOverlay PINNED\nGame X/Y RSS locations enabled")}
         catch(_:Exception){overlayView=null;overlayParams=null;infoText=null;startStopButton=null;gatherButton=null;handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)}
     }
 
     private fun recreateOverlay(){if(!serviceAlive||overlayView!=null)return;showFloatingControl()}
 
+    private fun pinOverlay(){
+        val wm=windowManager?:return
+        val view=overlayView?:return
+        val p=overlayParams?:return
+        if(p.x==OVERLAY_X&&p.y==OVERLAY_Y)return
+        p.x=OVERLAY_X
+        p.y=OVERLAY_Y
+        try{wm.updateViewLayout(view,p)}catch(_:Exception){}
+    }
+
     private fun startAutomation(){
         if(running||!serviceAlive)return
         running=true;scanCount=0;seenCandidates.clear();viewportTracker.reset();sweepController.reset();coordinateMapper.reset();sweepInProgress=false
-        updateStartStopButton();safeStatus("V52 AUTO SCAN started\nEstablishing map viewport...\nGrid calibration: LEARNING")
+        pinOverlay()
+        updateStartStopButton();safeStatus("V53 AUTO SCAN started\nOverlay PINNED\nEstablishing map viewport...\nGrid calibration: LEARNING")
         handler.removeCallbacks(scanRunnable);handler.postDelayed(scanRunnable,500)
     }
 
     private fun stopAutomation(){
         running=false;handler.removeCallbacks(scanRunnable);handler.removeCallbacks(sweepRunnable);sweepInProgress=false
-        updateStartStopButton();safeStatus("SCAN STOPPED\nCoverage paused\nAuto-gather: ${if(autoGatheringActive)"ACTIVE"else"IDLE"}")
+        pinOverlay();updateStartStopButton();safeStatus("SCAN STOPPED\nCoverage paused\nOverlay PINNED\nAuto-gather: ${if(autoGatheringActive)"ACTIVE"else"IDLE"}")
     }
 
     private fun startAutoGathering(){
@@ -155,7 +166,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     private val scanRunnable=object:Runnable{
         override fun run(){
             if(!running||!serviceAlive)return
-            try{scanScreen(true)}catch(e:Exception){safeStatus("Scan exception: ${e.javaClass.simpleName}")}
+            try{pinOverlay();scanScreen(true)}catch(e:Exception){safeStatus("Scan exception: ${e.javaClass.simpleName}")}
             if(running&&serviceAlive)handler.postDelayed(this,scanInterval)
         }
     }
@@ -163,6 +174,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     private fun scanScreen(moveAfterScan:Boolean){
         if(!serviceAlive||Build.VERSION.SDK_INT<Build.VERSION_CODES.R)return
         if(screenshotInProgress||actionInProgress||sweepInProgress)return
+        pinOverlay()
         screenshotInProgress=true;scanCount++;val thisScan=scanCount
         safeStatus("Scan #$thisScan\nCapturing map + focused viewport...")
         try{
@@ -255,18 +267,19 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun scheduleCoverageSweep(){
         if(!running||!serviceAlive||actionInProgress||sweepInProgress)return
-        sweepInProgress=true;handler.postDelayed(sweepRunnable,sweepWait)
+        pinOverlay();sweepInProgress=true;handler.postDelayed(sweepRunnable,sweepWait)
     }
 
     private val sweepRunnable=Runnable{
         if(!running||!serviceAlive||actionInProgress){sweepInProgress=false;return@Runnable}
+        pinOverlay()
         val plan=sweepController.recoverySwipe()?:sweepController.nextSwipe()
-        safeStatus("Coverage sweep\n${plan.direction}\nWaiting for X/Y to change...")
+        safeStatus("Coverage sweep\n${plan.direction}\nOverlay PINNED\nWaiting for X/Y to change...")
         sweepController.markSwipeIssued(plan.direction)
         if(!swipeMap(plan.start.x,plan.start.y,plan.end.x,plan.end.y,plan.durationMs)){
             sweepInProgress=false;safeStatus("Coverage swipe failed\nNo new area accepted")
         }else{
-            handler.postDelayed({sweepInProgress=false;if(running&&!actionInProgress)safeStatus("Swipe sent\nNext scan will validate X/Y change")},plan.durationMs+250L)
+            handler.postDelayed({pinOverlay();sweepInProgress=false;if(running&&!actionInProgress)safeStatus("Swipe sent\nOverlay PINNED\nNext scan will validate X/Y change")},plan.durationMs+250L)
         }
     }
 
