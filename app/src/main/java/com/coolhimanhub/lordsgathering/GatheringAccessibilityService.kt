@@ -27,14 +27,14 @@ import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
- * V49: gathering service with a single active execution path.
+ * V52: final isometric-grid gathering service.
  *
  * Flow:
- * screenshot -> RSS detection + focused X/Y OCR -> coordinate mapping ->
- * coverage sweep -> candidate tap -> panel OCR verification -> Gather tap.
+ * screenshot -> RSS detection + authoritative viewport OCR ->
+ * cross-viewport calibration -> isometric tile mapping ->
+ * coverage sweep -> candidate tap -> live tile-panel verification -> Gather.
  *
- * There is deliberately no separate timing-only gathering engine. Candidate
- * safety is decided by the live tile panel immediately before Gather.
+ * AUTO GATHER is blocked until the grid mapper is LOCKED.
  */
 class GatheringAccessibilityService : AccessibilityService() {
     private val handler=Handler(Looper.getMainLooper())
@@ -76,7 +76,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             viewportTracker.reset();sweepController.reset();coordinateMapper.reset()
             handler.post{if(serviceAlive)showFloatingControl()}
         }catch(_:Exception){
-            safeStatus("V49 service ready\nOverlay retrying...")
+            safeStatus("V52 service ready\nOverlay retrying...")
             handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)
         }
     }
@@ -91,7 +91,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             orientation=LinearLayout.VERTICAL;setPadding(10,8,10,8);setBackgroundColor(Color.rgb(65,65,65))
         }
         val title=TextView(this).apply{
-            text="Lords Assistant V49";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
+            text="Lords Assistant V52";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
         }
         title.setOnTouchListener(object:View.OnTouchListener{
             private var startX=0f;private var startY=0f;private var startParamX=0;private var startParamY=0
@@ -114,7 +114,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             text="⚔ AUTO GATHER";setOnClickListener{try{if(autoGatheringActive)stopAutoGathering()else startAutoGathering()}catch(e:Exception){safeStatus("Gather error: ${e.javaClass.simpleName}")}}
         }
         val info=TextView(this).apply{
-            text="V49 Scanner ready\nAdaptive tile grid calibration\nGame X/Y RSS locations\nFocused viewport OCR\nPanel verification before Gather"
+            text="V52 Scanner ready\nIsometric tile-grid engine\nAdaptive 32/16 px basis\nAuthoritative viewport OCR\nGrid LOCK required for AUTO GATHER\nLive tile-panel verification"
             textSize=10.5f;setTextColor(Color.WHITE);gravity=Gravity.LEFT;setPadding(6,5,6,2);setLineSpacing(0f,1.05f)
         }
         infoText=info;startStopButton=startButton;gatherButton=gatherBtn
@@ -124,7 +124,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         container.addView(scroll,LinearLayout.LayoutParams(470,520))
         val params=WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT)
         params.gravity=Gravity.TOP or Gravity.START;params.x=100;params.y=80;overlayParams=params
-        try{wm.addView(container,params);overlayView=container;safeStatus("V49 Scanner ready\nAdaptive grid: LEARNING\nGame X/Y RSS locations enabled")}
+        try{wm.addView(container,params);overlayView=container;safeStatus("V52 Scanner ready\nGrid: LEARNING\nGame X/Y RSS locations enabled")}
         catch(_:Exception){overlayView=null;overlayParams=null;infoText=null;startStopButton=null;gatherButton=null;handler.postDelayed({if(serviceAlive)recreateOverlay()},1000)}
     }
 
@@ -133,7 +133,7 @@ class GatheringAccessibilityService : AccessibilityService() {
     private fun startAutomation(){
         if(running||!serviceAlive)return
         running=true;scanCount=0;seenCandidates.clear();viewportTracker.reset();sweepController.reset();coordinateMapper.reset();sweepInProgress=false
-        updateStartStopButton();safeStatus("V49 AUTO SCAN started\nEstablishing map viewport...\nGrid calibration: LEARNING")
+        updateStartStopButton();safeStatus("V52 AUTO SCAN started\nEstablishing map viewport...\nGrid calibration: LEARNING")
         handler.removeCallbacks(scanRunnable);handler.postDelayed(scanRunnable,500)
     }
 
@@ -144,7 +144,7 @@ class GatheringAccessibilityService : AccessibilityService() {
 
     private fun startAutoGathering(){
         if(autoGatheringActive||!serviceAlive)return
-        autoGatheringActive=true;updateGatherButton();safeStatus("AUTO GATHER ACTIVE\nViewport -> grid calibration -> candidate -> panel -> verify")
+        autoGatheringActive=true;updateGatherButton();safeStatus("AUTO GATHER ACTIVE\nWaiting for Grid LOCK before action")
         if(!running)startAutomation()
     }
 
@@ -199,7 +199,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         val changed=viewportTracker.update(viewport)
         val screenPoints=detections.map{it.centerX to it.centerY}
         coordinateMapper.observe(viewport,screenPoints,bitmap.width,bitmap.height)
-        sweepController.onViewportObserved(changed)
+        sweepController.onViewportObserved(changed,viewportTracker.hasAuthoritativeViewport())
         handleScanResult(scanNumber,detections,viewport,changed,moveAfterScan,bitmap.width,bitmap.height)
         screenshotInProgress=false;recycleBitmap(bitmap)
     }
@@ -207,8 +207,10 @@ class GatheringAccessibilityService : AccessibilityService() {
     private fun handleScanResult(scanNumber:Int,detections:List<ScreenAnalyzer.RssDetection>,viewport:MapViewportTracker.Viewport,viewportChanged:Boolean,moveAfterScan:Boolean,screenWidth:Int,screenHeight:Int){
         val calibration=coordinateMapper.calibration()
         val targets=detections.filter{it.confidence>=minimumConfidence}.map{d->
-            TargetWithGame(d,coordinateMapper.map(d.centerX,d.centerY,viewport.x,viewport.y,screenWidth,screenHeight))
-        }.sortedByDescending{it.detection.confidence}
+            val game=coordinateMapper.map(d.centerX,d.centerY,viewport.x,viewport.y,screenWidth,screenHeight)
+            val residual=coordinateMapper.tileResidual(d.centerX,d.centerY,game,viewport.x,viewport.y,screenWidth,screenHeight)
+            TargetWithGame(d,game,residual)
+        }.filter{it.residual<=28f}.sortedWith(compareByDescending<TargetWithGame>{it.detection.confidence}.thenBy{it.residual})
 
         val displayCount=min(targets.size,maximumDisplayedTargets)
         val gridState=if(calibration.ready)"LOCKED"else"LEARNING"
@@ -222,22 +224,29 @@ class GatheringAccessibilityService : AccessibilityService() {
         for(i in 0 until displayCount){
             val t=targets[i]
             val mapState=if(calibration.ready)"OK"else"CAL"
-            status.append("${i+1}. X:${t.game.x} Y:${t.game.y}  [${t.detection.confidence}%/$mapState]\n")
+            status.append("${i+1}. X:${t.game.x} Y:${t.game.y} [${t.detection.confidence}%/$mapState R:${"%.1f".format(t.residual)}px]\n")
         }
         if(displayCount==0)status.append("No validated RSS badge candidates\n")
-        safeStatus(status.toString())
 
         if(autoGatheringActive&&viewportChanged&&!actionInProgress){
-            val fresh=targets.filter{markCandidateSeen(it.game)}
-            if(fresh.isNotEmpty())probeBestCandidate(fresh)
-            else safeStatus(status.append("No new candidates in this viewport").toString())
+            if(!calibration.ready){
+                safeStatus(status.append("AUTO GATHER WAITING\nGrid calibration not locked\nNo troop action authorized").toString())
+            }else{
+                val fresh=targets.filter{markCandidateSeen(it.game)}
+                if(fresh.isNotEmpty())probeBestCandidate(fresh)
+                else safeStatus(status.append("No new calibrated candidates in this viewport").toString())
+            }
+        }else{
+            safeStatus(status.toString())
         }
+
         if(moveAfterScan&&running&&!actionInProgress&&!sweepInProgress)scheduleCoverageSweep()
     }
 
     private data class TargetWithGame(
         val detection:ScreenAnalyzer.RssDetection,
-        val game:GameCoordinateMapper.GameLocation
+        val game:GameCoordinateMapper.GameLocation,
+        val residual:Float
     )
 
     private fun markCandidateSeen(game:GameCoordinateMapper.GameLocation):Boolean{
@@ -262,8 +271,13 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     private fun probeBestCandidate(targets:List<TargetWithGame>){
+        if(!coordinateMapper.calibration().ready){
+            actionInProgress=false
+            safeStatus("AUTO GATHER PAUSED\nGrid calibration is not LOCKED\nNo troop action taken")
+            return
+        }
         val candidate=targets.maxByOrNull{it.detection.confidence}?:return
-        actionInProgress=true;safeStatus("Opening NEW candidate\nGame location X:${candidate.game.x} Y:${candidate.game.y}\nWaiting for tile panel...")
+        actionInProgress=true;safeStatus("Opening NEW candidate\nGame location X:${candidate.game.x} Y:${candidate.game.y}\nGrid residual ${"%.1f".format(candidate.residual)} px\nWaiting for tile panel...")
         handler.post{
             if(!serviceAlive){actionInProgress=false;return@post}
             if(!tapAt(candidate.detection.centerX,candidate.detection.centerY)){
