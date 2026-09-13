@@ -1,18 +1,17 @@
 package com.coolhimanhub.lordsgatheringassistant
 
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 /**
- * V44 stable isometric coordinate mapper.
+ * V52: explicit isometric tile-grid mapper.
  *
- * V42 learned the tile basis from cross-viewport RSS matches. V44 keeps that
- * useful approach but makes the temporal model stricter: repeated screenshots
- * of the SAME viewport are verification frames, not new calibration frames.
- * This prevents detector jitter on an unchanged map from replacing the
- * reference point set and creating unstable RSS coordinates.
+ * 32/16 are HALF-tile dimensions at the reference 1536x707 screenshot size.
+ * Same-viewport frames are verification frames; only changed authoritative
+ * viewports may update calibration.
  *
- * Physical taps remain screen-pixel based. Game X/Y is reporting/identity only.
+ * Physical taps remain screen-pixel based. Game X/Y is identity/reporting.
  */
 class GameCoordinateMapper {
     data class GameLocation(val x:Int,val y:Int)
@@ -34,8 +33,6 @@ class GameCoordinateMapper {
         private const val MAX_HALF_W=60f
         private const val MIN_HALF_H=9f
         private const val MAX_HALF_H=30f
-
-        // RSS art can move a little between frames because of animation.
         private const val PAIR_RADIUS=125f
         private const val MIN_MATCHES_FOR_UPDATE=2
         private const val MAX_MATCHES_PER_FRAME=40
@@ -65,9 +62,8 @@ class GameCoordinateMapper {
         val oldViewport=previousViewport
         val oldPoints=previousPoints
 
-        // Same viewport is deliberately a verification frame. Do NOT replace
-        // the reference points: OCR/detection jitter on an unchanged screen
-        // must not alter the calibration baseline.
+        // Same viewport is verification only. Detector animation/jitter must
+        // never replace the calibration reference points.
         if(oldViewport!=null && viewport==oldViewport){
             if(points.isNotEmpty() && oldPoints.isNotEmpty()){
                 val matches=matchPoints(oldPoints,points)
@@ -80,8 +76,6 @@ class GameCoordinateMapper {
             val dvx=viewport.x-oldViewport.x
             val dvy=viewport.y-oldViewport.y
 
-            // Only learn from a real viewport change. Small header OCR jitter is
-            // ignored, while normal map movement is accepted.
             if(abs(dvx)<=120 && abs(dvy)<=120 && (dvx!=0 || dvy!=0)){
                 val sx=scaleX(screenWidth)
                 val sy=scaleY(screenHeight)
@@ -94,7 +88,6 @@ class GameCoordinateMapper {
                     val now=points[match.second]
                     val mdx=(now.first-old.first).toFloat()
                     val mdy=(now.second-old.second).toFloat()
-
                     val denomW=dvx-dvy
                     val denomH=dvx+dvy
 
@@ -131,16 +124,10 @@ class GameCoordinateMapper {
             }
         }
 
-        // A changed viewport becomes the new temporal reference. A same-view
-        // frame never reaches this assignment because it returned above.
         previousViewport=viewport
         previousPoints=points
     }
 
-    /**
-     * Match observations by actual screen displacement rather than by the
-     * currently learned basis. This avoids circular dependency during learning.
-     */
     private fun matchPoints(
         oldPoints:List<Pair<Int,Int>>,
         newPoints:List<Pair<Int,Int>>
@@ -152,20 +139,19 @@ class GameCoordinateMapper {
                 val now=newPoints[j]
                 val dx=(now.first-old.first).toFloat()
                 val dy=(now.second-old.second).toFloat()
-                val distance=(dx*dx+dy*dy).toDouble().let{Math.sqrt(it)}.toFloat()
+                val distance=hypot(dx.toDouble(),dy.toDouble()).toFloat()
                 if(distance<=PAIR_RADIUS)candidates+=Triple(distance,i,j)
             }
         }
-
-        // Greedy nearest-neighbour assignment is deterministic and prevents
-        // one RSS from explaining multiple RSS observations.
         candidates.sortBy{it.first}
         val usedOld=HashSet<Int>()
         val usedNew=HashSet<Int>()
         val result=ArrayList<Pair<Int,Int>>()
         for((_,i,j) in candidates){
             if(i in usedOld||j in usedNew)continue
-            usedOld+=i;usedNew+=j;result+=i to j
+            usedOld+=i
+            usedNew+=j
+            result+=i to j
         }
         return result
     }
@@ -180,20 +166,18 @@ class GameCoordinateMapper {
     private fun isStable(values:List<Float>,centre:Float):Boolean{
         if(values.size<2)return true
         val maxDeviation=values.maxOf{abs(it-centre)}
-        return maxDeviation<=max(centre*STABILITY_RATIO,2.5f)
+        return maxDeviation<=maxOf(centre*STABILITY_RATIO,2.5f)
     }
 
-    private fun max(a:Float,b:Float)=if(a>b)a else b
-
-    private fun blend(old:Float,new:Float,weight:Float):Float = old*(1f-weight)+new*weight
+    private fun blend(old:Float,new:Float,weight:Float):Float =
+        old*(1f-weight)+new*weight
 
     @Synchronized
-    fun calibration():Calibration {
-        // LOCKED still requires repeated successful cross-viewport learning.
+    fun calibration():Calibration{
         val ready=goodFrames>=3 && samples>=4
         val sampleQuality=(samples*7).coerceAtMost(55)
         val frameQuality=(goodFrames*8).coerceAtMost(32)
-        val rejectionPenalty=(badFrames.coerceAtMost(8)*2)
+        val rejectionPenalty=badFrames.coerceAtMost(8)*2
         val quality=(sampleQuality+frameQuality-rejectionPenalty).coerceIn(0,100)
         return Calibration(halfTileW,halfTileH,samples,ready,quality)
     }
@@ -211,6 +195,7 @@ class GameCoordinateMapper {
         previousPoints=emptyList()
     }
 
+    /** Map a screen pixel to the nearest isometric world tile. */
     @Synchronized
     fun map(
         screenX:Int,
@@ -219,7 +204,7 @@ class GameCoordinateMapper {
         viewportY:Int,
         screenWidth:Int,
         screenHeight:Int
-    ):GameLocation {
+    ):GameLocation{
         val sx=scaleX(screenWidth)
         val sy=scaleY(screenHeight)
         val centreX=screenWidth/2f
@@ -234,5 +219,29 @@ class GameCoordinateMapper {
             (viewportX+worldDx).roundToInt().coerceIn(0,9999),
             (viewportY+worldDy).roundToInt().coerceIn(0,9999)
         )
+    }
+
+    /** Screen-space distance from a detected point to its snapped tile centre. */
+    @Synchronized
+    fun tileResidual(
+        screenX:Int,
+        screenY:Int,
+        location:GameLocation,
+        viewportX:Int,
+        viewportY:Int,
+        screenWidth:Int,
+        screenHeight:Int
+    ):Float{
+        val sx=scaleX(screenWidth)
+        val sy=scaleY(screenHeight)
+        val centreX=screenWidth/2f
+        val centreY=screenHeight/2f
+        val hw=(halfTileW*sx).coerceAtLeast(1f)
+        val hh=(halfTileH*sy).coerceAtLeast(1f)
+        val dx=location.x-viewportX
+        val dy=location.y-viewportY
+        val projectedX=centreX+hw*(dx-dy)
+        val projectedY=centreY+hh*(dx+dy)
+        return hypot((screenX-projectedX).toDouble(),(screenY-projectedY).toDouble()).toFloat()
     }
 }
