@@ -11,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
@@ -204,8 +203,6 @@ class GatheringAccessibilityService : AccessibilityService() {
     }
 
     private fun recreateOverlay(){if(!serviceAlive||overlayView!=null)return;showFloatingControl()}
-
-    /** V54: the overlay is movable; never snap it back during scanning. */
     private fun pinOverlay(){ }
 
     private fun startAutomation(){
@@ -333,9 +330,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
 
         if(moveAfterScan&&running&&!actionInProgress&&!sweepInProgress){
-            if(sweepController.canIssueNextSwipe() || sweepController.recoverySwipe()!=null){
-                scheduleCoverageSweep()
-            }
+            if(sweepController.canIssueNextSwipe() || sweepController.hasRecoveryReady())scheduleCoverageSweep()
         }
     }
 
@@ -373,7 +368,8 @@ class GatheringAccessibilityService : AccessibilityService() {
             sweepInProgress=false
             safeStatus("COVERAGE SWIPE FAILED\nGesture rejected\nRoute not advanced")
         }else{
-            sweepController.markSwipeIssued(plan.direction)
+            if(recovery!=null)sweepController.markRecoverySwipeIssued(plan.direction)
+            else sweepController.markSwipeIssued(plan.direction)
             handler.postDelayed({
                 sweepInProgress=false
                 if(running&&!actionInProgress)safeStatus("SWIPE SENT\nNext scan must prove X/Y movement")
