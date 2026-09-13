@@ -3,11 +3,12 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.PointF
 
 /**
- * V54: OCR-independent serpentine coverage controller.
+ * V54 coverage controller.
  *
- * X/Y OCR is calibration/reporting data, not a hard navigation dependency.
- * A dispatched swipe advances the route; later OCR or visual analysis can
- * validate the resulting viewport without freezing the sweep.
+ * A swipe is only considered successful after a fresh authoritative viewport
+ * observation proves that the map actually changed. This prevents the old
+ * SAME VIEWPORT -> keep swiping loop from advancing the logical route while
+ * the game camera is stationary.
  */
 class CoverageSweepController {
     enum class Direction { RIGHT, DOWN, LEFT, UP }
@@ -22,6 +23,8 @@ class CoverageSweepController {
     private var step = 0
     private var lastDirection: Direction? = null
     private var failedAttempts = 0
+    private var movementPending = false
+    private var unchangedObservations = 0
 
     companion object {
         private const val LEFT = 700f
@@ -40,28 +43,48 @@ class CoverageSweepController {
         private const val RECOVERY_DRAG = 230f
         private const val MICRO_DRAG = 170f
         private const val RECOVERY_DURATION = 500L
-        private const val MAX_RECOVERY_ATTEMPTS = 6
+        private const val MAX_RECOVERY_ATTEMPTS = 4
+        private const val UNCHANGED_BEFORE_RECOVERY = 2
     }
 
-    /** Kept for compatibility with the service; movement OCR is advisory only. */
+    /**
+     * Fresh X/Y is authoritative. A fallback OCR frame can never release a
+     * pending movement or advance the coverage route.
+     */
     fun onViewportObserved(changed: Boolean, authoritative: Boolean = true) {
-        if (changed && authoritative) failedAttempts = 0
+        if (!authoritative) return
+        if (changed) {
+            failedAttempts = 0
+            movementPending = false
+            unchangedObservations = 0
+        } else if (movementPending) {
+            unchangedObservations++
+        }
     }
 
+    /** Called only after a gesture was successfully dispatched. */
     fun markSwipeIssued(direction: Direction) {
         lastDirection = direction
         failedAttempts = 0
-        // Advance immediately. The next screenshot is responsible for sensing
-        // what actually became visible; OCR failure must not stall navigation.
+        movementPending = true
+        unchangedObservations = 0
         step++
     }
 
+    /** Called when dispatchGesture itself rejected the gesture. */
     fun markDispatchFailure(direction: Direction) {
         lastDirection = direction
         failedAttempts++
+        movementPending = false
     }
 
-    fun needsViewportChange(): Boolean = false
+    /** True while we are waiting for proof that the last swipe moved the map. */
+    fun needsViewportChange(): Boolean = movementPending
+
+    fun canIssueNextSwipe(): Boolean = !movementPending
+
+    fun unchangedCount(): Int = unchangedObservations
+
     fun failureCount(): Int = failedAttempts
 
     fun nextSwipe(): SwipePlan {
@@ -84,10 +107,16 @@ class CoverageSweepController {
         Direction.UP -> SwipePlan(direction, PointF(MID_X, BOTTOM), PointF(MID_X, BOTTOM - VERTICAL_DRAG), NORMAL_DURATION)
     }
 
-    /** Retry the last intended direction only when gesture dispatch itself failed. */
+    /**
+     * If the game ignored a swipe, use a smaller recovery gesture after two
+     * consecutive authoritative SAME VIEWPORT observations. The route does
+     * not advance again until a later scan proves movement.
+     */
     fun recoverySwipe(): SwipePlan? {
         val direction = lastDirection ?: return null
-        if (failedAttempts !in 1..MAX_RECOVERY_ATTEMPTS) return null
+        if (!movementPending || unchangedObservations < UNCHANGED_BEFORE_RECOVERY) return null
+        if (failedAttempts >= MAX_RECOVERY_ATTEMPTS) return null
+        failedAttempts++
         val attempt = failedAttempts
         val sx: Float
         val sy: Float
@@ -95,11 +124,9 @@ class CoverageSweepController {
             1 -> { sx = RECOVERY_RIGHT; sy = RECOVERY_BOTTOM }
             2 -> { sx = RECOVERY_LEFT; sy = RECOVERY_TOP }
             3 -> { sx = RECOVERY_RIGHT; sy = RECOVERY_TOP }
-            4 -> { sx = RECOVERY_LEFT; sy = RECOVERY_BOTTOM }
-            5 -> { sx = MID_X; sy = RECOVERY_TOP }
-            else -> { sx = MID_X; sy = RECOVERY_BOTTOM }
+            else -> { sx = RECOVERY_LEFT; sy = RECOVERY_BOTTOM }
         }
-        val drag = if (attempt >= 5) MICRO_DRAG else RECOVERY_DRAG
+        val drag = if (attempt >= 3) MICRO_DRAG else RECOVERY_DRAG
         val ex = when (direction) {
             Direction.RIGHT -> sx + drag
             Direction.LEFT -> sx - drag
@@ -113,7 +140,10 @@ class CoverageSweepController {
         return SwipePlan(direction, PointF(sx, sy), PointF(ex, ey), RECOVERY_DURATION)
     }
 
+    /** Permit a fresh route step after an unrecoverable stall is handled. */
     fun releaseStall() {
+        movementPending = false
+        unchangedObservations = 0
         failedAttempts = 0
     }
 
@@ -121,5 +151,7 @@ class CoverageSweepController {
         step = 0
         lastDirection = null
         failedAttempts = 0
+        movementPending = false
+        unchangedObservations = 0
     }
 }
