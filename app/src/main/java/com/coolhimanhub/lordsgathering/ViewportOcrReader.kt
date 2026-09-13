@@ -13,20 +13,16 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 /**
- * V37 fast focused map-coordinate OCR.
+ * V49: focused map-coordinate OCR.
  *
- * Live recordings show the coordinate HUD around the upper-middle map area.
- * V37 narrows the crop, tries the normal image first, and only creates a
- * grayscale retry when necessary. This replaces the old 4-crop x 3-variant
- * worst-case path and avoids spending most of a scan on OCR.
+ * The coordinate HUD is read from a small upper-middle crop. The normal image
+ * is tried first, followed by a grayscale retry only when necessary.
  */
 object ViewportOcrReader {
     data class Result(val x:Int,val y:Int)
 
     private const val MIN_COORD=0
     private const val MAX_COORD=9999
-    // A little warm-up headroom prevents the first ML Kit call from being
-    // rejected on a cold recognizer. Successful scans normally finish sooner.
     private const val OCR_TIMEOUT_MS=850L
 
     fun read(bitmap:Bitmap,recognizer:TextRecognizer):Result?{
