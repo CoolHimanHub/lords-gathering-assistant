@@ -3,12 +3,16 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.PointF
 
 /**
- * V48: resilient serpentine coverage controller.
+ * V53: resilient serpentine coverage controller.
+ *
+ * Coverage gestures must stay in the game-map lanes and must never start
+ * inside the floating Assistant overlay. The overlay is fixed at the upper
+ * left in the current UI, so horizontal sweeps use the central/lower map
+ * lane and vertical sweeps use the right map lane.
  *
  * The route advances only after movement is confirmed by a fresh viewport
- * observation. If a gesture stalls, recovery always preserves the intended
- * direction. A stalled step is never silently converted into the next route
- * step.
+ * observation. A stalled step is never silently converted into the next
+ * route step.
  */
 class CoverageSweepController {
     enum class Direction { RIGHT, DOWN, LEFT, UP }
@@ -26,21 +30,25 @@ class CoverageSweepController {
     private var failedAttempts = 0
 
     companion object {
-        private const val LEFT = 520f
-        private const val RIGHT = 1250f
-        private const val TOP = 135f
-        private const val BOTTOM = 505f
-        private const val MID_X = 885f
-        private const val MID_Y = 320f
-        private const val HORIZONTAL_DRAG = 650f
-        private const val VERTICAL_DRAG = 315f
+        // Keep every automated swipe clear of the fixed Assistant overlay.
+        // Overlay occupies approximately x=100..570 in the reference layout.
+        private const val LEFT = 700f
+        private const val RIGHT = 1320f
+        private const val TOP = 150f
+        private const val BOTTOM = 500f
+        private const val MID_X = 1050f
+        private const val MID_Y = 520f
+        private const val HORIZONTAL_DRAG = 560f
+        private const val VERTICAL_DRAG = 300f
         private const val NORMAL_DURATION = 620L
-        private const val RECOVERY_LEFT = 700f
-        private const val RECOVERY_RIGHT = 1110f
-        private const val RECOVERY_TOP = 175f
-        private const val RECOVERY_BOTTOM = 465f
-        private const val RECOVERY_DRAG = 270f
-        private const val MICRO_DRAG = 190f
+
+        // Recovery lanes are also kept away from the overlay.
+        private const val RECOVERY_LEFT = 720f
+        private const val RECOVERY_RIGHT = 1280f
+        private const val RECOVERY_TOP = 180f
+        private const val RECOVERY_BOTTOM = 490f
+        private const val RECOVERY_DRAG = 230f
+        private const val MICRO_DRAG = 170f
         private const val RECOVERY_DURATION = 500L
         private const val MAX_RECOVERY_ATTEMPTS = 6
     }
@@ -76,6 +84,7 @@ class CoverageSweepController {
         if (waitingForViewportChange && lastDirection != null) {
             return normalSwipe(lastDirection!!)
         }
+
         val row = step / 2
         val evenRow = row % 2 == 0
         val direction = when (step % 4) {
@@ -88,10 +97,33 @@ class CoverageSweepController {
     }
 
     private fun normalSwipe(direction: Direction): SwipePlan = when (direction) {
-        Direction.RIGHT -> SwipePlan(direction, PointF(LEFT, MID_Y), PointF(LEFT + HORIZONTAL_DRAG, MID_Y), NORMAL_DURATION)
-        Direction.LEFT -> SwipePlan(direction, PointF(RIGHT, MID_Y), PointF(RIGHT - HORIZONTAL_DRAG, MID_Y), NORMAL_DURATION)
-        Direction.DOWN -> SwipePlan(direction, PointF(MID_X, TOP), PointF(MID_X, TOP + VERTICAL_DRAG), NORMAL_DURATION)
-        Direction.UP -> SwipePlan(direction, PointF(MID_X, BOTTOM), PointF(MID_X, BOTTOM - VERTICAL_DRAG), NORMAL_DURATION)
+        Direction.RIGHT -> SwipePlan(
+            direction,
+            PointF(LEFT, MID_Y),
+            PointF(LEFT + HORIZONTAL_DRAG, MID_Y),
+            NORMAL_DURATION
+        )
+
+        Direction.LEFT -> SwipePlan(
+            direction,
+            PointF(RIGHT, MID_Y),
+            PointF(RIGHT - HORIZONTAL_DRAG, MID_Y),
+            NORMAL_DURATION
+        )
+
+        Direction.DOWN -> SwipePlan(
+            direction,
+            PointF(MID_X, TOP),
+            PointF(MID_X, TOP + VERTICAL_DRAG),
+            NORMAL_DURATION
+        )
+
+        Direction.UP -> SwipePlan(
+            direction,
+            PointF(MID_X, BOTTOM),
+            PointF(MID_X, BOTTOM - VERTICAL_DRAG),
+            NORMAL_DURATION
+        )
     }
 
     /** Retry the SAME intended direction when the viewport did not move. */
@@ -99,6 +131,7 @@ class CoverageSweepController {
         if (!waitingForViewportChange) return null
         val direction = lastDirection ?: return null
         if (failedAttempts !in 1..MAX_RECOVERY_ATTEMPTS) return null
+
         val attempt = failedAttempts
         val (sx, sy) = when (attempt) {
             1 -> RECOVERY_RIGHT to RECOVERY_BOTTOM
@@ -108,18 +141,27 @@ class CoverageSweepController {
             5 -> MID_X to RECOVERY_TOP
             else -> MID_X to RECOVERY_BOTTOM
         }
+
         val drag = if (attempt >= 5) MICRO_DRAG else RECOVERY_DRAG
+
         val ex = when (direction) {
             Direction.RIGHT -> sx + drag
             Direction.LEFT -> sx - drag
             Direction.DOWN, Direction.UP -> sx
         }
+
         val ey = when (direction) {
             Direction.DOWN -> sy + drag
             Direction.UP -> sy - drag
             Direction.RIGHT, Direction.LEFT -> sy
         }
-        return SwipePlan(direction, PointF(sx, sy), PointF(ex, ey), RECOVERY_DURATION)
+
+        return SwipePlan(
+            direction,
+            PointF(sx, sy),
+            PointF(ex, ey),
+            RECOVERY_DURATION
+        )
     }
 
     fun releaseStall() {
