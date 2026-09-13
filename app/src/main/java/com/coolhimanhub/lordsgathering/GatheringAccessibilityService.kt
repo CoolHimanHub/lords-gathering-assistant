@@ -91,7 +91,7 @@ class GatheringAccessibilityService : AccessibilityService() {
             orientation=LinearLayout.VERTICAL;setPadding(10,8,10,8);setBackgroundColor(Color.rgb(65,65,65))
         }
         val title=TextView(this).apply{
-            text="Lords Assistant V49";textSize=16f;textColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
+            text="Lords Assistant V49";textSize=16f;setTextColor(Color.WHITE);gravity=Gravity.CENTER;setPadding(8,4,8,8)
         }
         title.setOnTouchListener(object:View.OnTouchListener{
             private var startX=0f;private var startY=0f;private var startParamX=0;private var startParamY=0
@@ -115,7 +115,7 @@ class GatheringAccessibilityService : AccessibilityService() {
         }
         val info=TextView(this).apply{
             text="V49 Scanner ready\nAdaptive tile grid calibration\nGame X/Y RSS locations\nFocused viewport OCR\nPanel verification before Gather"
-            textSize=10.5f;textColor(Color.WHITE);gravity=Gravity.LEFT;setPadding(6,5,6,2);setLineSpacing(0f,1.05f)
+            textSize=10.5f;setTextColor(Color.WHITE);gravity=Gravity.LEFT;setPadding(6,5,6,2);setLineSpacing(0f,1.05f)
         }
         infoText=info;startStopButton=startButton;gatherButton=gatherBtn
         container.addView(title);container.addView(startButton);container.addView(scanBtn);container.addView(gatherBtn)
@@ -296,13 +296,13 @@ class GatheringAccessibilityService : AccessibilityService() {
                 val verification=TilePanelVerifier.verify(result.text)
                 if(!verification.safeToGather){actionInProgress=false;safeStatus("Panel rejected\n${verification.reason}\nNo Gather action sent");return@addOnSuccessListener}
                 safeStatus("Panel verified\n${verification.type} L${verification.level}\nGather available\nExecuting Gather")
-                tapGatherFromOcr(result.textBlocks,bitmap)
+                tapGatherFromOcr(result.textBlocks)
             }
             .addOnFailureListener{actionInProgress=false;safeStatus("Panel OCR failed\nNo Gather action sent")}
             .addOnCompleteListener{recycleBitmap(bitmap)}
     }
 
-    private fun tapGatherFromOcr(blocks:List<TextBlock>,bitmap:Bitmap){
+    private fun tapGatherFromOcr(blocks:List<TextBlock>){
         val gatherElement=blocks.asSequence().flatMap{it.lines.asSequence()}.flatMap{it.elements.asSequence()}.firstOrNull{it.text.contains("gather",ignoreCase=true)}
         val rect=gatherElement?.boundingBox
         if(rect==null){actionInProgress=false;safeStatus("Panel verified but Gather control position was not found\nNo action sent");return}
