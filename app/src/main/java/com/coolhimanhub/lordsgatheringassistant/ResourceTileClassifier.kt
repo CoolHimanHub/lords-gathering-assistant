@@ -5,48 +5,77 @@ import android.graphics.Color
 import kotlin.math.max
 import kotlin.math.min
 
-/** V57: lightweight visual classifier for resource tiles.
+/** Lightweight visual resource classifier.
  *
- * It deliberately does not claim a type from a single pixel. It samples the
- * resource-art area around each validated badge, suppresses UI/blue badge
- * pixels, and returns UNKNOWN when evidence is weak. This keeps the runtime
- * cheap and prevents false gathers.
+ * The map badge tells us WHERE a candidate is; this classifier estimates WHAT
+ * is underneath it. It intentionally returns UNKNOWN when evidence overlaps,
+ * because an uncertain resource must never be auto-gathered.
  */
 class ResourceTileClassifier {
     enum class Type { FOOD, TIMBER, STONE, ORE, GOLD, UNKNOWN }
     data class Result(val type:Type,val confidence:Int,val redEvidence:Int)
 
     fun classify(bitmap:Bitmap,cx:Int,cy:Int):Result {
-        val radiusX=(42f*bitmap.width/1536f).toInt().coerceAtLeast(18)
-        val radiusY=(34f*bitmap.height/707f).toInt().coerceAtLeast(14)
-        var n=0; var r=0;var g=0;var b=0;var warm=0;var green=0;var gray=0;var blue=0
-        val left=max(0,cx-radiusX);val right=min(bitmap.width-1,cx+radiusX)
-        val top=max(0,cy-radiusY);val bottom=min(bitmap.height-1,cy+radiusY)
+        val sx=bitmap.width/1536f
+        val sy=bitmap.height/707f
+        val rx=max(22,(48f*sx).toInt())
+        val ry=max(16,(38f*sy).toInt())
+        val left=max(0,cx-rx); val right=min(bitmap.width-1,cx+rx)
+        val top=max(0,cy-ry); val bottom=min(bitmap.height-1,cy+ry)
+
+        var samples=0
+        var green=0; var darkGreen=0; var yellow=0; var gray=0; var blueGray=0; var brown=0
+        var redEvidence=0
+
         for(y in top..bottom) for(x in left..right){
-            val c=bitmap.getPixel(x,y);val rr=Color.red(c);val gg=Color.green(c);val bb=Color.blue(c)
-            // Ignore near-white UI and the saturated blue level badge.
-            if(rr>220&&gg>220&&bb>220)continue
-            val mx=max(rr,max(gg,bb));val mn=min(rr,min(gg,bb))
-            if(mx-mn<18){ if(mx in 55..205)gray++; continue }
-            if(bb>rr+22&&bb>gg+10){blue++;continue}
-            n++
-            if(rr>gg*1.18f&&rr>bb*1.20f)warm++
-            if(gg>rr*1.10f&&gg>bb*1.10f)green++
-            if(rr>125&&gg>105&&bb<95)warm++
-            r+=rr;g+=gg;b+=bb
-            if(rr>145&&gg<100&&bb<100)r++
+            val c=bitmap.getPixel(x,y)
+            val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c)
+            val mx=max(r,max(g,b)); val mn=min(r,min(g,b)); val spread=mx-mn
+
+            // UI/background pixels and the blue level badge are poor evidence.
+            if(mx>225 && mn>205) continue
+            if(b>r+28 && b>g+12) continue
+            if(spread<12 && mx>205) continue
+
+            samples++
+            if(r>150 && g<105 && b<105) redEvidence++
+
+            if(g>r*1.10f && g>b*1.08f){
+                green++
+                if(g<145) darkGreen++
+            }
+            if(r>145 && g>120 && b<105 && r>g*0.92f) yellow++
+            if(spread<35 && mx in 55..205) gray++
+            if(b>=r-8 && b>=g-8 && mx in 55..185) blueGray++
+            if(r>85 && g>50 && g<r*0.88f && b<75) brown++
         }
-        if(n<25)return Result(Type.UNKNOWN,0,r)
-        val total=(warm+green+gray+blue).coerceAtLeast(1)
-        val candidates=listOf(
-            Type.FOOD to warm,
-            Type.TIMBER to green,
+
+        if(samples<30)return Result(Type.UNKNOWN,0,redEvidence)
+
+        // Distinguish gold from food by yellow/high-red warmth rather than
+        // treating every warm pixel as FOOD.
+        val scores=linkedMapOf(
+            Type.GOLD to (yellow*2 + brown/2),
+            Type.FOOD to (green + yellow/3),
+            Type.TIMBER to (darkGreen*2 + brown),
             Type.STONE to gray,
-            Type.ORE to blue,
-            Type.GOLD to warm/2
-        ).sortedByDescending{it.second}
-        val best=candidates.first()
-        val conf=(best.second*100/total).coerceIn(0,100)
-        return if(conf<48)Result(Type.UNKNOWN,conf,r) else Result(best.first,conf,r)
+            Type.ORE to blueGray
+        )
+
+        val ranked=scores.entries.sortedByDescending{it.value}
+        val best=ranked.first()
+        val second=ranked.getOrNull(1)?.value ?: 0
+        val total=ranked.sumOf{it.value}.coerceAtLeast(1)
+        val share=best.value.toFloat()/total
+        val margin=(best.value-second).toFloat()/total
+        val confidence=(100f*(0.65f*share+0.35f*margin)).toInt().coerceIn(0,100)
+
+        // Require both dominance and separation. Borderline warm/green tiles
+        // are deliberately UNKNOWN rather than guessed as gold/food.
+        return if(best.value<=0 || share<0.30f || margin<0.08f || confidence<42){
+            Result(Type.UNKNOWN,confidence,redEvidence)
+        }else{
+            Result(best.key,confidence,redEvidence)
+        }
     }
 }
