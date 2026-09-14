@@ -1,0 +1,27 @@
+{
+  "schema_version": "v56.1",
+  "purpose": "Seed schema for labelled game-grid observations. Populate only from user-supplied/verified screenshots.",
+  "coordinate_frame": {"kingdom": null, "x": null, "y": null},
+  "screen_frame": {"width": 1536, "height": 707},
+  "tile": {
+    "kind": "UNKNOWN",
+    "resource": "UNKNOWN",
+    "level": 0,
+    "occupancy": "UNKNOWN",
+    "approach": "UNKNOWN"
+  },
+  "visual_features": {
+    "center_x": null,
+    "center_y": null,
+    "bbox": null,
+    "dominant_color": null,
+    "badge_confidence": 0,
+    "motion_score": 0
+  },
+  "label_policy": {
+    "UNKNOWN": "never converted to a gather target",
+    "OCCUPIED": "skip",
+    "APPROACHING": "skip",
+    "FREE_RSS": "eligible only after tile-panel verification"
+  }
+}
