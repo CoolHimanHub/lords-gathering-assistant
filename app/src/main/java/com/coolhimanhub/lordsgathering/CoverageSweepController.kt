@@ -3,11 +3,10 @@ package com.coolhimanhub.lordsgatheringassistant
 import android.graphics.PointF
 
 /**
- * V54: OCR-independent serpentine coverage controller.
+ * V55.1: verified serpentine coverage controller.
  *
- * X/Y OCR is calibration/reporting data, not a hard navigation dependency.
- * A dispatched swipe advances the route; later OCR or visual analysis can
- * validate the resulting viewport without freezing the sweep.
+ * A swipe is only an intent. Route progress is committed only after a fresh,
+ * authoritative X/Y observation proves that the viewport changed.
  */
 class CoverageSweepController {
     enum class Direction { RIGHT, DOWN, LEFT, UP }
@@ -21,7 +20,9 @@ class CoverageSweepController {
 
     private var step = 0
     private var lastDirection: Direction? = null
-    private var failedAttempts = 0
+    private var pendingDirection: Direction? = null
+    private var unchangedAuthoritativeFrames = 0
+    private var dispatchFailures = 0
 
     companion object {
         private const val LEFT = 700f
@@ -43,26 +44,44 @@ class CoverageSweepController {
         private const val MAX_RECOVERY_ATTEMPTS = 6
     }
 
-    /** Kept for compatibility with the service; movement OCR is advisory only. */
+    /**
+     * Accept viewport evidence. Only an authoritative changed viewport commits
+     * the previously issued route step. Identical/fallback observations never
+     * advance coverage.
+     */
     fun onViewportObserved(changed: Boolean, authoritative: Boolean = true) {
-        if (changed && authoritative) failedAttempts = 0
+        if (!authoritative) return
+        if (changed) {
+            if (pendingDirection != null) {
+                step++
+                lastDirection = pendingDirection
+                pendingDirection = null
+            }
+            unchangedAuthoritativeFrames = 0
+            dispatchFailures = 0
+        } else {
+            unchangedAuthoritativeFrames++
+        }
     }
 
+    /** Record an issued gesture without advancing the route. */
     fun markSwipeIssued(direction: Direction) {
         lastDirection = direction
-        failedAttempts = 0
-        // Advance immediately. The next screenshot is responsible for sensing
-        // what actually became visible; OCR failure must not stall navigation.
-        step++
+        pendingDirection = direction
+        dispatchFailures = 0
     }
 
+    /** Record a dispatch failure; it never advances the route. */
     fun markDispatchFailure(direction: Direction) {
         lastDirection = direction
-        failedAttempts++
+        pendingDirection = direction
+        dispatchFailures++
     }
 
-    fun needsViewportChange(): Boolean = false
-    fun failureCount(): Int = failedAttempts
+    fun needsViewportChange(): Boolean = pendingDirection != null
+    fun failureCount(): Int = dispatchFailures
+    fun unchangedCount(): Int = unchangedAuthoritativeFrames
+    fun isAwaitingViewportChange(): Boolean = pendingDirection != null
 
     fun nextSwipe(): SwipePlan {
         val routeStep = step
@@ -84,11 +103,11 @@ class CoverageSweepController {
         Direction.UP -> SwipePlan(direction, PointF(MID_X, BOTTOM), PointF(MID_X, BOTTOM - VERTICAL_DRAG), NORMAL_DURATION)
     }
 
-    /** Retry the last intended direction only when gesture dispatch itself failed. */
+    /** Retry the last intended direction only after actual gesture dispatch failure. */
     fun recoverySwipe(): SwipePlan? {
         val direction = lastDirection ?: return null
-        if (failedAttempts !in 1..MAX_RECOVERY_ATTEMPTS) return null
-        val attempt = failedAttempts
+        if (dispatchFailures !in 1..MAX_RECOVERY_ATTEMPTS) return null
+        val attempt = dispatchFailures
         val sx: Float
         val sy: Float
         when (attempt) {
@@ -114,12 +133,16 @@ class CoverageSweepController {
     }
 
     fun releaseStall() {
-        failedAttempts = 0
+        pendingDirection = null
+        unchangedAuthoritativeFrames = 0
+        dispatchFailures = 0
     }
 
     fun reset() {
         step = 0
         lastDirection = null
-        failedAttempts = 0
+        pendingDirection = null
+        unchangedAuthoritativeFrames = 0
+        dispatchFailures = 0
     }
 }
