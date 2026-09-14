@@ -2,6 +2,7 @@ package com.coolhimanhub.lordsgatheringassistant
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.util.Log
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -9,7 +10,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/** V57: resolution-aware RSS badge detection plus resource classification. */
+/** V57.2: resolution-aware RSS badge detection plus resource classification and diagnostics. */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
         val width:Int get()=maxX-minX+1
@@ -39,7 +40,7 @@ class ScreenAnalyzer {
         val left=max((REF_MAP_LEFT*sx).toInt(),expectedRegionX.first);val right=min((REF_MAP_RIGHT*sx).toInt(),min(bitmap.width-1,expectedRegionX.last))
         val top=max((REF_MAP_TOP*sy).toInt(),expectedRegionY.first);val bottom=min(bitmap.height-1-(REF_BOTTOM_MARGIN*sy).toInt(),expectedRegionY.last)
         if(right<=left||bottom<=top)return emptyList()
-        return findBadges(bitmap,left,right,top,bottom,sx,sy,ignoredRegions).map{badge->
+        val result=findBadges(bitmap,left,right,top,bottom,sx,sy,ignoredRegions).map{badge->
             val probeX=(badge.box.centerX-(18f*sx).toInt()).coerceIn(left+8,right-8)
             val probeY=(badge.box.centerY-(7f*sy).toInt()).coerceIn(top+8,bottom-8)
             val visual=resourceClassifier.classify(bitmap,probeX,probeY)
@@ -55,6 +56,9 @@ class ScreenAnalyzer {
                 confidence=if(visual.type==ResourceTileClassifier.Type.UNKNOWN)0 else min(badge.confidence,visual.confidence),
                 occupied=false,dominantColor=visual.redEvidence)
         }
+        Log.i("LordsAssistantDiag","detections=${result.size} types=${result.groupingBy{it.type}.eachCount()} candidates=${result.count{it.confidence>=68}} unknown=${result.count{it.type==\"unknown\"}}")
+        result.forEachIndexed{index,d->Log.d("LordsAssistantDiag","tile#$index type=${d.type} level=${d.level} x=${d.centerX} y=${d.centerY} confidence=${d.confidence} occupied=${d.occupied} moving=${d.moving}")}
+        return result
     }
     private fun findBadges(bitmap:Bitmap,left:Int,right:Int,top:Int,bottom:Int,sx:Float,sy:Float,ignoredRegions:List<BoundingBox>):List<Badge>{
         val width=right-left+1;val height=bottom-top+1;val size=width*height;val pixels=IntArray(size)
