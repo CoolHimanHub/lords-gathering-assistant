@@ -1,0 +1,13 @@
+{
+  "version": "v56.3",
+  "purpose": "Deterministic replay cases for grid identity and tile semantics before live AUTO GATHER.",
+  "cases": [
+    {"name":"free_rss","kind":"RSS","occupancy":"FREE","expected":"ELIGIBLE"},
+    {"name":"occupied_rss","kind":"RSS","occupancy":"OCCUPIED","expected":"SKIP"},
+    {"name":"approaching_rss","kind":"RSS","occupancy":"APPROACHING","expected":"SKIP"},
+    {"name":"city_tile","kind":"CITY","occupancy":"FREE","expected":"SKIP"},
+    {"name":"terrain_tile","kind":"TERRAIN","occupancy":"FREE","expected":"SKIP"},
+    {"name":"unknown_tile","kind":"UNKNOWN","occupancy":"UNKNOWN","expected":"SKIP"}
+  ],
+  "rule":"Only a confidently identified RSS tile with FREE occupancy may reach tile-panel verification."
+}
