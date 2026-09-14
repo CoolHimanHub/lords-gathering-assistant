@@ -1,0 +1,19 @@
+{
+  "version": "v56.4",
+  "purpose": "Replay the six supplied live-map captures as viewport/grid evidence before any live Gather action.",
+  "captures": [
+    {"file":"70445.jpg","scan":1,"viewport":{"x":129,"y":461},"viewport_state":"NEW","move_state":"MOVED","expected_authoritative":true},
+    {"file":"70446.jpg","scan":2,"viewport":{"x":127,"y":461},"viewport_state":"NEW","move_state":"MOVED","expected_authoritative":true},
+    {"file":"70447.jpg","scan":3,"viewport":{"x":125,"y":457},"viewport_state":"NEW","move_state":"MOVED","expected_authoritative":true},
+    {"file":"70448.jpg","scan":4,"viewport":{"x":123,"y":455},"viewport_state":"NEW","move_state":"MOVED","expected_authoritative":true},
+    {"file":"70449.jpg","scan":5,"viewport":{"x":122,"y":456},"viewport_state":"NEW","move_state":"MOVED","expected_authoritative":true},
+    {"file":"70450.jpg","scan":6,"viewport":{"x":119,"y":451},"viewport_state":"NEW","move_state":"MOVED","expected_authoritative":true}
+  ],
+  "verification": {
+    "same_viewport_must_not_advance": true,
+    "movement_must_be_authoritative": true,
+    "stale_viewport_must_not_relabel_tiles": true,
+    "auto_gather_allowed_during_this_fixture": false
+  },
+  "next_live_test": "Repeat the same sweep after V56.4. Keep AUTO GATHER OFF; the build must expose stable tile calibration and game-coordinate assignments before any troop action is enabled."
+}
