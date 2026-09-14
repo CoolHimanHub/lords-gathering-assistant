@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "v54-compact-overlay" ]
   workflow_dispatch:
 
 jobs:
