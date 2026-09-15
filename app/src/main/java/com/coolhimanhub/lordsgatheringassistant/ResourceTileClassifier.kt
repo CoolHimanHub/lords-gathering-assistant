@@ -5,11 +5,15 @@ import android.graphics.Color
 import kotlin.math.max
 import kotlin.math.min
 
-/** Lightweight visual resource classifier.
+/**
+ * V57.5: resource-art classifier.
  *
- * The map badge tells us WHERE a candidate is; this classifier estimates WHAT
- * is underneath it. It intentionally returns UNKNOWN when evidence overlaps,
- * because an uncertain resource must never be auto-gathered.
+ * The level badge is used only as a locator by ScreenAnalyzer. This classifier
+ * samples the artwork immediately up/left of that badge and deliberately
+ * ignores the blue badge, red UI markers and pale map background.
+ *
+ * Classification is conservative: weak or overlapping evidence becomes
+ * UNKNOWN and therefore cannot become an auto-gather target.
  */
 class ResourceTileClassifier {
     enum class Type { FOOD, TIMBER, STONE, ORE, GOLD, UNKNOWN }
@@ -18,13 +22,24 @@ class ResourceTileClassifier {
     fun classify(bitmap:Bitmap,cx:Int,cy:Int):Result {
         val sx=bitmap.width/1536f
         val sy=bitmap.height/707f
-        val rx=max(22,(48f*sx).toInt())
-        val ry=max(16,(38f*sy).toInt())
-        val left=max(0,cx-rx); val right=min(bitmap.width-1,cx+rx)
-        val top=max(0,cy-ry); val bottom=min(bitmap.height-1,cy+ry)
+
+        // cx/cy is the level-badge centre. The resource artwork is normally
+        // above-left of it. Keep the window tight so map grass does not drown
+        // the icon's colour signature.
+        val left=max(0,cx-(42f*sx).toInt())
+        val right=min(bitmap.width-1,cx-(5f*sx).toInt())
+        val top=max(0,cy-(34f*sy).toInt())
+        val bottom=min(bitmap.height-1,cy+(9f*sy).toInt())
 
         var samples=0
-        var green=0; var darkGreen=0; var yellow=0; var gray=0; var blueGray=0; var brown=0
+        var warm=0
+        var brown=0
+        var neutral=0
+        var blue=0
+        var cyan=0
+        var purple=0
+        var vivid=0
+        var green=0
         var redEvidence=0
 
         for(y in top..bottom) for(x in left..right){
@@ -32,34 +47,46 @@ class ResourceTileClassifier {
             val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c)
             val mx=max(r,max(g,b)); val mn=min(r,min(g,b)); val spread=mx-mn
 
-            // UI/background pixels and the blue level badge are poor evidence.
-            if(mx>225 && mn>205) continue
-            if(b>r+28 && b>g+12) continue
-            if(spread<12 && mx>205) continue
+            // Exclude pale UI/map pixels and the blue level badge.
+            if(mx>220 && mn>195) continue
+            if(b>r+25 && b>g+12 && b>120) continue
+            if(r<35 && g<35 && b<35) continue
 
             samples++
-            if(r>150 && g<105 && b<105) redEvidence++
+            if(r>150 && g<110 && b<110) redEvidence++
 
-            if(g>r*1.10f && g>b*1.08f){
-                green++
-                if(g<145) darkGreen++
-            }
-            if(r>145 && g>120 && b<105 && r>g*0.92f) yellow++
-            if(spread<35 && mx in 55..205) gray++
-            if(b>=r-8 && b>=g-8 && mx in 55..185) blueGray++
-            if(r>85 && g>50 && g<r*0.88f && b<75) brown++
+            val hsv=FloatArray(3)
+            Color.RGBToHSV(r,g,b,hsv)
+            val h=hsv[0]; val s=hsv[1]; val v=hsv[2]
+
+            if(s>0.28f && v>0.25f)vivid++
+            if((h<45f || h>=330f) && s>0.25f && v>0.28f)warm++
+            if(h in 15f..45f && s>0.22f && v in 0.20f..0.80f)brown++
+            if((h in 45f..75f) && s>0.25f && v>0.35f)green++
+            if(h in 45f..68f && s>0.30f && v>0.45f)warm++
+            if(h in 175f..250f && s>0.22f && v>0.25f)blue++
+            if(h in 175f..205f && s>0.30f && v>0.35f)cyan++
+            if(h in 250f..330f && s>0.20f && v>0.22f)purple++
+            if(s<0.25f && v in 0.25f..0.82f)neutral++
         }
 
-        if(samples<30)return Result(Type.UNKNOWN,0,redEvidence)
+        if(samples<35)return Result(Type.UNKNOWN,0,redEvidence)
 
-        // Distinguish gold from food by yellow/high-red warmth rather than
-        // treating every warm pixel as FOOD.
+        // Lords Mobile map artwork has useful visual families:
+        // food/resource piles are multicolour/saturated, timber is warm brown,
+        // stone is muted neutral/purple, ore is blue/cyan, gold is yellow.
+        val food=vivid + purple + redEvidence
+        val timber=brown*2 + warm/2
+        val stone=neutral*2 + purple/2
+        val ore=blue*2 + cyan*2
+        val gold=(warm*2) + yellowScore(bitmap,left,right,top,bottom)
+
         val scores=linkedMapOf(
-            Type.GOLD to (yellow*2 + brown/2),
-            Type.FOOD to (green + yellow/3),
-            Type.TIMBER to (darkGreen*2 + brown),
-            Type.STONE to gray,
-            Type.ORE to blueGray
+            Type.FOOD to food,
+            Type.TIMBER to timber,
+            Type.STONE to stone,
+            Type.ORE to ore,
+            Type.GOLD to gold
         )
 
         val ranked=scores.entries.sortedByDescending{it.value}
@@ -68,14 +95,22 @@ class ResourceTileClassifier {
         val total=ranked.sumOf{it.value}.coerceAtLeast(1)
         val share=best.value.toFloat()/total
         val margin=(best.value-second).toFloat()/total
-        val confidence=(100f*(0.65f*share+0.35f*margin)).toInt().coerceIn(0,100)
+        val confidence=(100f*(0.62f*share+0.38f*margin)).toInt().coerceIn(0,100)
 
-        // Require both dominance and separation. Borderline warm/green tiles
-        // are deliberately UNKNOWN rather than guessed as gold/food.
-        return if(best.value<=0 || share<0.30f || margin<0.08f || confidence<42){
+        return if(best.value<=0 || share<0.28f || margin<0.06f || confidence<38){
             Result(Type.UNKNOWN,confidence,redEvidence)
         }else{
             Result(best.key,confidence,redEvidence)
         }
+    }
+
+    private fun yellowScore(bitmap:Bitmap,left:Int,right:Int,top:Int,bottom:Int):Int{
+        var score=0
+        for(y in top..bottom)for(x in left..right){
+            val c=bitmap.getPixel(x,y)
+            val r=Color.red(c); val g=Color.green(c); val b=Color.blue(c)
+            if(r>145 && g>105 && b<85 && r>g*0.92f)score++
+        }
+        return score
     }
 }
