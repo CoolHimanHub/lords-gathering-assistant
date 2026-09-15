@@ -13,7 +13,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/** V57.6: badge detection + per-tile level OCR + resource classification + stable grid normalization. */
+/** V57.8: wider RSS badge candidate capture + adaptive resource classification. */
 class ScreenAnalyzer {
     data class BoundingBox(val minX:Int,val minY:Int,val maxX:Int,val maxY:Int) {
         val width:Int get()=maxX-minX+1
@@ -38,13 +38,14 @@ class ScreenAnalyzer {
         private const val REF_MAP_RIGHT=1420f
         private const val REF_MAP_TOP=90f
         private const val REF_BOTTOM_MARGIN=42f
-        private const val BLUE_MIN=65
-        private const val BLUE_DELTA_R=18
-        private const val BLUE_DELTA_G=4
-        private const val RED_MAX=175
-        private const val GLYPH_MIN_RGB=140
-        private const val GLYPH_MAX_SAT=145
-        private const val GLYPH_MIN_PIXELS=5
+        // V57.8: tolerate anti-aliasing, scaling and dimmed map tiles.
+        private const val BLUE_MIN=48
+        private const val BLUE_DELTA_R=12
+        private const val BLUE_DELTA_G=2
+        private const val RED_MAX=195
+        private const val GLYPH_MIN_RGB=125
+        private const val GLYPH_MAX_SAT=165
+        private const val GLYPH_MIN_PIXELS=3
         private const val LEVEL_OCR_TIMEOUT_MS=180L
     }
 
@@ -80,13 +81,13 @@ class ScreenAnalyzer {
         fun ignored(x:Int,y:Int)=ignoredRegions.any{region->x in region.minX..region.maxX&&y in region.minY..region.maxY}
         val blue=BooleanArray(size);var i=0
         while(i<size){val lx=i%width;val ly=i/width;val ax=left+lx;val ay=top+ly;if(!ignored(ax,ay)){val c=pixels[i];val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);blue[i]=b>=BLUE_MIN&&b-r>=BLUE_DELTA_R&&b-g>=BLUE_DELTA_G&&r<=RED_MAX};i++}
-        val visited=BooleanArray(size);val queue=IntArray(size);val found=ArrayList<Badge>();val minW=max(10,(15f*sx).toInt());val maxW=max(minW+2,(50f*sx).toInt());val minH=max(9,(13f*sy).toInt());val maxH=max(minH+2,(38f*sy).toInt());val minArea=max(55,(100f*sx*sy).toInt());val maxArea=max(minArea+1,(900f*sx*sy).toInt())
+        val visited=BooleanArray(size);val queue=IntArray(size);val found=ArrayList<Badge>();val minW=max(8,(11f*sx).toInt());val maxW=max(minW+2,(55f*sx).toInt());val minH=max(7,(10f*sy).toInt());val maxH=max(minH+2,(42f*sy).toInt());val minArea=max(40,(70f*sx*sy).toInt());val maxArea=max(minArea+1,(1300f*sx*sy).toInt())
         for(y in 0 until height)for(x in 0 until width){val start=y*width+x;if(visited[start]||!blue[start])continue;var head=0;var tail=0;queue[tail++]=start;visited[start]=true;var minX=x;var maxX=x;var minY=y;var maxY=y;var area=0
             while(head<tail){val p=queue[head++];val py=p/width;val px=p%width;minX=min(minX,px);maxX=max(maxX,px);minY=min(minY,py);maxY=max(maxY,py);area++;for(dy in -1..1)for(dx in -1..1)if(dx!=0||dy!=0){val nx=px+dx;val ny=py+dy;if(nx !in 0 until width||ny !in 0 until height)continue;val ni=ny*width+nx;if(!visited[ni]&&blue[ni]){visited[ni]=true;queue[tail++]=ni}}}
-            val bw=maxX-minX+1;val bh=maxY-minY+1;if(bw !in minW..maxW||bh !in minH..maxH||area !in minArea..maxArea)continue;val density=area.toFloat()/(bw*bh).toFloat();if(density<.18f||density>.90f)continue;var light=0;for(gy in minY..maxY)for(gx in minX..maxX){val c=pixels[gy*width+gx];val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);val mx=max(r,max(g,b));val mn=min(r,min(g,b));if(r>=GLYPH_MIN_RGB&&g>=GLYPH_MIN_RGB&&b>=GLYPH_MIN_RGB&&mx-mn<=GLYPH_MAX_SAT)light++};if(light<GLYPH_MIN_PIXELS)continue
-            val ax1=left+minX;val ay1=top+minY;val ax2=left+maxX;val ay2=top+maxY;if(ignoredRegions.any{region->ax1<=region.maxX&&ax2>=region.minX&&ay1<=region.maxY&&ay2>=region.minY})continue;val aspect=bw.toFloat()/bh;val aspectScore=(1f-abs(aspect-1.35f)/1.55f).coerceIn(0f,1f);val densityScore=(1f-abs(density-.50f)/.50f).coerceIn(0f,1f);val glyphScore=light.coerceAtMost(80)/80f;val confidence=(68f+14f*aspectScore+10f*densityScore+8f*glyphScore).toInt().coerceIn(68,96);found+=Badge(BoundingBox(ax1,ay1,ax2,ay2),confidence)
+            val bw=maxX-minX+1;val bh=maxY-minY+1;if(bw !in minW..maxW||bh !in minH..maxH||area !in minArea..maxArea)continue;val density=area.toFloat()/(bw*bh).toFloat();if(density<.10f||density>.95f)continue;var light=0;for(gy in minY..maxY)for(gx in minX..maxX){val c=pixels[gy*width+gx];val r=Color.red(c);val g=Color.green(c);val b=Color.blue(c);val mx=max(r,max(g,b));val mn=min(r,min(g,b));if(r>=GLYPH_MIN_RGB&&g>=GLYPH_MIN_RGB&&b>=GLYPH_MIN_RGB&&mx-mn<=GLYPH_MAX_SAT)light++};if(light<GLYPH_MIN_PIXELS)continue
+            val ax1=left+minX;val ay1=top+minY;val ax2=left+maxX;val ay2=top+maxY;if(ignoredRegions.any{region->ax1<=region.maxX&&ax2>=region.minX&&ay1<=region.maxY&&ay2>=region.minY})continue;val aspect=bw.toFloat()/bh;val aspectScore=(1f-abs(aspect-1.35f)/1.75f).coerceIn(0f,1f);val densityScore=(1f-abs(density-.45f)/.55f).coerceIn(0f,1f);val glyphScore=light.coerceAtMost(80)/80f;val confidence=(64f+16f*aspectScore+12f*densityScore+8f*glyphScore).toInt().coerceIn(64,96);found+=Badge(BoundingBox(ax1,ay1,ax2,ay2),confidence)
         }
-        val sorted=found.sortedWith(compareByDescending<Badge>{it.confidence}.thenBy{it.box.centerY}.thenBy{it.box.centerX});val out=ArrayList<Badge>();val mergeX=max(18,(15f*sx).toInt());val mergeY=max(16,(15f*sy).toInt());for(b in sorted)if(out.none{e->abs(e.box.centerX-b.box.centerX)<mergeX&&abs(e.box.centerY-b.box.centerY)<mergeY})out+=b;return out.sortedWith(compareBy({it.box.centerY},{it.box.centerX}))
+        val sorted=found.sortedWith(compareByDescending<Badge>{it.confidence}.thenBy{it.box.centerY}.thenBy{it.box.centerX});val out=ArrayList<Badge>();val mergeX=max(14,(13f*sx).toInt());val mergeY=max(13,(13f*sy).toInt());for(b in sorted)if(out.none{e->abs(e.box.centerX-b.box.centerX)<mergeX&&abs(e.box.centerY-b.box.centerY)<mergeY})out+=b;return out.sortedWith(compareBy({it.box.centerY},{it.box.centerX}))
     }
     fun close(){try{viewportRecognizer.close()}catch(_:Exception){};try{badgeRecognizer.close()}catch(_:Exception){};ViewportOcrCache.clear()}
 }
