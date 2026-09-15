@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "v57.6-tile-grid" ]
   workflow_dispatch:
 
 jobs:
