@@ -2,6 +2,7 @@ package com.coolhiman.lordsassistant.map
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.coolhiman.lordsassistant.capture.ViewportGuard
 import com.coolhiman.lordsassistant.data.DatasetStore
 import com.coolhiman.lordsassistant.data.PreferencesStore
 import com.coolhiman.lordsassistant.model.MapObservation
