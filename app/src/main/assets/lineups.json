@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "source": "Bundled reference; verify against the current game version.",
+  "monsters": {
+    "Blackwing": {
+      "1": {"f2p": ["Tracker","Death Archer","Demon Slayer","Incinerator","Prima Donna"], "p2p": ["Tracker","Demon Slayer","Lore Weaver","Black Crow","Prima Donna"]}
+    },
+    "Frostwing": {
+      "1": {"f2p": ["Scarlet Bolt","Snow Queen","Incinerator","Elementalist","Prima Donna"], "p2p": ["Lore Weaver","Snow Queen","Incinerator","Elementalist","Prima Donna"]}
+    },
+    "Gryphon": {
+      "1": {"f2p": ["Tracker","Demon Slayer","Black Crow","Child of Light","Prima Donna"], "p2p": ["Tracker","Demon Slayer","Black Crow","Lore Weaver","Prima Donna"]}
+    },
+    "Hell Drider": {
+      "1": {"f2p": ["Demon Slayer","Black Crow","Tracker","Child of Light","Prima Donna"], "p2p": ["Demon Slayer","Black Crow","Lore Weaver","Tracker","Prima Donna"]}
+    },
+    "Noceros": {
+      "1": {"f2p": ["Demon Slayer","Black Crow","Tracker","Child of Light","Prima Donna"], "p2p": ["Demon Slayer","Black Crow","Lore Weaver","Tracker","Prima Donna"]}
+    },
+    "Mecha Trojan": {
+      "1": {"f2p": ["Tracker","Demon Slayer","Black Crow","Child of Light","Prima Donna"], "p2p": ["Tracker","Demon Slayer","Black Crow","Lore Weaver","Prima Donna"]}
+    }
+  }
+}
