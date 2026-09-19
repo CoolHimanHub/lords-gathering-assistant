@@ -7,11 +7,14 @@ import android.hardware.display.DisplayManager
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ScreenCaptureService : Service() {
     companion object {
@@ -22,6 +25,9 @@ class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
     private lateinit var analyzer: FrameAnalyzer
+    private val busy = AtomicBoolean(false)
+    private val handler = Handler(Looper.getMainLooper())
+    private var lastScanMs = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -49,23 +55,39 @@ class ScreenCaptureService : Service() {
         )
 
         reader?.setOnImageAvailableListener({ source ->
-            val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
+            val now = System.currentTimeMillis()
+            if (now - lastScanMs < 500L || !busy.compareAndSet(false, true)) {
+                source.acquireLatestImage()?.close()
+                return@setOnImageAvailableListener
+            }
+            lastScanMs = now
+
+            val image = source.acquireLatestImage()
+            if (image == null) {
+                busy.set(false)
+                return@setOnImageAvailableListener
+            }
+
             try {
                 val bitmap = ImageBitmapConverter.toBitmap(image)
                 analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
                     val c = result.coordinate
+                    val kind = result.classification.kind?.name ?: "UNKNOWN"
+                    val label = result.classification.resource?.name
+                        ?: if (result.classification.kind != null) "MONSTER" else "MAP"
+
                     val status = if (c != null) {
-                        "SCAN  K${c.kingdom} X${c.x} Y${c.y}"
+                        "SCAN $kind\n$label  K${c.kingdom} X${c.x} Y${c.y}"
                     } else {
-                        "SCAN  OCR active"
+                        "SCAN\nOCR active"
                     }
                     OverlayService.instance?.showStatus(status)
+                    busy.set(false)
                 }
-                bitmap.recycle()
             } finally {
                 image.close()
             }
-        }, null)
+        }, handler)
 
         projection?.createVirtualDisplay(
             "LMCompanion",
