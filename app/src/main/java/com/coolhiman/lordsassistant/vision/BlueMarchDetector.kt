@@ -17,7 +17,7 @@ data class MarchSignal(
 
 class BlueMarchDetector {
     /**
-     * Heuristic detector for blue directional/march indicators.
+     * Detects blue/cyan march indicators as a secondary signal. Orange directional arrows are handled by OrangeMarchDetector.
      * It is deliberately only a signal; popup validation remains authoritative.
      */
     fun detect(bitmap: Bitmap): List<MarchSignal> {
