@@ -54,7 +54,7 @@ class DetectionFusion(
                     level = popupState.level ?: classification.level,
                     quantity = popupState.quantity ?: classification.quantity,
                     occupied = popupState.occupied ?: classification.occupied,
-                    incomingTroops = popupState.incomingTroops || classification.incomingTroops == true
+                    incomingTroops = popupState.incomingTroops == true || classification.incomingTroops == true
                 )
             }
 
