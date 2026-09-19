@@ -23,5 +23,8 @@ class AffineGridCalibratorTest {
         val predicted = result.predict(WorldCoordinate(k, 102, 202))
         assertEquals(540f, predicted.x, 0.01f)
         assertEquals(680f, predicted.y, 0.01f)
+
+        assertEquals(WorldCoordinate(k, 102, 202), result.inverse(ScreenPoint(540f, 680f), k))
+        assertNull(result.inverse(ScreenPoint(900f, 900f), k))
     }
 }
