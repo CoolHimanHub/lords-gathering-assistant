@@ -30,9 +30,6 @@ class FrameAnalyzer {
             .addOnFailureListener {
                 callback(FrameAnalysis("", null, TextClassification()))
             }
-            .addOnCompleteListener {
-                if (!bitmap.isRecycled) bitmap.recycle()
-            }
     }
 
     fun close() = recognizer.close()
