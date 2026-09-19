@@ -2,6 +2,7 @@ package com.coolhiman.lordsassistant.vision
 
 import android.graphics.RectF
 import com.coolhiman.lordsassistant.model.WorldCoordinate
+import com.coolhiman.lordsassistant.model.TargetKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
