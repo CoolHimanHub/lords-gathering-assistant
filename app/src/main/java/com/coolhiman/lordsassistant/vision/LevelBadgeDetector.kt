@@ -71,7 +71,7 @@ class LevelBadgeDetector(
             val h = r.height.toFloat()
             if (w < 5f || h < 5f || w > 70f || h > 50f) return@mapNotNull null
             val aspect = w / max(1f, h)
-            if (aspect !in 0.45f..3.8f) return@mapNotNull null
+            if (aspect < 0.45f || aspect > 3.8f) return@mapNotNull null
 
             // Exclude fixed HUD/chat/action-bar bands seen in the supplied recordings.
             if (r.y < 105 || r.y > height - 155 || r.x < 105 || r.x > width - 85) {
