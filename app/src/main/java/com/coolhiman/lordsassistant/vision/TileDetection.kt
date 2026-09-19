@@ -17,11 +17,14 @@ data class DetectedTile(
     val level: Int?,
     val bounds: RectF,
     val confidence: Double,
-    val sourceTemplate: String? = null
+    val sourceTemplate: String? = null,
+    val source: DetectionSource = DetectionSource.TEMPLATE
 ) {
     val centerX: Float get() = bounds.centerX()
     val centerY: Float get() = bounds.centerY()
 }
+
+enum class DetectionSource { TEMPLATE, LEVEL_BADGE }
 
 data class DetectionFrame(
     val tiles: List<DetectedTile>,
