@@ -157,3 +157,11 @@ Implemented from the supplied gameplay recordings:
 - **Tests:** added popup parsing, popup occupancy override, and temporal tracking coverage.
 
 The supplied recordings already provide the necessary examples for resource popups, occupied/in-motion resources, monster popups, dense maps, sparse terrain, and UI clutter; no additional recording is required for this V0.4.8 pass.
+
+
+### V0.4.9 — build hardening
+
+- Corrected Kotlin numeric type handling in the blue march confidence calculation.
+- Hardened level-badge area filtering without relying on Kotlin range operator inference.
+- Verified the orange march detector is present in the live vision package and wired into LiveMapScanner.
+- Automatic gameplay actions remain disabled by default; detection and planning continue to require validation.
