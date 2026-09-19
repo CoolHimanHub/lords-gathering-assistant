@@ -47,7 +47,7 @@ object PopupStateParser {
             else -> classification.occupied
         }
 
-        val incoming = classification.incomingTroops ||
+        val incoming = classification.incomingTroops == true ||
             listOf("marching", "incoming", "arriving", "troops have reached", "started gathering").any { it in lower }
 
         val parsedQuantity = quantity.find(text)?.groupValues?.get(1)?.replace(",", "")?.toLongOrNull()
