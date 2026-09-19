@@ -30,5 +30,5 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("org.opencv:opencv:4.11.0")
+    implementation("org.opencv:opencv:4.14.0")
 }
