@@ -165,3 +165,11 @@ The supplied recordings already provide the necessary examples for resource popu
 - Hardened level-badge area filtering without relying on Kotlin range operator inference.
 - Verified the orange march detector is present in the live vision package and wired into LiveMapScanner.
 - Automatic gameplay actions remain disabled by default; detection and planning continue to require validation.
+
+
+### V0.4.10 — state and calibration hardening
+
+- **Occupancy state machine hardening:** a node previously observed occupied/incoming now requires repeated fresh free evidence before becoming eligible again.
+- **Calibration geometry validation:** rejects one-dimensional/near-collinear world-coordinate samples that can yield unstable inverse transforms.
+- Added regression tests for occupied-to-free transitions and unstable affine calibration sets.
+- Planning remains detection-only; no automatic Gather/Hunt gesture is enabled by default.
