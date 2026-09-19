@@ -46,7 +46,10 @@ class LineupActivity : Activity() {
 
         fun arrayText(obj: JSONObject, key: String): String? {
             if (!obj.has(key)) return null
-            return obj.getJSONArray(key).joinToString(", ") { index -> obj.getJSONArray(key).getString(index) }
+            val array = obj.getJSONArray(key)
+            val values = mutableListOf<String>()
+            for (i in 0 until array.length()) values += array.getString(i)
+            return values.joinToString(", ")
         }
 
         fun render(name: String) {
