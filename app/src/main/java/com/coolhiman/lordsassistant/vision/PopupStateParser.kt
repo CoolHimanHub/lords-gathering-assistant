@@ -36,7 +36,9 @@ object PopupStateParser {
             WorldCoordinate(defaultKingdom, it.groupValues[1].toInt(), it.groupValues[2].toInt())
         }
         val popupWords = listOf("gather", "attack", "occupier", "unoccupied", "occupy", "hunt")
-        val isPopup = coord != null || popupWords.any { it in lower } ||
+        // X/Y alone is the persistent map HUD, so it must not be treated as a popup.
+        // A popup is established by its action/state vocabulary or a named target + level.
+        val isPopup = popupWords.any { it in lower } ||
             (kind != null && popupLevel.containsMatchIn(text))
 
         val occupied = when {
