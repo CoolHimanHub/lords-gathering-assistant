@@ -11,7 +11,8 @@ data class FrameAnalysis(
     val text: String,
     val coordinate: WorldCoordinate?,
     val classification: TextClassification,
-    val textRegions: List<TextRegion> = emptyList()
+    val textRegions: List<TextRegion> = emptyList(),
+    val popup: PopupState? = null
 )
 
 class FrameAnalyzer {
@@ -26,15 +27,16 @@ class FrameAnalyzer {
                 }
                 callback(
                     FrameAnalysis(
-                        text,
-                        OcrParser.parseCoordinate(text, defaultKingdom),
-                        GameTextClassifier.classify(text),
-                        regions
+                        text = text,
+                        coordinate = OcrParser.parseCoordinate(text, defaultKingdom),
+                        classification = GameTextClassifier.classify(text),
+                        textRegions = regions,
+                        popup = PopupStateParser.parse(text, defaultKingdom)
                     )
                 )
             }
             .addOnFailureListener {
-                callback(FrameAnalysis("", null, TextClassification(), emptyList()))
+                callback(FrameAnalysis("", null, TextClassification(), emptyList(), null))
             }
     }
 
