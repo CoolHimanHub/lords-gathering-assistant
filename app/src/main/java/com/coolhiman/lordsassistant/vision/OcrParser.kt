@@ -18,5 +18,5 @@ object OcrParser {
     }
 
     fun normalize(text: String): String =
-        text.replace("Lv.", "LV", ignoreCase = true).replace(Regex("\s+"), " ").trim()
+        text.replace("Lv.", "LV", ignoreCase = true).replace(Regex("""\s+"""), " ").trim()
 }
