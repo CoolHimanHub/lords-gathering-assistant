@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
+import com.coolhiman.lordsassistant.map.LiveMapScanner
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
@@ -25,6 +26,7 @@ class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
     private lateinit var analyzer: FrameAnalyzer
+    private lateinit var liveScanner: LiveMapScanner
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
@@ -32,6 +34,7 @@ class ScreenCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         analyzer = FrameAnalyzer()
+        liveScanner = LiveMapScanner(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,24 +71,38 @@ class ScreenCaptureService : Service() {
                 return@setOnImageAvailableListener
             }
 
-            try {
-                val bitmap = ImageBitmapConverter.toBitmap(image)
-                analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
-                    val c = result.coordinate
-                    val kind = result.classification.kind?.name ?: "UNKNOWN"
-                    val label = result.classification.resource?.name
-                        ?: if (result.classification.kind != null) "MONSTER" else "MAP"
+            val bitmap = ImageBitmapConverter.toBitmap(image)
+            image.close()
 
-                    val status = if (c != null) {
-                        "SCAN $kind\n$label  K${c.kingdom} X${c.x} Y${c.y}"
-                    } else {
-                        "SCAN\nOCR active"
+            analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                try {
+                    val scan = liveScanner.scan(
+                        bitmap = bitmap,
+                        defaultKingdom = result.coordinate?.kingdom ?: 0,
+                        ocrCoordinate = result.coordinate
+                    )
+                    val origin = scan.origin
+                    val status = buildString {
+                        append("LIVE MAP  •  ")
+                        append(scan.detectedTiles)
+                        append(" tiles / ")
+                        append(scan.plan.ranked.size)
+                        append(" targets")
+                        if (origin != null) {
+                            append("\nK").append(origin.kingdom)
+                            append(" X").append(origin.x)
+                            append(" Y").append(origin.y)
+                        } else {
+                            append("\nCalibrate + expose K/X/Y for ranking")
+                        }
+                        append("\n").append(scan.processingMs).append("ms")
                     }
                     OverlayService.instance?.showStatus(status)
+                    OverlayService.instance?.showTargets(scan.plan.ranked)
+                } finally {
+                    if (!bitmap.isRecycled) bitmap.recycle()
                     busy.set(false)
                 }
-            } finally {
-                image.close()
             }
         }, handler)
 
@@ -119,6 +136,7 @@ class ScreenCaptureService : Service() {
         reader?.setOnImageAvailableListener(null, null)
         reader?.close()
         projection?.stop()
+        liveScanner.close()
         analyzer.close()
         super.onDestroy()
     }
