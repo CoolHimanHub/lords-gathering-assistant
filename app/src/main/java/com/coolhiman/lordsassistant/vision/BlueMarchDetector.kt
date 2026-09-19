@@ -44,7 +44,7 @@ class BlueMarchDetector {
                 (rect.x + rect.width / 2f),
                 (rect.y + rect.height / 2f),
                 area,
-                (0.55f + (area.coerceAtMost(300.0) / 300.0 * 0.35f)).coerceAtMost(0.9f)
+                (0.55 + (area.coerceAtMost(300.0) / 300.0 * 0.35)).coerceAtMost(0.9).toFloat()
             )
         }
 
