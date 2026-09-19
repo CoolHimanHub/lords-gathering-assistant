@@ -31,6 +31,7 @@ class ScreenCaptureService : Service() {
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
+    private val viewportGuard = ViewportGuard()
 
     override fun onCreate() {
         super.onCreate()
@@ -74,6 +75,11 @@ class ScreenCaptureService : Service() {
 
             val bitmap = ImageBitmapConverter.toBitmap(image)
             image.close()
+            if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
+                if (!bitmap.isRecycled) bitmap.recycle()
+                busy.set(false)
+                return@setOnImageAvailableListener
+            }
 
             analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
                 try {
