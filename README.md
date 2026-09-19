@@ -173,3 +173,12 @@ The supplied recordings already provide the necessary examples for resource popu
 - **Calibration geometry validation:** rejects one-dimensional/near-collinear world-coordinate samples that can yield unstable inverse transforms.
 - Added regression tests for occupied-to-free transitions and unstable affine calibration sets.
 - Planning remains detection-only; no automatic Gather/Hunt gesture is enabled by default.
+
+
+### V0.4.11 — temporal march and viewport safeguards
+
+- Temporal march association: blue/cyan and orange march contours now require repeated nearby evidence before becoming stable march signals; isolated one-frame contours are ignored by the occupancy fusion layer.
+- Viewport consistency guard: capture dimensions are locked for the current scanner session. A dimension change stops coordinate-driven scanning rather than silently applying calibration from a different screen geometry.
+- Added regression tests for single-frame march rejection, repeated march confirmation, stale march expiry, stable viewport dimensions, dimension changes, and invalid dimensions.
+- Added manual GitHub Actions dispatch support so the Android build can be explicitly rerun when needed.
+- Automatic Gather/Hunt actions remain disabled by default.
