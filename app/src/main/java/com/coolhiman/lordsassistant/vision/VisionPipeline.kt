@@ -1,18 +1,12 @@
 package com.coolhiman.lordsassistant.vision
 
 import android.graphics.Bitmap
-import com.coolhiman.lordsassistant.model.WorldCoordinate
 
 data class VisionPipelineResult(
     val detection: DetectionFrame,
-    val fused: List<FusionCandidate>,
-    val coordinate: WorldCoordinate?
+    val fused: List<FusionCandidate>
 )
 
-/**
- * V0.4 pipeline coordinator. It is intentionally side-effect free so it can
- * be exercised from screenshots before connecting it to live capture.
- */
 class VisionPipeline(
     private val tileDetector: TemplateTileDetector,
     private val fusion: DetectionFusion
@@ -22,10 +16,13 @@ class VisionPipeline(
         templates: List<Pair<TileTemplate, Bitmap>>,
         textRegions: List<TextRegion> = emptyList(),
         marchSignals: List<MarchSignal> = emptyList(),
-        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
+        popupState: PopupState? = null,
+        coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null }
     ): VisionPipelineResult {
         val detection = tileDetector.detect(bitmap, templates)
-        val fused = fusion.fuse(detection, textRegions, marchSignals, coordinateResolver)
-        return VisionPipelineResult(detection, fused, null)
+        val fused = fusion.fuse(
+            detection, textRegions, marchSignals, coordinateResolver, popupState
+        )
+        return VisionPipelineResult(detection, fused)
     }
 }
