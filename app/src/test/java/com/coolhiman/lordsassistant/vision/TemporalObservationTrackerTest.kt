@@ -34,4 +34,15 @@ class TemporalObservationTrackerTest {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         assertEquals(1, tracker.update(listOf(observation(0.95f)), 1000L).size)
     }
+    @Test
+    fun occupiedNodeNeedsRepeatedFreeEvidenceBeforeClearing() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val occupied = observation(0.90f).copy(occupied = true, incomingTroops = true)
+        val free = observation(0.90f).copy(occupied = false, incomingTroops = false)
+
+        assertEquals(1, tracker.update(listOf(occupied), 1000L).size)
+        assertEquals(true, tracker.update(listOf(free), 1100L).first().occupied)
+        assertEquals(false, tracker.update(listOf(free), 1200L).first().occupied)
+    }
+
 }
