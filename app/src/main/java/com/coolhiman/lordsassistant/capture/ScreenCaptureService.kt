@@ -79,7 +79,8 @@ class ScreenCaptureService : Service() {
                     val scan = liveScanner.scan(
                         bitmap = bitmap,
                         defaultKingdom = result.coordinate?.kingdom ?: 0,
-                        ocrCoordinate = result.coordinate
+                        ocrCoordinate = result.coordinate,
+                        textRegions = result.textRegions
                     )
                     val origin = scan.origin
                     val status = buildString {
