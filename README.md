@@ -106,3 +106,24 @@ Game UI, rules and third-party terms can change, so validate the current game ve
 ### V0.4.4 — MapMemory to target planning
 
 The target layer now converts fused visual candidates into MapObservation records and provides TargetPlanner. Planning ignores candidates without calibrated K/X/Y, requires resource classification plus enabled type/level, rejects occupied or incoming-troop tiles, and applies a confidence gate before ranking. This layer produces overlay-ready target data only; it does not issue game taps or march commands.
+
+
+## V0.4.5 — Live vision integration
+
+The live capture path now connects the existing vision components:
+
+`ScreenCaptureService → FrameAnalyzer → LiveMapScanner → VisionPipeline → CoordinateResolver → MapMemory → TargetPlanner → Overlay`
+
+The scanner:
+- runs visual template detection and blue-march signal detection on captured frames;
+- resolves tile centers to calibrated world coordinates when calibration is usable;
+- stores observations in stale-aware map memory;
+- filters resources by the saved resource/level preferences and conservative confidence/occupancy rules;
+- ranks targets only when an OCR coordinate is available as the current planning origin;
+- draws up to 12 ranked target markers in a separate non-touchable overlay layer.
+
+V0.4.5 remains **detection/planning only**. It does not tap the game, launch marches, change heroes, or alter gear. Automatic actions remain disabled by default.
+
+### Important runtime note
+
+Live coordinate resolution requires calibration samples collected from the same map/camera geometry. The current calibration is an affine approximation and is not yet a camera/zoom-invariant world model. Template detection also depends on the locally collected RESOURCE/MONSTER dataset; with no templates, the live pipeline will report zero visual tile candidates while OCR remains available.
