@@ -88,5 +88,21 @@ data class Calibration(
             (screenY[0] * world.x + screenY[1] * world.y + screenY[2]).toFloat()
         )
 
+    fun inverse(screen: ScreenPoint, kingdom: Int, maxResidualPx: Double = 35.0): WorldCoordinate? {
+        val det = screenX[0] * screenY[1] - screenX[1] * screenY[0]
+        if (abs(det) < 1e-8) return null
+        val sx = screen.x.toDouble() - screenX[2]
+        val sy = screen.y.toDouble() - screenY[2]
+        val worldX = (sx * screenY[1] - screenX[1] * sy) / det
+        val worldY = (screenX[0] * sy - sx * screenY[0]) / det
+        val candidate = WorldCoordinate(kingdom, kotlin.math.round(worldX).toInt(), kotlin.math.round(worldY).toInt())
+        val predicted = predict(candidate)
+        val residual = kotlin.math.hypot(
+            predicted.x.toDouble() - screen.x,
+            predicted.y.toDouble() - screen.y
+        )
+        return candidate.takeIf { residual <= maxResidualPx }
+    }
+
     fun isUsable(maxRmsPx: Double = 35.0): Boolean = rmsErrorPx <= maxRmsPx
 }
