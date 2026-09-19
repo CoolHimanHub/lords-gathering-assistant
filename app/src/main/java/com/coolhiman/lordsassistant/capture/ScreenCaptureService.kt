@@ -80,7 +80,8 @@ class ScreenCaptureService : Service() {
                         bitmap = bitmap,
                         defaultKingdom = result.coordinate?.kingdom ?: 0,
                         ocrCoordinate = result.coordinate,
-                        textRegions = result.textRegions
+                        textRegions = result.textRegions,
+                        popupState = result.popup
                     )
                     val origin = scan.origin
                     val status = buildString {
