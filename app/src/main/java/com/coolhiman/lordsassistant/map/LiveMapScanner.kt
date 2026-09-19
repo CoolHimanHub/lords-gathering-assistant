@@ -14,6 +14,7 @@ import com.coolhiman.lordsassistant.vision.ObservationMapper
 import com.coolhiman.lordsassistant.vision.PopupState
 import com.coolhiman.lordsassistant.vision.TemplateLibrary
 import com.coolhiman.lordsassistant.vision.TemplateTileDetector
+import com.coolhiman.lordsassistant.vision.TemporalMarchSignalTracker
 import com.coolhiman.lordsassistant.vision.TemporalObservationTracker
 import com.coolhiman.lordsassistant.vision.VisionPipeline
 
@@ -33,6 +34,8 @@ class LiveMapScanner(context: Context) {
     private val planner = TargetPlanner()
     private val blueMarchDetector = BlueMarchDetector()
     private val orangeMarchDetector = OrangeMarchDetector()
+    private val marchTracker = TemporalMarchSignalTracker()
+    private val viewportGuard = ViewportGuard()
     private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
     private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
 
@@ -44,9 +47,20 @@ class LiveMapScanner(context: Context) {
         popupState: PopupState? = null
     ): LiveMapScanResult {
         val started = System.currentTimeMillis()
+        if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
+            val snapshot = mapMemory.snapshot()
+            return LiveMapScanResult(
+                observations = snapshot,
+                plan = TargetPlan(snapshot, emptyList()),
+                detectedTiles = 0,
+                processingMs = System.currentTimeMillis() - started,
+                origin = null
+            )
+        }
         val kingdom = ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
         val resolver = CoordinateResolver(calibrationStore, kingdom)
-        val marchSignals = blueMarchDetector.detect(bitmap) + orangeMarchDetector.detect(bitmap)
+        val rawMarchSignals = blueMarchDetector.detect(bitmap) + orangeMarchDetector.detect(bitmap)
+        val marchSignals = marchTracker.update(rawMarchSignals, started)
 
         val result = pipeline.analyze(
             bitmap = bitmap,
