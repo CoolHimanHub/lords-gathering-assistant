@@ -65,7 +65,7 @@ class LevelBadgeDetector(
         Imgproc.findContours(mask, reusable, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
         return reusable.mapNotNull { contour ->
             val area = Imgproc.contourArea(contour)
-            if (area !in minArea..maxArea) return@mapNotNull null
+            if (area < minArea || area > maxArea) return@mapNotNull null
             val r = Imgproc.boundingRect(contour)
             val w = r.width.toFloat()
             val h = r.height.toFloat()
