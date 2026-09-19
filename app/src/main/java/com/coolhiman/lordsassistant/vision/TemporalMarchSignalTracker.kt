@@ -22,29 +22,34 @@ class TemporalMarchSignalTracker(
     fun update(signals: List<MarchSignal>, nowMs: Long): List<MarchSignal> {
         tracks.removeAll { nowMs - it.lastSeenMs > maxGapMs }
         val stable = mutableListOf<MarchSignal>()
+        val usedTrackIndexes = mutableSetOf<Int>()
 
         signals.forEach { signal ->
-            val track = tracks.minByOrNull {
-                hypot(
-                    (it.signal.x - signal.x).toDouble(),
-                    (it.signal.y - signal.y).toDouble()
-                )
-            }
-            val distance = track?.let {
-                hypot(
-                    (it.signal.x - signal.x).toDouble(),
-                    (it.signal.y - signal.y).toDouble()
+            var bestIndex = -1
+            var bestDistance = Float.MAX_VALUE
+
+            tracks.forEachIndexed { index, track ->
+                if (index in usedTrackIndexes) return@forEachIndexed
+                val distance = hypot(
+                    (track.signal.x - signal.x).toDouble(),
+                    (track.signal.y - signal.y).toDouble()
                 ).toFloat()
+                if (distance < bestDistance) {
+                    bestDistance = distance
+                    bestIndex = index
+                }
             }
 
-            val updated = if (track != null && distance != null && distance <= maxDistancePx) {
-                track.signal = signal
-                track.hits += 1
-                track.lastSeenMs = nowMs
-                track
+            val updated = if (bestIndex >= 0 && bestDistance <= maxDistancePx) {
+                usedTrackIndexes += bestIndex
+                tracks[bestIndex].signal = signal
+                tracks[bestIndex].hits += 1
+                tracks[bestIndex].lastSeenMs = nowMs
+                tracks[bestIndex]
             } else {
                 val newTrack = Track(signal, 1, nowMs)
                 tracks += newTrack
+                usedTrackIndexes += tracks.lastIndex
                 newTrack
             }
 
