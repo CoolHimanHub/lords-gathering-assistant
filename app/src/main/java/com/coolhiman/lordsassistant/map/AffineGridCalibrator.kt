@@ -26,6 +26,30 @@ class AffineGridCalibrator {
     fun fit(): Calibration? {
         if (samples.size < 3) return null
 
+        // Reject calibration sets with effectively one-dimensional geometry.
+        // Such samples can produce a mathematically solvable but unstable
+        // inverse transform and are especially dangerous after camera changes.
+        val xs = samples.map { it.first.x.toDouble() }
+        val ys = samples.map { it.first.y.toDouble() }
+        val xSpan = xs.maxOrNull()!! - xs.minOrNull()!!
+        val ySpan = ys.maxOrNull()!! - ys.minOrNull()!!
+        if (xSpan < 2.0 || ySpan < 2.0) return null
+
+        val meanX = xs.average()
+        val meanY = ys.average()
+        var covXX = 0.0
+        var covYY = 0.0
+        var covXY = 0.0
+        samples.forEach {
+            val dx = it.first.x - meanX
+            val dy = it.first.y - meanY
+            covXX += dx * dx
+            covYY += dy * dy
+            covXY += dx * dy
+        }
+        val covarianceDet = covXX * covYY - covXY * covXY
+        if (covarianceDet < 1e-6) return null
+
         // Solve A*x=b for x coefficients using normal equations.
         val a = Array(3) { DoubleArray(3) }
         val bx = DoubleArray(3)
