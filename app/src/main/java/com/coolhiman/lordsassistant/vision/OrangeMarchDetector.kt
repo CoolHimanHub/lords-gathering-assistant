@@ -18,7 +18,8 @@ class OrangeMarchDetector {
         val hsv = Mat()
         val mask = Mat()
         Utils.bitmapToMat(bitmap, rgba)
-        Imgproc.cvtColor(rgba, hsv, Imgproc.COLOR_RGBA2HSV)
+        Imgproc.cvtColor(rgba, hsv, Imgproc.COLOR_RGBA2RGB)
+        Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV)
         Core.inRange(hsv, Scalar(5.0, 120.0, 100.0), Scalar(30.0, 255.0, 255.0), mask)
 
         val contours = ArrayList<MatOfPoint>()
@@ -32,14 +33,14 @@ class OrangeMarchDetector {
             val aspect = rect.width.toDouble() / rect.height.coerceAtLeast(1)
             if (aspect < 0.25 || aspect > 4.5) return@mapNotNull null
 
-            if (rect.top < 110 || rect.bottom > bitmap.height - 150) return@mapNotNull null
-            if (rect.left < 120 || rect.right > bitmap.width - 90) return@mapNotNull null
+            if (rect.y < 110 || rect.y + rect.height > bitmap.height - 150) return@mapNotNull null
+            if (rect.x < 120 || rect.x + rect.width > bitmap.width - 90) return@mapNotNull null
 
             val compactness = area /
                 (rect.width.toDouble() * rect.height.toDouble()).coerceAtLeast(1.0)
             MarchSignal(
-                rect.centerX().toFloat(),
-                rect.centerY().toFloat(),
+                (rect.x + rect.width / 2f),
+                (rect.y + rect.height / 2f),
                 area,
                 (0.55 + compactness.coerceIn(0.0, 1.0) * 0.35).toFloat()
             )
