@@ -11,11 +11,14 @@ import android.view.WindowManager
 import android.widget.TextView
 
 class OverlayService : Service() {
+    companion object { @Volatile var instance: OverlayService? = null }
+
     private lateinit var wm: WindowManager
     private var card: TextView? = null
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
 
         val view = TextView(this).apply {
@@ -66,9 +69,10 @@ class OverlayService : Service() {
         wm.addView(view, lp)
     }
 
-    fun showStatus(text: String) { card?.text = text }
+    fun showStatus(text: String) { card?.post { card?.text = text } }
 
     override fun onDestroy() {
+        instance = null
         card?.let { wm.removeView(it) }
         card = null
         super.onDestroy()
