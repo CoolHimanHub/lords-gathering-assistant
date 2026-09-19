@@ -34,6 +34,10 @@ The visual detection layer now supports:
 
 This is intentionally a candidate detector, not an automatic-action engine. The next layer will associate level/OCR text, occupancy/march signals, and calibrated K/X/Y coordinates before any target can be considered actionable.
 
+### V0.4.2 — Detection fusion and map-memory foundation
+
+The pipeline now combines tile candidates with nearby OCR classifications and blue-march signals. A candidate can be resolved to a calibrated world coordinate through a caller-supplied resolver, while missing evidence remains unknown rather than being guessed. `MapMemory` now supports batch updates and stale-observation expiry so target selection does not rely indefinitely on old screen observations.
+
 ## Architecture
 
 ```text
