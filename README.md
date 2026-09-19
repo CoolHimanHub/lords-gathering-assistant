@@ -127,3 +127,21 @@ V0.4.5 remains **detection/planning only**. It does not tap the game, launch mar
 ### Important runtime note
 
 Live coordinate resolution requires calibration samples collected from the same map/camera geometry. The current calibration is an affine approximation and is not yet a camera/zoom-invariant world model. Template detection also depends on the locally collected RESOURCE/MONSTER dataset; with no templates, the live pipeline will report zero visual tile candidates while OCR remains available.
+
+
+## V0.4.7 — Gameplay-video calibration findings
+
+Additional gameplay recordings were reviewed on 2026-09-19. They show several useful visual states that are now treated as first-class detection signals:
+
+- Resource nodes display a small blue level badge; monster nodes display a red level badge.
+- Selecting a resource opens a large translucent information panel containing the resource name/level, quantity, Occupier state (including Unoccupied), a Gather action, and a world coordinate such as K:355 X:167 Y:511.
+- The top-center map HUD continuously exposes X and Y, which is useful for camera/world-coordinate tracking.
+- Active march paths are visibly rendered as repeated orange directional arrows; the live scanner now detects orange as well as blue/cyan march evidence.
+- The recordings contain substantial UI/chat overlays and large terrain features, reinforcing the need for spatial association and UI-region filtering rather than full-screen color matching alone.
+- The same resource type appears at multiple levels and across different camera positions, so template matching remains supplemental to coordinate/OCR evidence rather than the sole source of truth.
+
+The videos are used as visual calibration evidence; no gameplay recording is stored in the APK or repository.
+
+### V0.4.7 focus
+
+The next hardening pass should prioritize level-badge detection, temporal target tracking, popup-state validation, and camera/zoom consistency. Automatic taps and marches remain disabled.
