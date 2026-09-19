@@ -42,7 +42,8 @@ class LiveMapScanner(context: Context) {
     fun scan(
         bitmap: Bitmap,
         defaultKingdom: Int = 0,
-        ocrCoordinate: WorldCoordinate? = null
+        ocrCoordinate: WorldCoordinate? = null,
+        textRegions: List<com.coolhiman.lordsassistant.vision.TextRegion> = emptyList()
     ): LiveMapScanResult {
         val started = System.currentTimeMillis()
         val kingdom = ocrCoordinate?.kingdom ?: defaultKingdom
@@ -52,6 +53,7 @@ class LiveMapScanner(context: Context) {
         val result = pipeline.analyze(
             bitmap = bitmap,
             templates = templates,
+            textRegions = textRegions,
             marchSignals = marchSignals,
             coordinateResolver = resolver::resolve
         )
