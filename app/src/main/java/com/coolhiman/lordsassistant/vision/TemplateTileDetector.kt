@@ -5,18 +5,16 @@ import android.graphics.RectF
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * V0.4 template detector.
- * Produces visual candidates only; popup/OCR/state validation is separate.
- */
 class TemplateTileDetector(
     private val matcher: TemplateMatcher = TemplateMatcher(),
     private val threshold: Double = 0.84,
-    private val iouThreshold: Float = 0.35f
+    private val iouThreshold: Float = 0.35f,
+    private val badgeDetector: LevelBadgeDetector = LevelBadgeDetector()
 ) {
     fun detect(screen: Bitmap, templates: List<Pair<TileTemplate, Bitmap>>): DetectionFrame {
         val started = System.currentTimeMillis()
         val candidates = ArrayList<DetectedTile>()
+
         for ((template, bitmap) in templates) {
             if (bitmap.isRecycled || bitmap.width <= 2 || bitmap.height <= 2) continue
             val match = matcher.match(screen, bitmap, threshold) ?: continue
@@ -25,9 +23,23 @@ class TemplateTileDetector(
                 RectF(match.x.toFloat(), match.y.toFloat(),
                     (match.x + match.width).toFloat(),
                     (match.y + match.height).toFloat()),
-                match.score, template.imagePath
+                match.score, template.imagePath, DetectionSource.TEMPLATE
             )
         }
+
+        for (badge in badgeDetector.detect(screen)) {
+            val cx = badge.bounds.centerX()
+            val cy = badge.bounds.bottom + badge.bounds.height() * 0.65f
+            val halfW = max(18f, badge.bounds.width() * 0.65f)
+            val halfH = max(18f, badge.bounds.height() * 0.65f)
+            candidates += DetectedTile(
+                if (badge.tileClass == TileClass.RESOURCE) "RESOURCE_BADGE" else "MONSTER_BADGE",
+                badge.tileClass, null,
+                RectF(cx - halfW, cy - halfH, cx + halfW, cy + halfH),
+                badge.confidence, null, DetectionSource.LEVEL_BADGE
+            )
+        }
+
         return DetectionFrame(nonMaximumSuppress(candidates), System.currentTimeMillis() - started)
     }
 
