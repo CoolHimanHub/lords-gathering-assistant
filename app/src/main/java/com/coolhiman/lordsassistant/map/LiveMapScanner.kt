@@ -32,7 +32,8 @@ class LiveMapScanner(context: Context) {
     private val preferencesStore = PreferencesStore(context)
     private val mapMemory = MapMemory()
     private val planner = TargetPlanner()
-    private val marchDetector = BlueMarchDetector()
+    private val blueMarchDetector = BlueMarchDetector()
+    private val orangeMarchDetector = OrangeMarchDetector()
     private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
     private val pipeline = VisionPipeline(
         TemplateTileDetector(),
@@ -48,7 +49,7 @@ class LiveMapScanner(context: Context) {
         val started = System.currentTimeMillis()
         val kingdom = ocrCoordinate?.kingdom ?: defaultKingdom
         val resolver = CoordinateResolver(calibrationStore, kingdom)
-        val marchSignals = marchDetector.detect(bitmap)
+        val marchSignals = blueMarchDetector.detect(bitmap) + orangeMarchDetector.detect(bitmap)
 
         val result = pipeline.analyze(
             bitmap = bitmap,
