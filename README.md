@@ -21,6 +21,19 @@ The app now includes a local visual dataset workflow:
 
 The persistent CalibrationStore now feeds the existing affine calibrator, so calibration data survives app restarts. The next detector layer can consume this calibration instead of assuming a fixed isometric pixel formula.
 
+### V0.4.1 — Template-based tile detection foundation
+
+The visual detection layer now supports:
+
+- TileTemplate / DetectedTile / DetectionFrame models for resource and monster candidates.
+- Loading RESOURCE and MONSTER crops collected by the calibration/training console.
+- OpenCV template matching with a configurable confidence threshold.
+- Non-maximum suppression to avoid duplicate overlapping candidates.
+- Per-candidate center coordinates for later map-coordinate association.
+- Unit coverage for detection-model separation and geometry.
+
+This is intentionally a candidate detector, not an automatic-action engine. The next layer will associate level/OCR text, occupancy/march signals, and calibrated K/X/Y coordinates before any target can be considered actionable.
+
 ## Architecture
 
 ```text
