@@ -102,3 +102,7 @@ Automatic actions are disabled by default. A visual candidate should never be en
 `detect -> validate popup -> verify state -> check preferences -> optional gesture`
 
 Game UI, rules and third-party terms can change, so validate the current game version before enabling automation.
+
+### V0.4.4 — MapMemory to target planning
+
+The target layer now converts fused visual candidates into MapObservation records and provides TargetPlanner. Planning ignores candidates without calibrated K/X/Y, requires resource classification plus enabled type/level, rejects occupied or incoming-troop tiles, and applies a confidence gate before ranking. This layer produces overlay-ready target data only; it does not issue game taps or march commands.
