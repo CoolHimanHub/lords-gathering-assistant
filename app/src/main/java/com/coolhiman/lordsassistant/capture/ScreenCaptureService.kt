@@ -9,6 +9,9 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.IBinder
 import android.util.DisplayMetrics
+import com.coolhiman.lordsassistant.overlay.OverlayService
+import com.coolhiman.lordsassistant.vision.FrameAnalyzer
+import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 
 class ScreenCaptureService : Service() {
     companion object {
@@ -18,6 +21,12 @@ class ScreenCaptureService : Service() {
 
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
+    private lateinit var analyzer: FrameAnalyzer
+
+    override fun onCreate() {
+        super.onCreate()
+        analyzer = FrameAnalyzer()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createChannel()
@@ -31,10 +40,32 @@ class ScreenCaptureService : Service() {
         projection = manager.getMediaProjection(resultCode, data)
 
         val metrics = DisplayMetrics()
+        val wm = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
         @Suppress("DEPRECATION")
-        windowManager.defaultDisplay.getMetrics(metrics)
+        wm.defaultDisplay.getMetrics(metrics)
 
-        reader = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels, PixelFormat.RGBA_8888, 2)
+        reader = ImageReader.newInstance(
+            metrics.widthPixels, metrics.heightPixels, PixelFormat.RGBA_8888, 2
+        )
+
+        reader?.setOnImageAvailableListener({ source ->
+            val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
+            try {
+                val bitmap = ImageBitmapConverter.toBitmap(image)
+                analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                    val c = result.coordinate
+                    val status = if (c != null) {
+                        "SCAN  K${c.kingdom} X${c.x} Y${c.y}"
+                    } else {
+                        "SCAN  OCR active"
+                    }
+                    OverlayService.instance?.showStatus(status)
+                }
+                bitmap.recycle()
+            } finally {
+                image.close()
+            }
+        }, null)
 
         projection?.createVirtualDisplay(
             "LMCompanion",
@@ -46,7 +77,6 @@ class ScreenCaptureService : Service() {
             null,
             null
         )
-
         return START_STICKY
     }
 
@@ -64,8 +94,10 @@ class ScreenCaptureService : Service() {
         .build()
 
     override fun onDestroy() {
+        reader?.setOnImageAvailableListener(null, null)
         reader?.close()
         projection?.stop()
+        analyzer.close()
         super.onDestroy()
     }
 
