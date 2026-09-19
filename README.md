@@ -2,26 +2,24 @@
 
 Native Android prototype for a compact, movable overlay companion.
 
-## V0.2 progress
+## Current progress
 
-The project now has the first map-intelligence layer:
+### V0.3.1 — Visual calibration / training console
 
-- Native Kotlin Android app
-- Landscape-game friendly movable overlay
-- Always-on-top permission flow
-- MediaProjection screen capture foreground service
-- ML Kit OCR pipeline
-- OpenCV template matching
-- Coordinate parser for K/X/Y and K:X:Y popup formats
-- Game text classifier for resources and supported monsters
-- Resource level and quantity extraction
-- Occupancy/incoming-march keyword detection
-- Rolling coordinate calibration model
-- User resource/level preferences
-- Target filtering
-- Optional AccessibilityService gesture bridge
-- Bundled monster lineup reference data
-- GitHub Actions debug APK build
+The app now includes a local visual dataset workflow:
+
+- Load real game screenshots from device storage.
+- Draw a selection rectangle around a visual target.
+- Label RESOURCE, MONSTER, LEVEL, COORDINATE, MARCH or CASTLE.
+- Store cropped PNG samples and JSONL metadata in app-private storage.
+- Record K/X/Y against the selected tile center for map calibration.
+- Persist up to 32 coordinate samples.
+- Fit an affine screen↔world calibration and display its RMS error.
+- Require 3+ coordinate samples before calibration becomes usable.
+
+### V0.3.2 foundation
+
+The persistent CalibrationStore now feeds the existing affine calibrator, so calibration data survives app restarts. The next detector layer can consume this calibration instead of assuming a fixed isometric pixel formula.
 
 ## Architecture
 
@@ -29,31 +27,26 @@ The project now has the first map-intelligence layer:
 MediaProjection
       |
       v
-latest-frame throttling (2 FPS)
+latest-frame throttling
+      |
+      +--> ML Kit OCR
+      +--> OpenCV CV
       |
       v
-ML Kit OCR
+map observations / training samples
       |
-      +--> K/X/Y coordinate parser
+      +--> persistent K/X/Y calibration
       |
-      +--> resource / monster classifier
-      |
-      +--> level / quantity / occupancy signals
+      +--> resource / monster / march detectors
       v
-map observation
+world-coordinate map memory
       |
       v
-coordinate calibration + target selector
+target selector / ranker
       |
       v
 compact movable overlay
 ```
-
-## Why this design
-
-The supplied gameplay recordings show that K/X/Y values appear in the game UI and, more authoritatively, in tile/detail popups. Therefore the app should learn screen-to-world relationships from observed coordinates instead of relying on a guessed fixed pixel formula.
-
-The scanner is intentionally throttled. It does not need to run heavyweight OCR on every 24 FPS game frame. The current prototype analyzes at most about two frames per second and skips a frame while OCR is still running.
 
 ## Build
 
@@ -62,29 +55,28 @@ Use Android Studio with JDK 17.
 1. Clone this repository.
 2. Open it in Android Studio.
 3. Sync Gradle.
-4. Build the `app` module.
+4. Build the app module.
 5. Install on Android 8.0+.
-6. Grant **Display over other apps**.
+6. Grant Display over other apps.
 7. Start the scanner and grant Android screen-capture permission.
 8. Enable the AccessibilityService only if gesture automation is required.
 
-GitHub Actions also builds a debug APK on pushes to `main` and uploads it as a workflow artifact.
+GitHub Actions is configured to build a debug APK on pushes to main and pull requests.
 
-## Next stage: V0.3
+## Calibration workflow
 
-The next implementation should use the supplied recordings to create actual learned templates and detectors:
+For a good affine calibration:
 
-1. Extract representative map tiles from the recordings.
-2. Label resource icons by type and level.
-3. Label monster icons by name and level.
-4. Detect the blue numeric level badge independently from the icon.
-5. Detect troop/march arrows as a separate occupancy signal.
-6. Detect and OCR tile/detail popups for authoritative K/X/Y.
-7. Maintain a local map cache keyed by `K,X,Y`.
-8. Add camera-pan/zoom tracking so the map cache survives viewport movement.
-9. Add target ranking by preference, level, remaining quantity and distance.
-10. Add explicit GATHERING/HUNTING gear-state checks before any action.
-11. Keep automatic gestures disabled until popup validation succeeds.
+1. Load a screenshot showing a clear map tile.
+2. Select the tile/icon center.
+3. Choose COORDINATE.
+4. Enter the exact K/X/Y shown by the game for that tile.
+5. Repeat for at least three non-collinear points.
+6. Keep samples from the same camera zoom/pan state when possible.
+7. Watch the RMS error in the calibration console.
+8. Recalibrate after a significant camera zoom change if the fitted error increases.
+
+The coordinate selection point is deliberately treated as a tile-center observation. A K/X/Y text popup's screen location is not itself a valid tile-center calibration point.
 
 ## Automation safety
 
