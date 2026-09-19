@@ -25,7 +25,8 @@ class BlueMarchDetector {
         val hsv = Mat()
         val mask = Mat()
         Utils.bitmapToMat(bitmap, rgba)
-        Imgproc.cvtColor(rgba, hsv, Imgproc.COLOR_RGBA2HSV)
+        Imgproc.cvtColor(rgba, hsv, Imgproc.COLOR_RGBA2RGB)
+        Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV)
 
         // Broad blue/cyan range; tune from recorded frames during V0.3 labeling.
         Core.inRange(hsv, Scalar(85.0, 90.0, 80.0), Scalar(135.0, 255.0, 255.0), mask)
@@ -40,8 +41,8 @@ class BlueMarchDetector {
             val aspect = rect.width.toDouble() / rect.height.coerceAtLeast(1)
             if (aspect < 0.5 || aspect > 8.0) return@mapNotNull null
             MarchSignal(
-                rect.centerX().toFloat(),
-                rect.centerY().toFloat(),
+                (rect.x + rect.width / 2f),
+                (rect.y + rect.height / 2f),
                 area,
                 (0.55f + (area.coerceAtMost(300.0) / 300.0 * 0.35f)).coerceAtMost(0.9f)
             )
