@@ -145,3 +145,15 @@ The videos are used as visual calibration evidence; no gameplay recording is sto
 ### V0.4.7 focus
 
 The next hardening pass should prioritize level-badge detection, temporal target tracking, popup-state validation, and camera/zoom consistency. Automatic taps and marches remain disabled.
+
+## V0.4.8 — video-grounded state validation
+
+Implemented from the supplied gameplay recordings:
+- **Level badge detector:** supplements template matching with blue resource and red monster badge geometry, including map-area/UI-band filtering.
+- **Popup state parser:** recognizes selected-node details such as resource/monster name, level, quantity, Occupier/Unoccupied, actions, and K/X/Y. Persistent HUD X/Y alone is not considered a popup.
+- **Selected-node validation:** when a popup K/X/Y matches a resolved tile, popup state overrides weaker march/OCR guesses for occupancy, incoming troops, resource type, level, and quantity.
+- **Temporal stabilization:** requires repeated consistent sightings for ordinary observations while allowing strong popup/occupied evidence through immediately, reducing one-frame false positives.
+- **March evidence retained:** blue/cyan and orange path signals continue to mark nearby nodes as occupied/incoming unless an authoritative selected-node popup explicitly says the node is unoccupied.
+- **Tests:** added popup parsing, popup occupancy override, and temporal tracking coverage.
+
+The supplied recordings already provide the necessary examples for resource popups, occupied/in-motion resources, monster popups, dense maps, sparse terrain, and UI clutter; no additional recording is required for this V0.4.8 pass.
