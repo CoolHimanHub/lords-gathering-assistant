@@ -6,7 +6,11 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
-data class FrameAnalysis(val text: String, val coordinate: WorldCoordinate?)
+data class FrameAnalysis(
+    val text: String,
+    val coordinate: WorldCoordinate?,
+    val classification: TextClassification
+)
 
 class FrameAnalyzer {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -15,10 +19,19 @@ class FrameAnalyzer {
         recognizer.process(InputImage.fromBitmap(bitmap, 0))
             .addOnSuccessListener { result ->
                 val text = OcrParser.normalize(result.text)
-                callback(FrameAnalysis(text, OcrParser.parseCoordinate(text, defaultKingdom)))
+                callback(
+                    FrameAnalysis(
+                        text,
+                        OcrParser.parseCoordinate(text, defaultKingdom),
+                        GameTextClassifier.classify(text)
+                    )
+                )
             }
             .addOnFailureListener {
-                callback(FrameAnalysis("", null))
+                callback(FrameAnalysis("", null, TextClassification()))
+            }
+            .addOnCompleteListener {
+                if (!bitmap.isRecycled) bitmap.recycle()
             }
     }
 
