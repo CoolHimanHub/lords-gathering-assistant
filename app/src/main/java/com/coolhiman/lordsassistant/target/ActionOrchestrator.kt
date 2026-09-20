@@ -32,6 +32,8 @@ class ActionOrchestrator(
     var session: Session? = null
         private set
 
+    private var completedTarget: ActionTargetSnapshot? = null
+
     fun request(
         automaticActionsEnabled: Boolean,
         selected: ActionTargetSnapshot?,
@@ -41,6 +43,11 @@ class ActionOrchestrator(
         baselineMarchSignals: List<MarchSignal>,
         nowMs: Long
     ): Result {
+        if (lifecycle.snapshot.state == ActionLifecycleState.SUCCEEDED &&
+            selected != null && selected == completedTarget
+        ) {
+            return Result(lifecycle.snapshot, session)
+        }
         session = selected?.let {
             Session(
                 beforeObservation = beforeObservation,
@@ -127,8 +134,12 @@ class ActionOrchestrator(
             evidence += PostActionEvidence.OWN_MARCH_CONFIRMED
         }
 
+        val verified = lifecycle.verify(evidence)
+        if (verified.state == ActionLifecycleState.SUCCEEDED) {
+            completedTarget = selected
+        }
         return Result(
-            lifecycle = lifecycle.verify(evidence),
+            lifecycle = verified,
             session = current
         )
     }
@@ -139,6 +150,7 @@ class ActionOrchestrator(
     fun reset(): Result {
         lifecycle.reset()
         session = null
+        completedTarget = null
         return Result(lifecycle.snapshot, null)
     }
 }
