@@ -9,6 +9,8 @@ import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.target.TargetPlan
 import com.coolhiman.lordsassistant.target.TargetPlanner
+import com.coolhiman.lordsassistant.target.TargetValidationEngine
+import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.vision.BlueMarchDetector
 import com.coolhiman.lordsassistant.vision.DetectionFusion
 import com.coolhiman.lordsassistant.vision.ObservationMapper
@@ -27,7 +29,8 @@ data class LiveMapScanResult(
     val processingMs: Long,
     val origin: WorldCoordinate?,
     val cameraState: CameraState = CameraState.STABLE,
-    val cameraSharedTargets: Int = 0
+    val cameraSharedTargets: Int = 0,
+    val validation: TargetValidationResult = TargetValidationResult(false, com.coolhiman.lordsassistant.target.TargetValidationStage.DETECTED)
 )
 
 class LiveMapScanner(context: Context) {
@@ -36,6 +39,7 @@ class LiveMapScanner(context: Context) {
     private val mapMemory = MapMemory()
     private val tracker = TemporalObservationTracker()
     private val planner = TargetPlanner()
+    private val validationEngine = TargetValidationEngine()
     private val blueMarchDetector = BlueMarchDetector()
     private val orangeMarchDetector = OrangeMarchDetector()
     private val marchTracker = TemporalMarchSignalTracker()
@@ -88,11 +92,24 @@ class LiveMapScanner(context: Context) {
         val origin = ocrCoordinate
         val preferences = preferencesStore.load()
         val snapshot = mapMemory.snapshot()
+        val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
+        val candidateObservation = if (planPlaceholder(snapshot, preferences, origin, camera.state == CameraState.STABLE).ranked.firstOrNull() != null) {
+            val ranked = planPlaceholder(snapshot, preferences, origin, camera.state == CameraState.STABLE).ranked.first()
+            snapshot.firstOrNull { it.coordinate == ranked.tile.coordinate && it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE }
+        } else null
+
         val plan = if (origin != null) {
             planner.plan(origin.x, origin.y, snapshot, preferences, camera.state == CameraState.STABLE)
         } else {
             TargetPlan(snapshot, emptyList())
         }
+
+        val validation = validationEngine.validate(
+            observation = candidateObservation,
+            cameraStable = camera.state == CameraState.STABLE,
+            calibrationValid = calibrationValid,
+            popupState = popupState
+        )
 
         return LiveMapScanResult(
             observations = snapshot,
@@ -101,8 +118,19 @@ class LiveMapScanner(context: Context) {
             processingMs = System.currentTimeMillis() - started,
             origin = origin,
             cameraState = camera.state,
-            cameraSharedTargets = camera.sharedTargets
+            cameraSharedTargets = camera.sharedTargets,
+            validation = validation
         )
+    }
+
+    private fun planPlaceholder(
+        observations: List<MapObservation>,
+        preferences: com.coolhiman.lordsassistant.model.UserPreferences,
+        origin: WorldCoordinate?,
+        cameraStable: Boolean
+    ): TargetPlan {
+        return if (origin != null) planner.plan(origin.x, origin.y, observations, preferences, cameraStable)
+        else TargetPlan(observations, emptyList())
     }
 
     fun close() {
