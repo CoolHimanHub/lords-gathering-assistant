@@ -15,6 +15,7 @@ import com.coolhiman.lordsassistant.vision.BlueMarchDetector
 import com.coolhiman.lordsassistant.target.ActionButton
 import com.coolhiman.lordsassistant.target.ActionButtonDetector
 import com.coolhiman.lordsassistant.target.ActionKind
+import com.coolhiman.lordsassistant.target.ActionTargetSnapshot
 import com.coolhiman.lordsassistant.vision.DetectionFusion
 import com.coolhiman.lordsassistant.vision.ObservationMapper
 import com.coolhiman.lordsassistant.vision.OrangeMarchDetector
@@ -34,7 +35,8 @@ data class LiveMapScanResult(
     val cameraState: CameraState = CameraState.STABLE,
     val cameraSharedTargets: Int = 0,
     val validation: TargetValidationResult = TargetValidationResult(false, com.coolhiman.lordsassistant.target.TargetValidationStage.DETECTED),
-    val actionButton: ActionButton? = null
+    val actionButton: ActionButton? = null,
+    val selectedActionTarget: ActionTargetSnapshot? = null
 )
 
 class LiveMapScanner(context: Context) {
@@ -135,6 +137,18 @@ class LiveMapScanner(context: Context) {
             interactionPointValid = actionButton != null,
             actionKind = actionButton?.kind
         )
+        val selectedActionTarget = candidateObservation?.let { target ->
+            val point = actionButton?.point
+            val coordinate = target.coordinate
+            val level = target.level
+            val kind = target.kind
+            val actionKind = actionButton?.kind
+            if (point != null && coordinate != null && level != null && kind != null && actionKind != null) {
+                ActionTargetSnapshot(coordinate, kind, level, actionKind, point)
+            } else {
+                null
+            }
+        }
 
         return LiveMapScanResult(
             observations = snapshot,
@@ -145,7 +159,8 @@ class LiveMapScanner(context: Context) {
             cameraState = camera.state,
             cameraSharedTargets = camera.sharedTargets,
             validation = validation,
-            actionButton = actionButton
+            actionButton = actionButton,
+            selectedActionTarget = selectedActionTarget
         )
     }
 
