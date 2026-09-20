@@ -314,3 +314,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This prevents an uncertain action from being automatically retried while providing a deliberate operator recovery path.
 - Added regression coverage for the one-shot recovery request bridge.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.36 — Action attempt identity
+
+- Added a monotonically increasing action `attemptId` to each orchestrator session.
+- Post-action evidence records now carry the exact attempt identity that produced the evidence.
+- Manual UNKNOWN recovery does not reset the attempt counter, preserving provenance across recovery boundaries.
+- Added regression coverage proving the successful post-action evidence record is bound to attempt 1.
+- Automatic Gather/Hunt actions remain disabled by default.
