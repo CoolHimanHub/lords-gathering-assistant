@@ -249,3 +249,13 @@ The supplied recordings already provide the necessary examples for resource popu
 - Verification timeout becomes UNKNOWN rather than assuming success.
 - The lifecycle controller remains UI/Accessibility agnostic; it does not itself send gestures.
 - Automatic gameplay remains opt-in and disabled by default.
+
+
+### V0.4.21 — Post-action state evidence
+
+- Added a post-action state verifier that compares the selected world target with the next observed state.
+- Detects popup disappearance, target removal, and explicit occupied/incoming state at the same target.
+- Popup disappearance alone remains insufficient to claim success.
+- The verifier deliberately does **not** infer that a detected march belongs to our action; march ownership/association requires stronger evidence.
+- Added regression tests for target association, removal, occupied state, unrelated observations, and popup-only disappearance.
+- Automatic gameplay remains opt-in and disabled by default.
