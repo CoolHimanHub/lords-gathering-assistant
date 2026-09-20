@@ -49,8 +49,7 @@ class DetectionFusionTest {
             { _, _ -> WorldCoordinate(1, 200, 300) },
             popup
         )
-        assertNull(result.single().occupied)
-        assertNull(result.single().incomingTroops)
+        assertEquals(false, result.single().occupied)
         assertEquals(false, result.single().incomingTroops)
         assertEquals(720000L, result.single().classification.quantity)
     }
@@ -66,6 +65,7 @@ class DetectionFusionTest {
             listOf(MarchSignal(300f, 300f, 50.0, 0.8f))
         ) { _, _ -> null }
 
-        assertEquals(false, result.single().occupied)
+        assertNull(result.single().occupied)
+        assertNull(result.single().incomingTroops)
     }
 }
