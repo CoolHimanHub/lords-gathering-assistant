@@ -59,7 +59,19 @@ class ActionDiagnosticsSnapshotTest {
             selectedMarchAssociation = MarchAssociationDiagnostics(MarchAssociationStatus.CLEAR_MARCH, 28f, 70f, 0.40f)
         )
         val text = ActionDiagnosticsFormatter.format(
-            ActionDiagnosticsSnapshot.fromScan(scan, lifecycle, null, 123L)
+            ActionDiagnosticsSnapshot.fromScan(
+                scan = scan,
+                lifecycle = lifecycle,
+                evidence = null,
+                actionAttemptId = 123L,
+                recoveryEpoch = 7L,
+                recoveryEpochPersistenceHealthy = true,
+                journalAttemptId = 122L,
+                journalRecoveryEpoch = 6L,
+                journalRecoveryEpochPersisted = true,
+                reconciledInitialEpoch = 6L,
+                restartQuarantine = true
+            )
         )
         assertTrue(text.contains("SAFE_TO_INTERACT"))
         assertTrue(text.contains("GATHER"))
@@ -70,7 +82,13 @@ class ActionDiagnosticsSnapshotTest {
         assertTrue(text.contains("Association ratio: 0.40"))
         assertTrue(text.contains("Target stability: 0 frames"))
         assertTrue(text.contains("Action attempt: none"))
-        assertTrue(text.contains("Recovery epoch: 0"))
+        assertTrue(text.contains("Recovery epoch: 7"))
         assertTrue(text.contains("Recovery epoch persistence: healthy"))
+        assertTrue(text.contains("Journal attempt: 122"))
+        assertTrue(text.contains("Journal epoch: 6"))
+        assertTrue(text.contains("Journal epoch provenance: present"))
+        assertTrue(text.contains("Reconciled startup epoch: 6"))
+        assertTrue(text.contains("Restart quarantine: ACTIVE"))
+        assertTrue(text.contains("Quarantine reason: durable in-flight action requires deliberate recovery"))
     }
 }
