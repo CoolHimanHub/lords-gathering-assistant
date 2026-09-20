@@ -389,6 +389,14 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Automatic Gather/Hunt actions remain disabled by default.
 
 
+### V0.4.45 — Fail-closed attempt identity persistence
+
+- Action-attempt ID persistence failures are now represented as an explicit lifecycle failure instead of escaping as an exception.
+- A failed durable allocation creates no action session and cannot reach pre-action revalidation or Accessibility dispatch.
+- Automatic execution may safely retry on a later scan because no gesture was dispatched and no ambiguous in-flight state was created.
+- Added regression coverage proving allocator failure stops before session creation and dispatch.
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ### V0.4.44 — Durable action attempt identity
 
 - Action attempt IDs are now persisted independently of the in-flight action journal.
