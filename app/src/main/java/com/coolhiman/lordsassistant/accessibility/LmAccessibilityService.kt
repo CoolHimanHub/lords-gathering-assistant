@@ -4,6 +4,9 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
+import com.coolhiman.lordsassistant.model.ScreenPoint
+import com.coolhiman.lordsassistant.target.InteractionGate
+import com.coolhiman.lordsassistant.target.TargetValidationResult
 
 class LmAccessibilityService : AccessibilityService() {
     companion object { @Volatile var instance: LmAccessibilityService? = null }
@@ -12,8 +15,13 @@ class LmAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
     override fun onInterrupt() = Unit
 
-    fun tap(x: Float, y: Float): Boolean {
-        val path = Path().apply { moveTo(x, y) }
+    /**
+     * The only public gesture entry point. It refuses to dispatch a tap unless
+     * the latest target passed the complete interaction gate.
+     */
+    fun tapValidated(point: ScreenPoint, validation: TargetValidationResult): Boolean {
+        if (!InteractionGate.allow(validation, point)) return false
+        val path = Path().apply { moveTo(point.x, point.y) }
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
             .build()
