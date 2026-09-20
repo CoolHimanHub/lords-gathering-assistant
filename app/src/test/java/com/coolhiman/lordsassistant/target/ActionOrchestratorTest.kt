@@ -318,6 +318,23 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun completedTargetRemainsBlockedWhenInteractionPointMoves() {
+        val moved = selected.copy(point = ScreenPoint(980f, 640f))
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 41_000L)
+        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.dispatch(41_001L) { true }
+        orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 41_100L)
+        orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 41_200L)
+        orchestrator.verifyPostAction(observation, popup, 41_300L)
+        orchestrator.verifyPostAction(observation, popup, 41_400L)
+
+        val result = orchestrator.request(true, moved, safeValidation, observation, popup, emptyList(), 41_500L)
+
+        assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
+        assertEquals(null, result.session)
+    }
+
+    @Test
     fun popupDisappearanceAloneRemainsUnknown() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(
