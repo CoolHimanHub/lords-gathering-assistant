@@ -17,7 +17,7 @@ class TargetValidationEngineTest {
     private fun observation(occupied: Boolean? = false, incoming: Boolean? = false, evidence: Set<ObservationEvidence> = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)) =
         MapObservation(coordinate, ScreenPoint(100f, 200f), "WOOD", 3, 720000, occupied, incoming, TargetKind.RESOURCE, 0.95f, evidence)
 
-    private fun popup() = PopupState(true, coordinate, TargetKind.RESOURCE, com.coolhiman.lordsassistant.model.ResourceType.WOOD, 3, 720000, false, false)
+    private fun popup() = PopupState(kind = TargetKind.RESOURCE, resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD, level = 3, quantity = 720000, occupied = false, incomingTroops = false, coordinate = coordinate, isPopup = true)
 
     @Test fun freeConfirmedMatchingPopupIsSafe() {
         val r = engine.validate(observation(), true, true, popup())
