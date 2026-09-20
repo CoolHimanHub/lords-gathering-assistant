@@ -21,6 +21,7 @@ import com.coolhiman.lordsassistant.target.ActionLifecycleState
 import com.coolhiman.lordsassistant.target.ActionOrchestrator
 import com.coolhiman.lordsassistant.target.ActionRecoveryPolicy
 import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
+import com.coolhiman.lordsassistant.target.ActionExecutionJournal
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -36,6 +37,7 @@ class ScreenCaptureService : Service() {
     private lateinit var analyzer: FrameAnalyzer
     private lateinit var liveScanner: LiveMapScanner
     private lateinit var actionOrchestrator: ActionOrchestrator
+    private lateinit var actionJournal: ActionExecutionJournal
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
@@ -47,6 +49,10 @@ class ScreenCaptureService : Service() {
         analyzer = FrameAnalyzer()
         liveScanner = LiveMapScanner(this)
         actionOrchestrator = ActionOrchestrator()
+        actionJournal = ActionExecutionJournal(this)
+        actionJournal.readInFlight()?.let { entry ->
+            actionOrchestrator.restoreUnknown(entry.attemptId)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -129,6 +135,7 @@ class ScreenCaptureService : Service() {
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
                         actionOrchestrator.reset()
+                        actionJournal.clear()
                         ActionDiagnosticsStore.latest?.let { latest ->
                             ActionDiagnosticsStore.latest = latest.copy(
                                 lifecycle = actionOrchestrator.lifecycleSnapshot,
@@ -161,6 +168,8 @@ class ScreenCaptureService : Service() {
                                         latestAction = scan.actionButton
                                     )
                                     if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
+                                        val attemptId = actionOrchestrator.session?.attemptId
+                                        if (attemptId != null) actionJournal.markInFlight(attemptId, now)
                                         actionOrchestrator.dispatch(now) {
                                             LmAccessibilityService.instance?.tapRevalidated(
                                                 selected = previous.selectedActionTarget,
@@ -168,21 +177,27 @@ class ScreenCaptureService : Service() {
                                                 latestValidation = scan.validation,
                                                 latestAction = scan.actionButton
                                             ) == true
+                                        }.also { result ->
+                                            if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
                                         }
                                     }
                                 }
                             }
                             active == ActionLifecycleState.WAITING_FOR_RESULT -> {
                                 actionOrchestrator.observeMarch(scan.marchSignals, now)
-                                actionOrchestrator.verifyPostAction(
+                                val verification = actionOrchestrator.verifyPostAction(
                                     afterObservation = scan.selectedObservation,
                                     popupAfter = scan.popupState,
                                     nowMs = now
                                 )
+                                if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED ||
+                                    verification.lifecycle.state == ActionLifecycleState.FAILED
+                                ) actionJournal.clear()
                             }
                         }
                     } else if (active != ActionLifecycleState.IDLE) {
                         actionOrchestrator.reset()
+                        actionJournal.clear()
                     }
 
                     ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
