@@ -61,7 +61,8 @@ class LevelBadgeDetector(
         tileClass: TileClass,
         width: Int,
         height: Int,
-        reusable: MutableList<MatOfPoint>
+        reusable: MutableList<MatOfPoint>,
+        hierarchy: Mat
     ): List<LevelBadge> {
         reusable.clear()
         Imgproc.findContours(mask, reusable, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
