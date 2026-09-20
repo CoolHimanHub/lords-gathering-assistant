@@ -199,6 +199,17 @@ class ScreenCaptureService : Service() {
                     actionSchedulerAdapter.update(
                         listOfNotNull(currentCandidate)
                     )
+                    currentCandidate?.let { candidate ->
+                        actionAuditLog.appendIfChanged(
+                            ActionAuditEvent(
+                                timestampMs = now,
+                                type = ActionAuditEventType.CANDIDATE_QUEUED,
+                                target = candidate.target,
+                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                detail = "safe current-frame candidate"
+                            )
+                        )
+                    }
                     if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
@@ -259,7 +270,20 @@ class ScreenCaptureService : Service() {
                                     restartQuarantine = restartQuarantine,
                                     recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy
                                 )
-                                val scheduled = actionSchedulerAdapter.claim(now, safetyState).candidate
+                                val decision = actionSchedulerAdapter.select(now, safetyState)
+                                if (decision.candidate == null) {
+                                    actionAuditLog.appendIfChanged(
+                                        ActionAuditEvent(
+                                            timestampMs = now,
+                                            type = ActionAuditEventType.SCHEDULER_BLOCKED,
+                                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                            detail = decision.reason?.name ?: "NO_DECISION"
+                                        )
+                                    )
+                                }
+                                val scheduled = if (decision.candidate != null) {
+                                    actionSchedulerAdapter.claim(now, safetyState).candidate
+                                } else null
                                 if (previous != null && scheduled != null &&
                                     previous.selectedActionTarget == scheduled.target &&
                                     previous.validation.safe &&
