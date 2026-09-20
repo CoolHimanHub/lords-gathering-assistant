@@ -138,7 +138,7 @@ class ScreenCaptureService : Service() {
                                         selected = previous.selectedActionTarget,
                                         validation = previous.validation,
                                         beforeObservation = previous.selectedObservation,
-                                        popupBefore = null,
+                                        popupBefore = previous.popupState,
                                         baselineMarchSignals = previous.marchSignals,
                                         nowMs = now
                                     )
@@ -163,7 +163,7 @@ class ScreenCaptureService : Service() {
                                 actionOrchestrator.observeMarch(scan.marchSignals, now)
                                 actionOrchestrator.verifyPostAction(
                                     afterObservation = scan.selectedObservation,
-                                    popupAfter = null
+                                    popupAfter = scan.popupState
                                 )
                             }
                         }
