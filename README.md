@@ -575,3 +575,5 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - The transient screen interaction point is no longer part of scheduler identity, so camera/UI movement does not create a duplicate logical target.
 - The latest action point remains authoritative for dispatch and is still checked by the fail-closed pre-action revalidator.
 - Completed-target suppression follows the same stable identity across interaction-point movement.
+
+- The core ActionOrchestrator completed-target guard now uses the same stable identity, so a moved interaction point cannot bypass successful-completion protection.
