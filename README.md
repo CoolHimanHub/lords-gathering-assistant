@@ -534,3 +534,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - UNKNOWN and verification-timeout outcomes are recorded without changing the existing non-retryable recovery policy.
 - Added persistence coverage for the new lifecycle failure event types.
 - Automatic actions remain governed by the existing fail-closed safety chain.
+
+### V0.6.5 — Preserve planner ranking through live scheduling
+
+- Live action candidates now retain the existing TargetPlanner ranked position and native score.
+- The live scheduler no longer uses a temporary monster-over-resource priority as its primary ordering rule.
+- Scheduler ordering preserves planner rank first, then planner score, stability, and queue age.
+- Candidates that are independently validated but absent from the planner remain fail-closed and are ordered after planner-ranked candidates.
+- Regression tests cover planner-rank ordering and score tie-breaking.
+- Automatic actions remain disabled by default; planner ranking does not bypass current-frame validation, revalidation, provenance, journaling, or guarded dispatch.
