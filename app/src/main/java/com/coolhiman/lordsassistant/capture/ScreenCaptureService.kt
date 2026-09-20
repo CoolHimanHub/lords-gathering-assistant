@@ -22,6 +22,7 @@ import com.coolhiman.lordsassistant.target.ActionOrchestrator
 import com.coolhiman.lordsassistant.target.ActionRecoveryPolicy
 import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.target.ActionExecutionJournal
+import com.coolhiman.lordsassistant.target.ActionRecoveryEpochStore
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -38,6 +39,7 @@ class ScreenCaptureService : Service() {
     private lateinit var liveScanner: LiveMapScanner
     private lateinit var actionOrchestrator: ActionOrchestrator
     private lateinit var actionJournal: ActionExecutionJournal
+    private lateinit var recoveryEpochStore: ActionRecoveryEpochStore
     private var restartQuarantine = false
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
@@ -49,10 +51,12 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         analyzer = FrameAnalyzer()
         liveScanner = LiveMapScanner(this)
-        actionOrchestrator = ActionOrchestrator()
+        recoveryEpochStore = ActionRecoveryEpochStore(this)
+        actionOrchestrator = ActionOrchestrator(recoveryEpochStore.read())
         actionJournal = ActionExecutionJournal(this)
         actionJournal.readInFlight()?.let { entry ->
             actionOrchestrator.restoreUnknown(entry.attemptId)
+            recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
             restartQuarantine = true
         }
     }
@@ -137,6 +141,7 @@ class ScreenCaptureService : Service() {
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
                         actionOrchestrator.reset()
+                        recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
                         actionJournal.clear()
                         restartQuarantine = false
                         previousScan = null
@@ -186,6 +191,7 @@ class ScreenCaptureService : Service() {
                                             }
                                         } else if (attemptId != null) {
                                             actionOrchestrator.reset()
+                                            recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
                                             actionJournal.clear()
                                         }
                                     }
@@ -205,6 +211,7 @@ class ScreenCaptureService : Service() {
                         }
                     } else if (active != ActionLifecycleState.IDLE && !restartQuarantine) {
                         actionOrchestrator.reset()
+                        recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
                         actionJournal.clear()
                     }
 
