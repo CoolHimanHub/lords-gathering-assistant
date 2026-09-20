@@ -128,8 +128,7 @@ class ScreenCaptureService : Service() {
                         when {
                             active == ActionLifecycleState.IDLE ||
                                 active == ActionLifecycleState.SUCCEEDED ||
-                                active == ActionLifecycleState.FAILED ||
-                                active == ActionLifecycleState.UNKNOWN -> {
+                                active == ActionLifecycleState.FAILED -> {
                                 val previous = previousScan
                                 if (previous?.selectedActionTarget != null &&
                                     previous.validation.safe &&
