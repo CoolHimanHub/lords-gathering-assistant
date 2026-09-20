@@ -47,8 +47,8 @@ class LevelBadgeDetector(
             Core.inRange(hsv, Scalar(165.0, 110.0, 90.0), Scalar(179.0, 255.0, 255.0), red2)
             Core.bitwise_or(red1, red2, red)
 
-            detectMask(blue, TileClass.RESOURCE, bitmap.width, bitmap.height, contours) +
-                detectMask(red, TileClass.MONSTER, bitmap.width, bitmap.height, contours)
+            detectMask(blue, TileClass.RESOURCE, bitmap.width, bitmap.height, contours, hierarchy) +
+                detectMask(red, TileClass.MONSTER, bitmap.width, bitmap.height, contours, hierarchy)
         } finally {
             hierarchy.release()
             contours.forEach { it.release() }
