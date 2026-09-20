@@ -132,7 +132,8 @@ class LiveMapScanner(context: Context) {
             cameraStable = camera.state == CameraState.STABLE,
             calibrationValid = calibrationValid,
             popupState = popupState,
-            interactionPointValid = actionButton != null
+            interactionPointValid = actionButton != null,
+            actionKind = actionButton?.kind
         )
 
         return LiveMapScanResult(
