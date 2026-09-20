@@ -36,6 +36,7 @@ class LevelBadgeDetector(
         val red2 = Mat()
         val red = Mat()
         val contours = ArrayList<MatOfPoint>()
+        val hierarchy = Mat()
         return try {
             Utils.bitmapToMat(bitmap, src)
             Imgproc.cvtColor(src, hsv, Imgproc.COLOR_RGBA2RGB)
@@ -49,6 +50,7 @@ class LevelBadgeDetector(
             detectMask(blue, TileClass.RESOURCE, bitmap.width, bitmap.height, contours) +
                 detectMask(red, TileClass.MONSTER, bitmap.width, bitmap.height, contours)
         } finally {
+            hierarchy.release()
             contours.forEach { it.release() }
             src.release(); hsv.release(); blue.release(); red1.release(); red2.release(); red.release()
         }
@@ -62,7 +64,7 @@ class LevelBadgeDetector(
         reusable: MutableList<MatOfPoint>
     ): List<LevelBadge> {
         reusable.clear()
-        Imgproc.findContours(mask, reusable, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+        Imgproc.findContours(mask, reusable, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
         return reusable.mapNotNull { contour ->
             val area = Imgproc.contourArea(contour)
             if (area < minArea || area > maxArea) return@mapNotNull null
