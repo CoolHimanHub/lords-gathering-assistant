@@ -138,6 +138,48 @@ class ActionOrchestratorTest {
         assertEquals(1L, orchestrator.lastPostActionEvidence?.attemptId)
     }
 
+
+    @Test
+    fun newAttemptDoesNotReusePreviousMarchEvidence() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 60_000L)
+        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.dispatch(60_001L) { true }
+
+        val oldFirst = MarchSignal(910f, 600f, 20.0, 0.9f)
+        val oldSecond = MarchSignal(920f, 600f, 20.0, 0.9f)
+        orchestrator.observeMarch(listOf(oldFirst), 60_100L)
+        orchestrator.observeMarch(listOf(oldSecond), 60_200L)
+        orchestrator.verifyPostAction(observation, popup, 60_300L)
+        orchestrator.verifyPostAction(observation, popup, 60_400L)
+        assertEquals(ActionLifecycleState.SUCCEEDED, orchestrator.lifecycleSnapshot.state)
+        assertEquals(1L, orchestrator.lastPostActionEvidence?.attemptId)
+
+        orchestrator.reset()
+        val second = orchestrator.request(
+            true, selected, safeValidation, observation, popup,
+            baselineMarchSignals = listOf(oldSecond),
+            nowMs = 61_000L
+        )
+        assertEquals(ActionLifecycleState.REQUESTED, second.lifecycle.state)
+        assertEquals(2L, second.session?.attemptId)
+        assertEquals(null, orchestrator.lastPostActionEvidence)
+
+        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.dispatch(61_001L) { true }
+
+        val staleOnly = orchestrator.observeMarch(listOf(oldSecond), 61_100L)
+        assertFalse(staleOnly.session?.ownMarchConfirmed == true)
+
+        orchestrator.observeMarch(listOf(MarchSignal(930f, 600f, 20.0, 0.9f)), 61_200L)
+        orchestrator.observeMarch(listOf(MarchSignal(940f, 600f, 20.0, 0.9f)), 61_300L)
+        orchestrator.verifyPostAction(observation, popup, 61_400L)
+        val result = orchestrator.verifyPostAction(observation, popup, 61_500L)
+
+        assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
+        assertEquals(2L, orchestrator.lastPostActionEvidence?.attemptId)
+    }
+
     @Test
     fun ownMarchConfirmationIsIgnoredWhenAfterObservationIsAnotherTarget() {
         val orchestrator = ActionOrchestrator()
