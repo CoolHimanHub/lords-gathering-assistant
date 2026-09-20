@@ -450,3 +450,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Recovered legacy/in-flight attempt IDs advance the durable allocator before a fresh attempt is created.
 - Added regression coverage for monotonic durable attempt allocation.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+### V0.5.0 — Action safety simulation boundary
+
+- Added an executable safety-simulation matrix covering valid dispatch, target change before dispatch, popup disappearance without proof of outcome, unrelated march evidence, camera instability, restart quarantine, durable attempt-ID failure, and recovery-epoch exhaustion.
+- The simulations run entirely against the pure action core; they do not require Android Accessibility, a live screen capture session, or a real game connection.
+- Added a second recovery-policy gate directly inside `ActionOrchestrator.request()`. The service-level policy remains in place, but the core now independently refuses new automatic attempts while an action is `UNKNOWN`, `REQUESTED`, `REVALIDATED`, or `WAITING_FOR_RESULT`.
+- The V0.5 invariant is explicit: **uncertain or stale evidence must never create a new automatic gesture.**
+- Automatic Gather/Hunt actions remain disabled by default.
