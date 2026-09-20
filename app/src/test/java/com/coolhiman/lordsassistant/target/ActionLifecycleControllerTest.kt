@@ -142,4 +142,16 @@ class ActionLifecycleControllerTest {
         assertTrue(result.state == ActionLifecycleState.FAILED)
         assertEquals(ActionLifecycleFailure.EXECUTION_BLOCKED, result.failure)
     }
+
+    @Test
+    fun recoveryPolicyAllowsOnlySafeTerminalRecoveryStates() {
+        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.IDLE))
+        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.SUCCEEDED))
+        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.FAILED))
+
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.REQUESTED))
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.REVALIDATED))
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.WAITING_FOR_RESULT))
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.UNKNOWN))
+    }
 }
