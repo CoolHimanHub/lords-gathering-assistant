@@ -118,7 +118,8 @@ class ActionLifecycleController(
             )
             return snapshot
         }
-        executionController.markDispatched(snapshot.selected, nowMs)
+        val selected = snapshot.selected
+        executionController.markDispatched(selected, nowMs)
         snapshot = snapshot.copy(state = ActionLifecycleState.WAITING_FOR_RESULT)
         return snapshot
     }
