@@ -73,6 +73,7 @@ class LiveMapScanner(context: Context) {
     private val marchTracker = TemporalMarchSignalTracker()
     private val viewportGuard = ViewportGuard()
     private val cameraStateTracker = CameraStateTracker()
+    private val cameraAnchorTracker = CameraAnchorTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
     private val targetStabilityTrackers = linkedMapOf<String, TargetStabilityTracker>()
     private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
@@ -106,18 +107,41 @@ class LiveMapScanner(context: Context) {
         val rawMarchSignals = blueMarchDetector.detect(bitmap) + orangeMarchDetector.detect(bitmap)
         val marchSignals = marchTracker.update(rawMarchSignals, started)
 
-        val result = pipeline.analyze(
+        fun analyze(cameraModel: CameraModel? = null) = pipeline.analyze(
             bitmap = bitmap,
             templates = templates,
             textRegions = textRegions,
             marchSignals = marchSignals,
             popupState = popupState,
-            coordinateResolver = resolver::resolve
+            coordinateResolver = { x, y ->
+                resolver.resolve(com.coolhiman.lordsassistant.model.ScreenPoint(x, y), cameraModel)
+            }
         )
 
-        val observations = result.fused.map(ObservationMapper::map)
-        val stable = tracker.update(observations)
-        val camera = cameraStateTracker.update(stable)
+        // First pass uses the established affine calibration. Its stable
+        // semantic observations provide candidate anchors for the current
+        // camera state; no new coordinate is trusted yet.
+        var result = analyze()
+        var observations = result.fused.map(ObservationMapper::map)
+        var stable = tracker.update(observations)
+        var camera = cameraStateTracker.update(stable)
+
+        val anchors = cameraAnchorTracker.update(stable)
+        val fittedCameraModel = calibrationStore.fit(kingdom)?.let { calibration ->
+            CameraInvariantWorldModel(calibration).fit(anchors)
+        }
+
+        // Only a validated camera model may trigger a second coordinate pass.
+        // Planning/action safety still requires CameraState.STABLE below.
+        if (fittedCameraModel?.isUsable() == true) {
+            result = analyze(fittedCameraModel)
+            observations = result.fused.map(ObservationMapper::map)
+            stable = tracker.update(observations)
+            camera = cameraStateTracker.update(stable)
+            // Replace the provisional anchors with the corrected coordinates
+            // from the camera-aware pass for the next frame.
+            cameraAnchorTracker.update(stable)
+        }
         val stateAware = if (camera.state == CameraState.STABLE) stable else stable.map {
             it.copy(evidence = it.evidence + com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE)
         }
