@@ -10,6 +10,8 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.target.TargetPlan
 import com.coolhiman.lordsassistant.target.TargetPlanner
 import com.coolhiman.lordsassistant.target.TargetValidationEngine
+import com.coolhiman.lordsassistant.target.TargetStability
+import com.coolhiman.lordsassistant.target.TargetStabilityTracker
 import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.vision.BlueMarchDetector
 import com.coolhiman.lordsassistant.target.ActionButton
@@ -42,7 +44,8 @@ data class LiveMapScanResult(
     val selectedObservation: MapObservation? = null,
     val marchSignals: List<com.coolhiman.lordsassistant.vision.MarchSignal> = emptyList(),
     val popupState: PopupState? = null,
-    val selectedMarchAssociation: MarchAssociationDiagnostics? = null
+    val selectedMarchAssociation: MarchAssociationDiagnostics? = null,
+    val targetStability: TargetStability = TargetStability()
 )
 
 class LiveMapScanner(context: Context) {
@@ -57,6 +60,7 @@ class LiveMapScanner(context: Context) {
     private val marchTracker = TemporalMarchSignalTracker()
     private val viewportGuard = ViewportGuard()
     private val cameraStateTracker = CameraStateTracker()
+    private val targetStabilityTracker = TargetStabilityTracker()
     private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
     private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
 
@@ -123,6 +127,7 @@ class LiveMapScanner(context: Context) {
                     it.kind == com.coolhiman.lordsassistant.model.TargetKind.MONSTER
             }
         }
+        val targetStability = targetStabilityTracker.update(candidateObservation, camera.state)
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
         val actionButton = ActionButtonDetector.detect(
             textRegions = textRegions,
@@ -178,7 +183,8 @@ class LiveMapScanner(context: Context) {
             selectedObservation = candidateObservation,
             marchSignals = marchSignals,
             popupState = popupState,
-            selectedMarchAssociation = selectedFusionCandidate?.marchAssociation
+            selectedMarchAssociation = selectedFusionCandidate?.marchAssociation,
+            targetStability = targetStability
         )
     }
 
