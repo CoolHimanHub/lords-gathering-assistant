@@ -6,6 +6,7 @@
     <application android:allowBackup="false" android:label="LM Companion" android:theme="@style/Theme.LMCompanion">
         <activity android:name=".CalibrationActivity" android:exported="false" />
         <activity android:name=".LineupActivity" android:exported="false" />
+        <activity android:name=".EvidenceDiagnosticsActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
