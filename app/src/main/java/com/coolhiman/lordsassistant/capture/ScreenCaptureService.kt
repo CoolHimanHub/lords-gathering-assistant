@@ -19,6 +19,7 @@ import com.coolhiman.lordsassistant.target.ActionDiagnosticsSnapshot
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
 import com.coolhiman.lordsassistant.target.ActionLifecycleState
 import com.coolhiman.lordsassistant.target.ActionOrchestrator
+import com.coolhiman.lordsassistant.target.ActionRecoveryPolicy
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -126,9 +127,7 @@ class ScreenCaptureService : Service() {
                     val active = actionOrchestrator.lifecycleSnapshot.state
                     if (prefs.automaticActions) {
                         when {
-                            active == ActionLifecycleState.IDLE ||
-                                active == ActionLifecycleState.SUCCEEDED ||
-                                active == ActionLifecycleState.FAILED -> {
+                            ActionRecoveryPolicy.mayStartAutomaticAttempt(active) -> {
                                 val previous = previousScan
                                 if (previous?.selectedActionTarget != null &&
                                     previous.validation.safe &&
