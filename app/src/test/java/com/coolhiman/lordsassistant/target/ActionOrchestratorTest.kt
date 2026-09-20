@@ -134,6 +134,8 @@ class ActionOrchestratorTest {
 
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
         assertTrue(result.session?.ownMarchConfirmed == true)
+        assertEquals(1L, result.session?.attemptId)
+        assertEquals(1L, orchestrator.lastPostActionEvidence?.attemptId)
     }
 
     @Test
