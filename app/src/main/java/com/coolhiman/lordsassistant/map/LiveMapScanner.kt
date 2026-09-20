@@ -12,6 +12,9 @@ import com.coolhiman.lordsassistant.target.TargetPlanner
 import com.coolhiman.lordsassistant.target.TargetValidationEngine
 import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.vision.BlueMarchDetector
+import com.coolhiman.lordsassistant.target.ActionButton
+import com.coolhiman.lordsassistant.target.ActionButtonDetector
+import com.coolhiman.lordsassistant.target.ActionKind
 import com.coolhiman.lordsassistant.vision.DetectionFusion
 import com.coolhiman.lordsassistant.vision.ObservationMapper
 import com.coolhiman.lordsassistant.vision.OrangeMarchDetector
@@ -30,7 +33,8 @@ data class LiveMapScanResult(
     val origin: WorldCoordinate?,
     val cameraState: CameraState = CameraState.STABLE,
     val cameraSharedTargets: Int = 0,
-    val validation: TargetValidationResult = TargetValidationResult(false, com.coolhiman.lordsassistant.target.TargetValidationStage.DETECTED)
+    val validation: TargetValidationResult = TargetValidationResult(false, com.coolhiman.lordsassistant.target.TargetValidationStage.DETECTED),
+    val actionButton: ActionButton? = null
 )
 
 class LiveMapScanner(context: Context) {
@@ -106,11 +110,23 @@ class LiveMapScanner(context: Context) {
             }
         }
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
+        val actionButton = ActionButtonDetector.detect(
+            textRegions = textRegions,
+            popupPresent = popupState?.isPopup == true,
+            targetKind = candidateObservation?.kind
+        ).firstOrNull { button ->
+            when (candidateObservation?.kind) {
+                com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
+                com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
+                null -> false
+            }
+        }
         val validation = validationEngine.validate(
             observation = candidateObservation,
             cameraStable = camera.state == CameraState.STABLE,
             calibrationValid = calibrationValid,
-            popupState = popupState
+            popupState = popupState,
+            interactionPointValid = actionButton != null
         )
 
         return LiveMapScanResult(
@@ -121,7 +137,8 @@ class LiveMapScanner(context: Context) {
             origin = origin,
             cameraState = camera.state,
             cameraSharedTargets = camera.sharedTargets,
-            validation = validation
+            validation = validation,
+            actionButton = actionButton
         )
     }
 
