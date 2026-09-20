@@ -71,6 +71,28 @@ class ActionAuditLogStore(context: Context) {
 
     fun clear(): Boolean = prefs.edit().remove(KEY_EVENTS).commit()
 
+    fun latest(limit: Int = 20): List<ActionAuditEvent> =
+        readAll().takeLast(limit.coerceAtLeast(0))
+
+    fun formatLatest(limit: Int = 20): String =
+        latest(limit).asReversed().joinToString("\n") { event ->
+            buildString {
+                append(event.timestampMs)
+                append(" • ").append(event.type.name)
+                event.attemptId?.let { append(" • attempt=").append(it) }
+                event.recoveryEpoch?.let { append(" • epoch=").append(it) }
+                event.target?.let {
+                    append(" • K").append(it.coordinate.kingdom)
+                    append(" X").append(it.coordinate.x)
+                    append(" Y").append(it.coordinate.y)
+                    append(" ").append(it.kind.name)
+                    append(" L").append(it.level)
+                    append(" ").append(it.actionKind.name)
+                }
+                event.detail?.let { append(" • ").append(it) }
+            }
+        }
+
     private fun toJson(event: ActionAuditEvent): JSONObject =
         JSONObject().apply {
             put("timestampMs", event.timestampMs)
