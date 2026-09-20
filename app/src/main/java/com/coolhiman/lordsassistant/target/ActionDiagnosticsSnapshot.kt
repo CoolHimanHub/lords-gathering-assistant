@@ -2,6 +2,7 @@ package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.map.CameraState
 import com.coolhiman.lordsassistant.map.LiveMapScanResult
+import com.coolhiman.lordsassistant.vision.MarchAssociationDiagnostics
 
 data class ActionDiagnosticsSnapshot(
     val timestampMs: Long,
@@ -15,6 +16,7 @@ data class ActionDiagnosticsSnapshot(
     val validationSafe: Boolean,
     val selected: ActionTargetSnapshot?,
     val actionKind: ActionKind?,
+    val marchAssociation: MarchAssociationDiagnostics?,
     val lifecycle: ActionLifecycleSnapshot,
     val evidence: PostActionEvidenceRecord?
 ) {
@@ -28,7 +30,7 @@ data class ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
             scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
-            lifecycle, evidence
+            scan.selectedMarchAssociation, lifecycle, evidence
         )
     }
 }
@@ -47,6 +49,12 @@ object ActionDiagnosticsFormatter {
             if (snapshot.validationReasons.isNotEmpty()) appendLine("Blocked: ${snapshot.validationReasons.joinToString(", ") { it.name.replace('_', ' ') }}")
             appendLine("Selected: ${selected?.let { "${it.coordinate.kingdom}:${it.coordinate.x},${it.coordinate.y} ${it.kind.name} L${it.level}" } ?: "none"}")
             appendLine("Action: ${snapshot.actionKind?.name ?: "none"}")
+            snapshot.marchAssociation?.let { association ->
+                appendLine("March association: ${association.status.name}")
+                association.nearestDistancePx?.let { appendLine("Nearest march: ${"%.1f".format(it)} px") }
+                association.secondNearestDistancePx?.let { appendLine("2nd nearest: ${"%.1f".format(it)} px") }
+                association.marginRatio?.let { appendLine("Association ratio: ${"%.2f".format(it)}") }
+            }
             appendLine("Lifecycle: ${snapshot.lifecycle.state.name}")
             snapshot.lifecycle.failure?.let { appendLine("Failure: ${it.name}") }
             if (evidence == null) {
