@@ -73,4 +73,41 @@ class TargetValidationEngineTest {
         assertFalse(r.safe)
         assertTrue(TargetBlockReason.STATE_UNKNOWN in r.reasons)
     }
+
+    @Test
+    fun resourceRequiresGatherAction() {
+        val result = engine.validate(
+            observation = baseObservation.copy(kind = TargetKind.RESOURCE, label = ResourceType.WOOD.name),
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = matchingPopup,
+            interactionPointValid = true,
+            actionKind = ActionKind.HUNT
+        )
+        assertFalse(result.safe)
+        assertTrue(result.reasons.contains(TargetBlockReason.ACTION_MISMATCH))
+    }
+
+    @Test
+    fun monsterAcceptsHuntOrAttackOnly() {
+        val hunt = engine.validate(
+            observation = baseObservation.copy(kind = TargetKind.MONSTER, label = "Frostwing"),
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = matchingPopup.copy(kind = TargetKind.MONSTER, resource = null),
+            interactionPointValid = true,
+            actionKind = ActionKind.HUNT
+        )
+        val attack = engine.validate(
+            observation = baseObservation.copy(kind = TargetKind.MONSTER, label = "Frostwing"),
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = matchingPopup.copy(kind = TargetKind.MONSTER, resource = null),
+            interactionPointValid = true,
+            actionKind = ActionKind.ATTACK
+        )
+        assertTrue(hunt.safe)
+        assertTrue(attack.safe)
+    }
+
 }
