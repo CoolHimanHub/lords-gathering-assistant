@@ -22,6 +22,11 @@ data class ActionDiagnosticsSnapshot(
     val actionAttemptId: Long?,
     val recoveryEpoch: Long = 0L,
     val recoveryEpochPersistenceHealthy: Boolean = true,
+    val journalAttemptId: Long? = null,
+    val journalRecoveryEpoch: Long? = null,
+    val journalRecoveryEpochPersisted: Boolean = false,
+    val reconciledInitialEpoch: Long = 0L,
+    val restartQuarantine: Boolean = false,
     val evidence: PostActionEvidenceRecord?
 ) {
     companion object {
@@ -32,12 +37,19 @@ data class ActionDiagnosticsSnapshot(
             actionAttemptId: Long? = null,
             recoveryEpoch: Long = 0L,
             recoveryEpochPersistenceHealthy: Boolean = true,
+            journalAttemptId: Long? = null,
+            journalRecoveryEpoch: Long? = null,
+            journalRecoveryEpochPersisted: Boolean = false,
+            reconciledInitialEpoch: Long = 0L,
+            restartQuarantine: Boolean = false,
             timestampMs: Long = System.currentTimeMillis()
         ) = ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
             scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
-            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, recoveryEpoch, recoveryEpochPersistenceHealthy, evidence
+            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, recoveryEpoch,
+            recoveryEpochPersistenceHealthy, journalAttemptId, journalRecoveryEpoch, journalRecoveryEpochPersisted,
+            reconciledInitialEpoch, restartQuarantine, evidence
         )
     }
 }
@@ -67,6 +79,14 @@ object ActionDiagnosticsFormatter {
             appendLine("Recovery epoch: ${snapshot.recoveryEpoch}")
             appendLine("Recovery epoch persistence: ${if (snapshot.recoveryEpochPersistenceHealthy) "healthy" else "FAILED — automatic execution blocked"}")
             appendLine("Action attempt: ${snapshot.actionAttemptId?.toString() ?: "none"}")
+            appendLine("Journal attempt: ${snapshot.journalAttemptId?.toString() ?: "none"}")
+            appendLine("Journal epoch: ${snapshot.journalRecoveryEpoch?.toString() ?: "none"}")
+            appendLine("Journal epoch provenance: ${if (snapshot.journalRecoveryEpochPersisted) "present" else "LEGACY / missing"}")
+            appendLine("Reconciled startup epoch: ${snapshot.reconciledInitialEpoch}")
+            appendLine("Restart quarantine: ${if (snapshot.restartQuarantine) "ACTIVE" else "clear"}")
+            if (snapshot.restartQuarantine) {
+                appendLine("Quarantine reason: durable in-flight action requires deliberate recovery")
+            }
             appendLine(
                 "Automatic recovery: " +
                     if (ActionRecoveryPolicy.mayStartAutomaticAttempt(snapshot.lifecycle.state)) "allowed" else "blocked"
