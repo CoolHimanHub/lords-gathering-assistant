@@ -593,3 +593,10 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - A moved interaction point can remain the same logical action session; the latest point is still accepted only through PreActionRevalidator's explicit drift and action checks.
 - Cleared a stale completed-target reset reference left from the identity migration.
 - Added regression coverage proving point movement within the permitted drift remains the same logical session.
+
+
+### V0.6.5 safety correction — Stable identity through post-action verification
+
+- Post-dispatch lifecycle continuity now also uses stable target identity when associating the active session with later observations.
+- Screen-point movement therefore cannot accidentally terminate an otherwise valid logical post-action session.
+- This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
