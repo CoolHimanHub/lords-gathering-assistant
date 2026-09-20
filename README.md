@@ -606,6 +606,14 @@ capture → detect → fuse → temporal state → camera state → target stabi
 
 V0.6.8 extends lifecycle regression coverage around restart recovery, UNKNOWN outcomes, and recovery-epoch exhaustion. An unresolved or quarantined action remains ineligible for automatic retry; only the established safe terminal lifecycle states may cross the automatic recovery boundary.
 
+### V0.6.8 follow-up — Cross-component restart safety simulation
+
+- Added an executable JVM regression that follows a validated scheduler candidate through REQUESTED → REVALIDATED → WAITING_FOR_RESULT.
+- The test then simulates process/service death by constructing a fresh orchestrator from the last durable recovery epoch and restoring the in-flight attempt as UNKNOWN.
+- Restart quarantine is verified at both the lifecycle recovery-policy boundary and the scheduler safety gate.
+- Deliberate recovery is then required to establish a new recovery epoch before the automatic safety gate can reopen.
+- This verifies the critical invariant across components: **a dispatch that may have reached the game cannot become an automatic retry merely because the process restarted.**
+
 ## V0.6.7 — Live action eligibility boundary
 
 V0.6.7 hardens the scanner-to-scheduler boundary. A live candidate is eligible for automatic scheduling only when the current-frame validation stage is `SAFE_TO_INTERACT`, the planner rank is a valid non-negative value, and the planner score is finite. Visually detected or otherwise independently validated candidates that are not represented by the current planner remain diagnostic-only and cannot cross into automatic scheduling.
