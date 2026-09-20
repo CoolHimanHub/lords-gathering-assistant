@@ -17,6 +17,7 @@ data class ActionDiagnosticsSnapshot(
     val selected: ActionTargetSnapshot?,
     val actionKind: ActionKind?,
     val marchAssociation: MarchAssociationDiagnostics?,
+    val targetStability: TargetStability,
     val lifecycle: ActionLifecycleSnapshot,
     val evidence: PostActionEvidenceRecord?
 ) {
@@ -30,7 +31,7 @@ data class ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
             scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
-            scan.selectedMarchAssociation, lifecycle, evidence
+            scan.selectedMarchAssociation, scan.targetStability, lifecycle, evidence
         )
     }
 }
@@ -55,6 +56,7 @@ object ActionDiagnosticsFormatter {
                 association.secondNearestDistancePx?.let { appendLine("2nd nearest: ${"%.1f".format(it)} px") }
                 association.marginRatio?.let { appendLine("Association ratio: ${"%.2f".format(it)}") }
             }
+            appendLine("Target stability: ${snapshot.targetStability.consecutiveFrames} frames  •  stable=${snapshot.targetStability.stable}")
             appendLine("Lifecycle: ${snapshot.lifecycle.state.name}")
             snapshot.lifecycle.failure?.let { appendLine("Failure: ${it.name}") }
             if (evidence == null) {
