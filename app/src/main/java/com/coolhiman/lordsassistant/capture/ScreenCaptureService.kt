@@ -63,6 +63,16 @@ class ScreenCaptureService : Service() {
 
     private fun persistRecoveryEpoch(): Boolean {
         recoveryEpochPersistenceHealthy = recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
+        if (!recoveryEpochPersistenceHealthy) {
+            actionAuditLog.appendIfChanged(
+                ActionAuditEvent(
+                    timestampMs = System.currentTimeMillis(),
+                    type = ActionAuditEventType.RECOVERY_EPOCH_PERSISTENCE_FAILED,
+                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                    detail = "Recovery epoch could not be durably persisted; automatic execution remains fail-closed"
+                )
+            )
+        }
         return recoveryEpochPersistenceHealthy
     }
 
@@ -198,7 +208,17 @@ class ScreenCaptureService : Service() {
                     }
                     actionSchedulerAdapter.update(
                         listOfNotNull(currentCandidate)
-                    )
+                    ).forEach { droppedTarget ->
+                        actionAuditLog.appendIfChanged(
+                            ActionAuditEvent(
+                                timestampMs = now,
+                                type = ActionAuditEventType.CANDIDATE_DROPPED,
+                                target = droppedTarget,
+                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                detail = "removed by latest-scan reconciliation"
+                            )
+                        )
+                    }
                     currentCandidate?.let { candidate ->
                         actionAuditLog.appendIfChanged(
                             ActionAuditEvent(
@@ -383,6 +403,16 @@ class ScreenCaptureService : Service() {
                                                 if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
                                             }
                                         } else if (provenance != null) {
+                                            actionAuditLog.appendIfChanged(
+                                                ActionAuditEvent(
+                                                    timestampMs = now,
+                                                    type = ActionAuditEventType.DISPATCH_BARRIER_FAILED,
+                                                    attemptId = provenance.attemptId,
+                                                    recoveryEpoch = provenance.recoveryEpoch,
+                                                    target = scheduled.target,
+                                                    detail = "durable in-flight journal barrier could not be committed"
+                                                )
+                                            )
                                             actionOrchestrator.reset()
                                             persistRecoveryEpoch()
                                             actionJournal.clear()
