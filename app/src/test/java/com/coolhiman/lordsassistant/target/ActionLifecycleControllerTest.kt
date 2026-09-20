@@ -154,6 +154,17 @@ class ActionLifecycleControllerTest {
         assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(result.state))
     }
 
+
+    @Test
+    fun recoveryEpochExhaustionCannotAutomaticallyRetry() {
+        val controller = ActionLifecycleController()
+        val result = controller.recoveryEpochExhausted()
+
+        assertEquals(ActionLifecycleState.FAILED, result.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, result.failure)
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(result))
+    }
+
     @Test
     fun recoveryPolicyAllowsOnlySafeTerminalRecoveryStates() {
         assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.IDLE))
