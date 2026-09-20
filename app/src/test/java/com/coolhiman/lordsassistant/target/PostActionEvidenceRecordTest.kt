@@ -62,5 +62,12 @@ class PostActionEvidenceRecordTest {
         assertEquals(2, record.marchTrajectory.size)
         assertEquals(920f, record.marchTrajectory.last().x, 0.01f)
         assertEquals(600f, record.marchTrajectory.last().y, 0.01f)
+        assertEquals(selected.point, record.marchTrajectoryEvidence!!.actionPoint)
+        assertEquals(2, record.marchTrajectoryEvidence.trajectory.size)
+        assertEquals(10f, record.marchTrajectoryEvidence.displacementPx, 0.01f)
+        assertEquals(1f, record.marchTrajectoryEvidence.directionX, 0.01f)
+        assertEquals(0f, record.marchTrajectoryEvidence.directionY, 0.01f)
+        assertEquals(2, record.marchTrajectoryEvidence.confirmingFrames)
+        assertTrue(record.marchTrajectoryEvidence.cameraStable)
     }
 }
