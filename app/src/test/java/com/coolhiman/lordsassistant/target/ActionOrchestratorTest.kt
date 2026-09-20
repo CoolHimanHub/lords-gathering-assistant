@@ -354,6 +354,35 @@ class ActionOrchestratorTest {
         assertEquals(ActionLifecycleFailure.VERIFICATION_TIMEOUT, result.lifecycle.failure)
     }
 
+
+    @Test
+    fun recoveryEpochOverflowFailsClosedWithoutWrapping() {
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = Long.MAX_VALUE)
+
+        val result = orchestrator.reset()
+
+        assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, result.lifecycle.failure)
+        assertEquals(Long.MAX_VALUE, orchestrator.currentRecoveryEpoch)
+
+        val retry = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 71_000L)
+        assertEquals(ActionLifecycleState.FAILED, retry.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, retry.lifecycle.failure)
+        assertTrue(retry.session == null)
+    }
+
+    @Test
+    fun restartRecoveryEpochOverflowFailsClosedWithoutWrapping() {
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = Long.MAX_VALUE)
+
+        val result = orchestrator.restoreUnknown(9L)
+
+        assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, result.lifecycle.failure)
+        assertEquals(Long.MAX_VALUE, orchestrator.currentRecoveryEpoch)
+        assertTrue(result.session == null)
+    }
+
     private fun ActionOrchestrator.sessionState(): ActionLifecycleState =
         sessionSnapshot().state
 
