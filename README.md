@@ -602,7 +602,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
-### V0.6.6 — CI unit-test verification boundary
+### V0.6.7 — Live action eligibility boundary
+
+V0.6.7 hardens the scanner-to-scheduler boundary. A live candidate is eligible for automatic scheduling only when the current-frame validation stage is `SAFE_TO_INTERACT`, the planner rank is a valid non-negative value, and the planner score is finite. Visually detected or otherwise independently validated candidates that are not represented by the current planner remain diagnostic-only and cannot cross into automatic scheduling.
+
+Regression coverage verifies ranked candidates, unranked candidates, non-finite scores, unsafe validation, and invalid negative planner ranks. CI status must be checked on the actual GitHub Actions run before this milestone is considered verified.
+
+## V0.6.6 — CI unit-test verification boundary
 
 - GitHub Actions now runs the Android JVM unit-test suite before assembling the debug APK.
 - The action-safety regression suite therefore becomes a required build-stage verification step rather than relying only on source-level review.
