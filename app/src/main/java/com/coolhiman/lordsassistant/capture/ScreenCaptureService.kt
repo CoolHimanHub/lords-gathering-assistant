@@ -127,7 +127,9 @@ class ScreenCaptureService : Service() {
                     if (prefs.automaticActions) {
                         when {
                             active == ActionLifecycleState.IDLE ||
-                                active == ActionLifecycleState.SUCCEEDED -> {
+                                active == ActionLifecycleState.SUCCEEDED ||
+                                active == ActionLifecycleState.FAILED ||
+                                active == ActionLifecycleState.UNKNOWN -> {
                                 val previous = previousScan
                                 if (previous?.selectedActionTarget != null &&
                                     previous.validation.safe &&
