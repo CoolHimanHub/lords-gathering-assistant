@@ -9,6 +9,16 @@ data class ActionTargetSnapshot(
     val level: Int,
     val actionKind: ActionKind,
     val point: ScreenPoint
+) {
+    /** Stable world/action identity; screen point is transient UI geometry. */
+    fun identity(): ActionTargetIdentity = ActionTargetIdentity(coordinate, kind, level, actionKind)
+}
+
+data class ActionTargetIdentity(
+    val coordinate: com.coolhiman.lordsassistant.model.WorldCoordinate,
+    val kind: com.coolhiman.lordsassistant.model.TargetKind,
+    val level: Int,
+    val actionKind: ActionKind
 )
 
 /**
