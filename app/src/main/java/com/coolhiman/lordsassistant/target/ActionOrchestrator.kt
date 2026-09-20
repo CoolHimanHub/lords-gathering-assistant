@@ -33,6 +33,11 @@ class ActionOrchestrator(
         private set
 
     private var completedTarget: ActionTargetSnapshot? = null
+    private var postActionStartedAtMs: Long? = null
+
+    companion object {
+        const val POST_ACTION_TIMEOUT_MS = 4_000L
+    }
 
     fun request(
         automaticActionsEnabled: Boolean,
@@ -90,8 +95,10 @@ class ActionOrchestrator(
      */
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
         val accepted = dispatch()
+        val next = lifecycle.dispatched(nowMs, accepted)
+        postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
         return Result(
-            lifecycle = lifecycle.dispatched(nowMs, accepted),
+            lifecycle = next,
             session = session
         )
     }
@@ -114,7 +121,8 @@ class ActionOrchestrator(
 
     fun verifyPostAction(
         afterObservation: MapObservation?,
-        popupAfter: PopupState?
+        popupAfter: PopupState?,
+        nowMs: Long = System.currentTimeMillis()
     ): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
@@ -134,9 +142,22 @@ class ActionOrchestrator(
             evidence += PostActionEvidence.OWN_MARCH_CONFIRMED
         }
 
+        val predicted = ActionPostVerifier.verify(evidence)
+        if (predicted == ActionLifecycleState.UNKNOWN) {
+            val startedAt = postActionStartedAtMs
+            if (startedAt != null && nowMs - startedAt >= POST_ACTION_TIMEOUT_MS) {
+                postActionStartedAtMs = null
+                return Result(lifecycle.timeout(), session)
+            }
+            return Result(lifecycle.snapshot, session)
+        }
+
         val verified = lifecycle.verify(evidence)
         if (verified.state == ActionLifecycleState.SUCCEEDED) {
             completedTarget = selected
+            postActionStartedAtMs = null
+        } else if (verified.state == ActionLifecycleState.FAILED) {
+            postActionStartedAtMs = null
         }
         return Result(
             lifecycle = verified,
@@ -151,6 +172,7 @@ class ActionOrchestrator(
         lifecycle.reset()
         session = null
         completedTarget = null
+        postActionStartedAtMs = null
         return Result(lifecycle.snapshot, null)
     }
 }
