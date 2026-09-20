@@ -51,6 +51,10 @@ class ActionOrchestrator(
         baselineMarchSignals: List<MarchSignal>,
         nowMs: Long
     ): Result {
+        if (lifecycle.snapshot.failure == ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED) {
+            session = null
+            return Result(lifecycle.snapshot, null)
+        }
         if (lifecycle.snapshot.state == ActionLifecycleState.SUCCEEDED &&
             selected != null && selected == completedTarget) return Result(lifecycle.snapshot, session)
 
