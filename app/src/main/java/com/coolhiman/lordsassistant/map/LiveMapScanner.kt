@@ -150,6 +150,13 @@ class LiveMapScanner(context: Context) {
                 null -> false
             }
         }
+        val selectedFusionCandidate = candidateObservation?.let { target ->
+            result.fused.firstOrNull { fused ->
+                fused.coordinate == target.coordinate &&
+                    fused.classification.kind == target.kind &&
+                    fused.classification.level == target.level
+            }
+        }
         val validation = validationEngine.validate(
             observation = candidateObservation,
             cameraStable = camera.state == CameraState.STABLE,
@@ -161,13 +168,6 @@ class LiveMapScanner(context: Context) {
             interactionPointValid = actionButton != null,
             actionKind = actionButton?.kind
         )
-        val selectedFusionCandidate = candidateObservation?.let { target ->
-            result.fused.firstOrNull { fused ->
-                fused.coordinate == target.coordinate &&
-                    fused.classification.kind == target.kind &&
-                    fused.classification.level == target.level
-            }
-        }
         val selectedActionTarget = candidateObservation?.let { target ->
             val point = actionButton?.point
             val coordinate = target.coordinate
