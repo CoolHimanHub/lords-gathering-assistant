@@ -1,6 +1,7 @@
 package com.coolhiman.lordsassistant.vision
 
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
@@ -102,7 +103,8 @@ class TemporalObservationTracker(
                 track.observation.incomingTroops == true
 
             if (track.hits >= confirmHits || occupiedState || track.freeHits >= confirmHits) {
-                output += track.observation
+                val evidence = track.observation.evidence + ObservationEvidence.TEMPORALLY_CONFIRMED
+                output += track.observation.copy(evidence = evidence)
             }
         }
 
