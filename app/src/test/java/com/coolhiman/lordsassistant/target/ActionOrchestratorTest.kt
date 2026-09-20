@@ -161,6 +161,34 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun failedAttemptIdPersistenceStopsBeforeSessionCreation() {
+        val orchestrator = ActionOrchestrator(
+            attemptIdAllocator = { null }
+        )
+
+        val result = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 68_000L
+        )
+
+        assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.ATTEMPT_ID_PERSISTENCE_FAILED, result.lifecycle.failure)
+        assertTrue(result.session == null)
+
+        var dispatched = false
+        orchestrator.dispatch(68_100L) {
+            dispatched = true
+            true
+        }
+        assertFalse(dispatched)
+    }
+
+    @Test
     fun persistedRecoveryEpochCanSeedTheNextOrchestrator() {
         val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 41L)
         assertEquals(41L, orchestrator.currentRecoveryEpoch)
