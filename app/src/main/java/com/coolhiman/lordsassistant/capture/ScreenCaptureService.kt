@@ -310,10 +310,10 @@ class ScreenCaptureService : Service() {
                                     actionSchedulerAdapter.claim(now, safetyState).candidate
                                 } else null
                                 val previousCandidate = scheduled?.let { selected ->
-                                    previous?.actionCandidates?.firstOrNull { it.target == selected.target }
+                                    previous?.actionCandidates?.firstOrNull { it.target.identity() == selected.target.identity() }
                                 }
                                 val currentCandidate = scheduled?.let { selected ->
-                                    scan.actionCandidates.firstOrNull { it.target == selected.target }
+                                    scan.actionCandidates.firstOrNull { it.target.identity() == selected.target.identity() }
                                 }
                                 if (previousCandidate != null &&
                                     currentCandidate != null &&
