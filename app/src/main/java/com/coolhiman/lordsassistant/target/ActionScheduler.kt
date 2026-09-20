@@ -24,7 +24,8 @@ enum class ActionScheduleBlockReason {
     EMPTY_QUEUE,
     ACTION_IN_FLIGHT,
     COOLDOWN_ACTIVE,
-    NO_SAFE_CANDIDATE
+    NO_SAFE_CANDIDATE,
+    SAFETY_BLOCKED
 }
 
 class ActionScheduler(
@@ -62,6 +63,17 @@ class ActionScheduler(
         inFlight = false
     }
 
+    fun peek(
+        nowMs: Long,
+        safetyState: ActionSchedulerSafetyState
+    ): ActionScheduleDecision {
+        val blockReason = ActionSchedulerSafetyGate().blockReason(safetyState)
+        if (blockReason != null) {
+            return ActionScheduleDecision(null, ActionScheduleBlockReason.SAFETY_BLOCKED)
+        }
+        return peek(nowMs)
+    }
+
     fun peek(nowMs: Long): ActionScheduleDecision {
         if (candidates.isEmpty()) {
             return ActionScheduleDecision(null, ActionScheduleBlockReason.EMPTY_QUEUE)
@@ -92,6 +104,16 @@ class ActionScheduler(
      * the scheduler; the caller must still pass it through revalidation,
      * provenance, journaling, and guarded dispatch.
      */
+    fun claim(
+        nowMs: Long,
+        safetyState: ActionSchedulerSafetyState
+    ): ActionScheduleDecision {
+        val decision = peek(nowMs, safetyState)
+        val candidate = decision.candidate ?: return decision
+        candidates.remove(candidate.target)
+        return decision
+    }
+
     fun claim(nowMs: Long): ActionScheduleDecision {
         val decision = peek(nowMs)
         val candidate = decision.candidate ?: return decision
