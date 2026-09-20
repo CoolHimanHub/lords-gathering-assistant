@@ -89,7 +89,7 @@ object ActionDiagnosticsFormatter {
             }
             appendLine(
                 "Automatic recovery: " +
-                    if (ActionRecoveryPolicy.mayStartAutomaticAttempt(snapshot.lifecycle.state)) "allowed" else "blocked"
+                    if (ActionRecoveryPolicy.mayStartAutomaticAttempt(snapshot.lifecycle)) "allowed" else "blocked"
             )
             snapshot.lifecycle.failure?.let { appendLine("Failure: ${it.name}") }
             if (evidence == null) {
