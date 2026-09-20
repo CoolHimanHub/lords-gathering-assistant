@@ -115,7 +115,13 @@ class ActionOrchestrator(
             evidence.toSet(), sources.toSet(), selected,
             afterObservation?.coordinate, afterObservation?.kind, afterObservation?.level,
             cameraStable, postEvidenceFrames, nowMs,
-            current.marchSession.trajectory
+            current.marchSession.trajectory,
+            MarchTrajectoryEvidence.from(
+                actionPoint = selected.point,
+                trajectory = current.marchSession.trajectory,
+                confirmingFrames = current.marchSession.confirmedFrames,
+                cameraStable = cameraStable
+            )
         )
 
         if (postEvidenceFrames < POST_ACTION_CONFIRMATION_FRAMES) return Result(lifecycle.snapshot, session)
