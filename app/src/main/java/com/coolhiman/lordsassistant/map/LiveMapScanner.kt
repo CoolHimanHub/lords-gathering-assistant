@@ -102,11 +102,17 @@ class LiveMapScanner(context: Context) {
             TargetPlan(snapshot, emptyList())
         }
 
-        val candidate = plan.ranked.firstOrNull()
-        val candidateObservation = candidate?.let { ranked ->
+        val resourceCandidate = plan.ranked.firstOrNull()
+        val monsterCandidate = plan.rankedMonsters.firstOrNull()
+        val candidateObservation = resourceCandidate?.let { ranked ->
             snapshot.firstOrNull {
                 it.coordinate == ranked.tile.coordinate &&
                     it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE
+            }
+        } ?: monsterCandidate?.let { ranked ->
+            snapshot.firstOrNull {
+                it.coordinate == ranked.target.coordinate &&
+                    it.kind == com.coolhiman.lordsassistant.model.TargetKind.MONSTER
             }
         }
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
