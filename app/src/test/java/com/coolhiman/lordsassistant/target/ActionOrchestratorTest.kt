@@ -356,6 +356,33 @@ class ActionOrchestratorTest {
 
 
     @Test
+    fun unknownRecoveryCannotStartAnotherAttemptAtCoreBoundary() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.restoreUnknown(7L)
+        assertEquals(ActionLifecycleState.UNKNOWN, orchestrator.lifecycleSnapshot.state)
+
+        var dispatched = false
+        val result = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 72_000L
+        )
+        orchestrator.dispatch(72_001L) {
+            dispatched = true
+            true
+        }
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertTrue(result.session == null)
+        assertFalse(dispatched)
+        assertEquals(1L, orchestrator.currentRecoveryEpoch)
+    }
+
+    @Test
     fun recoveryEpochOverflowFailsClosedWithoutWrapping() {
         val orchestrator = ActionOrchestrator(initialRecoveryEpoch = Long.MAX_VALUE)
 
