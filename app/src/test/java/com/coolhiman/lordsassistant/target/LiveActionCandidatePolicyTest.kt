@@ -73,6 +73,15 @@ class LiveActionCandidatePolicyTest {
     }
 
     @Test
+    fun negativePlannerRankCannotCrossSchedulerBoundary() {
+        assertFalse(
+            LiveActionCandidatePolicy.isSchedulerEligible(
+                candidate.copy(plannerRank = -1)
+            )
+        )
+    }
+
+    @Test
     fun unsafeCandidateCannotCrossSchedulerBoundary() {
         assertFalse(
             LiveActionCandidatePolicy.isSchedulerEligible(
