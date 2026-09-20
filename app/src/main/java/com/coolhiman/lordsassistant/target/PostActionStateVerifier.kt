@@ -54,4 +54,9 @@ object PostActionStateVerifier {
 
     fun isSameTarget(observation: MapObservation?, coordinate: WorldCoordinate): Boolean =
         observation?.coordinate == coordinate
+
+    fun isSameTarget(observation: MapObservation?, selected: ActionTargetSnapshot): Boolean =
+        observation?.coordinate == selected.coordinate &&
+            observation.kind == selected.kind &&
+            observation.level == selected.level
 }
