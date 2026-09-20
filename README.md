@@ -470,3 +470,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - The selected candidate must still pass the existing pre-action revalidation, durable provenance, journal, interaction gate, and post-action verification pipeline.
 - Added regression coverage for priority, stability, safety, cooldown, in-flight blocking, duplicate targets, and candidate claiming.
 - Automatic Gather/Hunt remains disabled by default.
+
+### V0.5.1 follow-up — Live-scan queue reconciliation
+
+- The multi-target scheduler now reconciles its queue against the latest scan.
+- Targets that disappear from the current safe candidate set are removed.
+- A target that becomes validation-unsafe or falls below the stability threshold is removed before selection.
+- This prevents stale queued targets from surviving across changing frames.
+- Scheduler selection remains subordinate to the existing recovery, revalidation, provenance, journal, interaction, and post-action verification boundaries.
