@@ -12,6 +12,7 @@ data class MapObservation(
     val incomingTroops: Boolean?,
     val kind: TargetKind?,
     val confidence: Float,
+    val evidence: Set<ObservationEvidence> = emptySet(),
     val timestampMs: Long = System.currentTimeMillis()
 )
 
