@@ -61,23 +61,26 @@ class ActionScheduler(
      * admission rules.
      */
     fun refresh(current: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> {
-        val safeTargets = current
-            .asSequence()
-            .filter {
-                it.validationSafe &&
-                    it.stabilityFrames >= minimumStabilityFrames &&
-                    !isCompletedAndSuppressed(it.target, it.queuedAtMs)
+        val previousTargets = candidates.keys.toSet()
+        val latestSafe = linkedMapOf<ActionTargetSnapshot, ActionScheduleCandidate>()
+
+        current.forEach { candidate ->
+            if (!candidate.validationSafe || candidate.stabilityFrames < minimumStabilityFrames) return@forEach
+            if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return@forEach
+
+            val existing = latestSafe[candidate.target]
+            if (existing == null || compare(candidate, existing) < 0) {
+                latestSafe[candidate.target] = candidate
             }
-            .map { it.target }
-            .toSet()
+        }
 
-        val dropped = candidates.keys
-            .filter { it !in safeTargets }
-            .toList()
+        // The latest scan is authoritative. Rebuild the queued candidate set
+        // from it so planner rank, validation, stability and timestamps cannot
+        // remain stale merely because the target identity stayed equal.
+        candidates.clear()
+        candidates.putAll(latestSafe)
 
-        dropped.forEach(candidates::remove)
-        current.forEach(::offer)
-        return dropped
+        return previousTargets.filter { it !in latestSafe.keys }
     }
 
     fun remove(target: ActionTargetSnapshot) {
