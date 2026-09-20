@@ -3,6 +3,7 @@ package com.coolhiman.lordsassistant.target
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
+import android.graphics.RectF
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -76,7 +77,12 @@ class ActionRestartRecoveryIntegrationTest {
         assertEquals(ActionLifecycleState.REVALIDATED, first.revalidate(
             latestObservation = null,
             latestValidation = safe,
-            latestAction = null
+            latestAction = ActionButton(
+                kind = ActionKind.GATHER,
+                bounds = RectF(490f, 390f, 510f, 410f),
+                point = target.point,
+                confidence = 0.95f
+            )
         ).lifecycle.state)
 
         assertEquals(
