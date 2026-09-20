@@ -15,12 +15,21 @@ class ActionAttemptIdStore(context: Context) {
     fun read(): Long = prefs.getLong(KEY_ATTEMPT_ID, 0L)
 
     fun allocateNext(minimumPreviousId: Long = 0L): Long? {
-        val next = maxOf(read(), minimumPreviousId) + 1L
+        val next = nextId(read(), minimumPreviousId) ?: return null
         if (!prefs.edit().putLong(KEY_ATTEMPT_ID, next).commit()) return null
         return next
     }
 
     companion object {
         private const val KEY_ATTEMPT_ID = "attempt_id"
+
+        /**
+         * Computes the next durable attempt ID without allowing Long overflow
+         * to wrap the provenance identity back into negative space.
+         */
+        internal fun nextId(current: Long, minimumPreviousId: Long): Long? {
+            val base = maxOf(current, minimumPreviousId)
+            return if (base == Long.MAX_VALUE) null else base + 1L
+        }
     }
 }
