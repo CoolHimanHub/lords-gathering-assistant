@@ -70,6 +70,28 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun marchObservationIsIgnoredBeforeSuccessfulDispatch() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 5_000L
+        )
+
+        val result = orchestrator.observeMarch(
+            listOf(MarchSignal(910f, 600f, 20.0, 0.9f)),
+            5_100L
+        )
+
+        assertFalse(result.session?.ownMarchConfirmed == true)
+        assertEquals(null, result.session?.marchSession?.lastSignal)
+    }
+
+    @Test
     fun safeFlowRevalidatesDispatchesAndConfirmsOwnMarch() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(
