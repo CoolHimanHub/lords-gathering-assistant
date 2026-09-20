@@ -126,4 +126,33 @@ class TargetValidationEngineTest {
         assertTrue(result.reasons.contains(TargetBlockReason.TARGET_UNSTABLE))
     }
 
+    @Test
+    fun ambiguousMarchAssociationBlocksInteraction() {
+        val result = engine.validate(
+            observation = observation(),
+            cameraStable = true,
+            calibrationValid = true,
+            marchAssociationStatus = com.coolhiman.lordsassistant.vision.MarchAssociationStatus.AMBIGUOUS_MARCH,
+            popupState = popup(),
+            interactionPointValid = true,
+            actionKind = ActionKind.GATHER
+        )
+        assertFalse(result.safe)
+        assertTrue(result.reasons.contains(TargetBlockReason.MARCH_AMBIGUOUS))
+    }
+
+    @Test
+    fun clearMarchAssociationBlocksInteraction() {
+        val result = engine.validate(
+            observation = observation(),
+            cameraStable = true,
+            calibrationValid = true,
+            marchAssociationStatus = com.coolhiman.lordsassistant.vision.MarchAssociationStatus.CLEAR_MARCH,
+            popupState = popup(),
+            interactionPointValid = true,
+            actionKind = ActionKind.GATHER
+        )
+        assertTrue(result.safe)
+    }
+
 }
