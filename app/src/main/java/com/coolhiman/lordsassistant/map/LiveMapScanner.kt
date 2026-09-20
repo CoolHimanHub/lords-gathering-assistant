@@ -34,7 +34,11 @@ data class LiveActionCandidate(
     val observation: MapObservation,
     val actionButton: ActionButton,
     val validation: TargetValidationResult,
-    val stability: TargetStability
+    val stability: TargetStability,
+    /** Zero-based position in the planner's existing ranked order. */
+    val plannerRank: Int,
+    /** Native planner score when this target is ranked; otherwise -INF. */
+    val plannerScore: Double
 )
 
 data class LiveMapScanResult(
@@ -200,7 +204,16 @@ class LiveMapScanner(context: Context) {
                     actionKind = button.kind,
                     point = button.point
                 )
-                LiveActionCandidate(target, observation, button, actionValidation, stability)
+                val plannerRankAndScore = plannerRankAndScore(plan, observation)
+                LiveActionCandidate(
+                    target = target,
+                    observation = observation,
+                    actionButton = button,
+                    validation = actionValidation,
+                    stability = stability,
+                    plannerRank = plannerRankAndScore.first,
+                    plannerScore = plannerRankAndScore.second
+                )
             }
 
         targetStabilityTrackers.keys
@@ -254,6 +267,32 @@ class LiveMapScanner(context: Context) {
             selectedMarchAssociation = selectedFusionCandidate?.marchAssociation,
             targetStability = targetStability
         )
+    }
+
+    private fun plannerRankAndScore(
+        plan: TargetPlan,
+        observation: MapObservation
+    ): Pair<Int, Double> {
+        val coordinate = observation.coordinate ?: return Int.MAX_VALUE to Double.NEGATIVE_INFINITY
+        val level = observation.level ?: return Int.MAX_VALUE to Double.NEGATIVE_INFINITY
+        when (observation.kind) {
+            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> {
+                val index = plan.ranked.indexOfFirst {
+                    it.tile.coordinate == coordinate && it.tile.level == level
+                }
+                if (index >= 0) return index to plan.ranked[index].score
+            }
+            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> {
+                val index = plan.rankedMonsters.indexOfFirst {
+                    it.target.coordinate == coordinate && it.target.level == level
+                }
+                if (index >= 0) {
+                    return (plan.ranked.size + index) to plan.rankedMonsters[index].score
+                }
+            }
+            null -> Unit
+        }
+        return Int.MAX_VALUE to Double.NEGATIVE_INFINITY
     }
 
     private fun distance(a: com.coolhiman.lordsassistant.model.ScreenPoint, b: com.coolhiman.lordsassistant.model.ScreenPoint?): Float {
