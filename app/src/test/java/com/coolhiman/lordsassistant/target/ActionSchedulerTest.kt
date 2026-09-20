@@ -120,6 +120,59 @@ class ActionSchedulerTest {
         assertFalse(scheduler.peek(5_000L).candidate?.target == target(2))
     }
     @Test
+    fun plannerRankIsPreferredBeforePlannerScoreAndStability() {
+        val scheduler = ActionScheduler()
+        scheduler.offer(
+            ActionScheduleCandidate(
+                target = target(1),
+                priority = 0,
+                stabilityFrames = 2,
+                validationSafe = true,
+                queuedAtMs = 1_000L,
+                plannerRank = 1,
+                plannerScore = 999.0
+            )
+        )
+        scheduler.offer(
+            ActionScheduleCandidate(
+                target = target(2),
+                priority = 0,
+                stabilityFrames = 2,
+                validationSafe = true,
+                queuedAtMs = 1_100L,
+                plannerRank = 0,
+                plannerScore = -100.0
+            )
+        )
+
+        val decision = scheduler.peek(5_000L)
+
+        assertEquals(target(2), decision.candidate?.target)
+        assertEquals(0, decision.candidate?.plannerRank)
+    }
+
+    @Test
+    fun plannerScoreBreaksTieInsideSamePlannerRank() {
+        val scheduler = ActionScheduler()
+        scheduler.offer(
+            ActionScheduleCandidate(
+                target = target(1), priority = 0, stabilityFrames = 2,
+                validationSafe = true, queuedAtMs = 1_000L,
+                plannerRank = 3, plannerScore = 10.0
+            )
+        )
+        scheduler.offer(
+            ActionScheduleCandidate(
+                target = target(2), priority = 0, stabilityFrames = 2,
+                validationSafe = true, queuedAtMs = 1_100L,
+                plannerRank = 3, plannerScore = 20.0
+            )
+        )
+
+        assertEquals(target(2), scheduler.peek(5_000L).candidate?.target)
+    }
+
+    @Test
     fun safetyStateBlocksSelectionEvenWithSafeCandidate() {
         val scheduler = ActionScheduler()
         scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true))
