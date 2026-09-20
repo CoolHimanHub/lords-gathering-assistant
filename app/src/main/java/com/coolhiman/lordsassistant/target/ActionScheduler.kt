@@ -37,12 +37,14 @@ class ActionScheduler(
     private val minimumStabilityFrames: Int = DEFAULT_MIN_STABILITY_FRAMES
 ) {
     private val candidates = linkedMapOf<ActionTargetSnapshot, ActionScheduleCandidate>()
+    private val completedUntilMs = linkedMapOf<ActionTargetSnapshot, Long>()
     private var inFlight = false
     private var lastDispatchAtMs: Long? = null
 
     fun offer(candidate: ActionScheduleCandidate) {
         if (!candidate.validationSafe) return
         if (candidate.stabilityFrames < minimumStabilityFrames) return
+        if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return
 
         val existing = candidates[candidate.target]
         if (existing == null || compare(candidate, existing) < 0) {
@@ -61,7 +63,11 @@ class ActionScheduler(
     fun refresh(current: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> {
         val safeTargets = current
             .asSequence()
-            .filter { it.validationSafe && it.stabilityFrames >= minimumStabilityFrames }
+            .filter {
+                it.validationSafe &&
+                    it.stabilityFrames >= minimumStabilityFrames &&
+                    !isCompletedAndSuppressed(it.target, it.queuedAtMs)
+            }
             .map { it.target }
             .toSet()
 
@@ -91,6 +97,17 @@ class ActionScheduler(
         inFlight = false
     }
 
+    /**
+     * Suppresses a successfully completed target from immediate re-entry.
+     * The suppression is scheduler-local and bounded; a later fresh scan may
+     * re-offer the target after the cooldown window expires.
+     */
+    fun markTargetCompleted(target: ActionTargetSnapshot, nowMs: Long) {
+        candidates.remove(target)
+        completedUntilMs[target] = nowMs + COMPLETED_TARGET_SUPPRESSION_MS
+        completedUntilMs.entries.removeIf { it.value <= nowMs }
+    }
+
     fun peek(
         nowMs: Long,
         safetyState: ActionSchedulerSafetyState
@@ -117,7 +134,11 @@ class ActionScheduler(
 
         val next = candidates.values
             .asSequence()
-            .filter { it.validationSafe && it.stabilityFrames >= minimumStabilityFrames }
+            .filter {
+                it.validationSafe &&
+                    it.stabilityFrames >= minimumStabilityFrames &&
+                    !isCompletedAndSuppressed(it.target, nowMs)
+            }
             .minWithOrNull(::compare)
 
         return if (next != null) {
@@ -153,6 +174,15 @@ class ActionScheduler(
 
     fun isInFlight(): Boolean = inFlight
 
+    private fun isCompletedAndSuppressed(target: ActionTargetSnapshot, nowMs: Long): Boolean {
+        val until = completedUntilMs[target] ?: return false
+        if (until <= nowMs) {
+            completedUntilMs.remove(target)
+            return false
+        }
+        return true
+    }
+
     private fun compare(
         left: ActionScheduleCandidate,
         right: ActionScheduleCandidate
@@ -173,5 +203,6 @@ class ActionScheduler(
     companion object {
         const val DEFAULT_COOLDOWN_MS = 1_500L
         const val DEFAULT_MIN_STABILITY_FRAMES = 2
+        const val COMPLETED_TARGET_SUPPRESSION_MS = 5_000L
     }
 }
