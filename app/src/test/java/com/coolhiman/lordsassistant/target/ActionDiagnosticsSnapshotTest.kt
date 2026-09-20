@@ -9,6 +9,7 @@ import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.PopupState
+import android.graphics.RectF
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,12 +31,13 @@ class ActionDiagnosticsSnapshotTest {
             observations = listOf(
                 MapObservation(
                     coordinate = selected.coordinate,
-                    kind = TargetKind.RESOURCE,
+                    screenPoint = selected.point,
                     label = ResourceType.WOOD.name,
                     level = 3,
-                    screenPoint = selected.point,
+                    quantity = null,
                     occupied = false,
                     incomingTroops = false,
+                    kind = TargetKind.RESOURCE,
                     confidence = 0.95f,
                     evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)
                 )
@@ -47,7 +49,7 @@ class ActionDiagnosticsSnapshotTest {
             cameraState = CameraState.STABLE,
             cameraSharedTargets = 4,
             validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT),
-            actionButton = ActionButton(ActionKind.GATHER, selected.point, 0.9f),
+            actionButton = ActionButton(ActionKind.GATHER, RectF(90f, 190f, 110f, 210f), selected.point, 0.9f),
             selectedActionTarget = selected,
             selectedObservation = null,
             marchSignals = emptyList(),
