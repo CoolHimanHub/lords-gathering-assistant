@@ -17,6 +17,7 @@ import com.coolhiman.lordsassistant.target.ActionButtonDetector
 import com.coolhiman.lordsassistant.target.ActionKind
 import com.coolhiman.lordsassistant.target.ActionTargetSnapshot
 import com.coolhiman.lordsassistant.vision.DetectionFusion
+import com.coolhiman.lordsassistant.vision.MarchAssociationDiagnostics
 import com.coolhiman.lordsassistant.vision.ObservationMapper
 import com.coolhiman.lordsassistant.vision.OrangeMarchDetector
 import com.coolhiman.lordsassistant.vision.PopupState
@@ -40,7 +41,8 @@ data class LiveMapScanResult(
     val selectedActionTarget: ActionTargetSnapshot? = null,
     val selectedObservation: MapObservation? = null,
     val marchSignals: List<com.coolhiman.lordsassistant.vision.MarchSignal> = emptyList(),
-    val popupState: PopupState? = null
+    val popupState: PopupState? = null,
+    val selectedMarchAssociation: MarchAssociationDiagnostics? = null
 )
 
 class LiveMapScanner(context: Context) {
@@ -141,6 +143,13 @@ class LiveMapScanner(context: Context) {
             interactionPointValid = actionButton != null,
             actionKind = actionButton?.kind
         )
+        val selectedFusionCandidate = candidateObservation?.let { target ->
+            result.fused.firstOrNull { fused ->
+                fused.coordinate == target.coordinate &&
+                    fused.classification.kind == target.kind &&
+                    fused.classification.level == target.level
+            }
+        }
         val selectedActionTarget = candidateObservation?.let { target ->
             val point = actionButton?.point
             val coordinate = target.coordinate
@@ -168,7 +177,8 @@ class LiveMapScanner(context: Context) {
             selectedActionTarget = selectedActionTarget,
             selectedObservation = candidateObservation,
             marchSignals = marchSignals,
-            popupState = popupState
+            popupState = popupState,
+            selectedMarchAssociation = selectedFusionCandidate?.marchAssociation
         )
     }
 
