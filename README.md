@@ -236,3 +236,16 @@ The supplied recordings already provide the necessary examples for resource popu
 - Dispatch history can be reset when the game state changes or a new execution session starts.
 - The controller only makes an execution decision; it does not itself dispatch a gesture.
 - Accessibility gestures therefore remain behind the existing validation and interaction gates.
+
+
+### V0.4.20 — Action lifecycle + post-action verification
+
+- Added an explicit lifecycle: REQUESTED → REVALIDATED → WAITING_FOR_RESULT → SUCCEEDED / FAILED / UNKNOWN.
+- Dispatch is accepted only after the existing execution-policy gate and pre-action revalidation.
+- Post-action verification is deliberately conservative: an explicitly associated own march is positive success evidence.
+- Popup disappearance alone is not treated as success.
+- Popup disappearance combined with target removal or an explicit occupied state is treated as success.
+- Explicit action rejection becomes FAILED.
+- Verification timeout becomes UNKNOWN rather than assuming success.
+- The lifecycle controller remains UI/Accessibility agnostic; it does not itself send gestures.
+- Automatic gameplay remains opt-in and disabled by default.
