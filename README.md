@@ -212,3 +212,15 @@ The supplied recordings already provide the necessary examples for resource popu
 - Target planning is paused while the camera is panning or unstable, preventing coordinate-driven selection during viewport transitions.
 - Added regression tests for consistent camera movement and contradictory screen shifts.
 - Automatic in-game actions remain disabled.
+
+
+### V0.4.18 — Pre-action target revalidation
+
+- Added an explicit **pre-action revalidation** layer between target selection and any future Accessibility gesture.
+- The selected target snapshot now carries world coordinate, target kind, level, intended action, and interaction point.
+- The latest scan must still match the same coordinate/kind/level and action before a gesture can proceed.
+- Interaction-point drift beyond 45 px is rejected as stale/invalid.
+- Any latest validation failure is propagated and blocks the gesture.
+- Added regression tests for unchanged targets, target changes, action changes, point drift, and newly occupied targets.
+- LmAccessibilityService.tapRevalidated() now routes future gestures through this final revalidation step.
+- This does not enable automatic gameplay actions; the existing opt-in/disabled-by-default behavior remains unchanged.
