@@ -10,6 +10,8 @@ import com.coolhiman.lordsassistant.vision.MarchSignal
  * The lifecycle still consumes the small PostActionEvidence enum, while this
  * record preserves the context that produced the evidence for diagnostics
  * and future UI/debugging.
+ *
+ * attemptId binds the evidence to the exact action session that dispatched it.
  */
 enum class PostActionEvidenceSource {
     POPUP_STATE,
@@ -18,6 +20,7 @@ enum class PostActionEvidenceSource {
 }
 
 data class PostActionEvidenceRecord(
+    val attemptId: Long,
     val evidence: Set<PostActionEvidence>,
     val sources: Set<PostActionEvidenceSource>,
     val selected: ActionTargetSnapshot,
