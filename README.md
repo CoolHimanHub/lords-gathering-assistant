@@ -190,3 +190,14 @@ The supplied recordings already provide the necessary examples for resource popu
 - Added regression coverage for unknown versus explicitly-free resource observations.
 - This keeps target ranking conservative while camera/world-state continuity work proceeds.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.13 — unknown-state integrity
+
+- Fixed a state-safety gap where OCR/fusion could represent missing incoming-troop evidence as `false`.
+- Occupancy and incoming-troop fields now remain explicitly unknown (`null`) when the frame has no evidence either way.
+- A nearby march signal can explicitly promote a node to occupied/incoming, while an authoritative selected-node popup can explicitly clear that state.
+- Temporal tracking no longer promotes high confidence by itself into occupied state; occupancy requires explicit evidence.
+- Added regression coverage so high-confidence unknown observations remain unknown and distant march signals do not create false free/occupied state.
+- Target planning continues to require explicit `occupied=false` and `incomingTroops=false`.
+- Automatic Gather/Hunt actions remain disabled by default.
