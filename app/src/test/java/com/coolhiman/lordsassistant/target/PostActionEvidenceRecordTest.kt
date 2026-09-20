@@ -59,5 +59,8 @@ class PostActionEvidenceRecordTest {
         assertTrue(PostActionEvidenceSource.MARCH_ASSOCIATION in record.sources)
         assertEquals(selected, record.selected)
         assertEquals(2, record.confirmingFrames)
+        assertEquals(2, record.marchTrajectory.size)
+        assertEquals(920f, record.marchTrajectory.last().x, 0.01f)
+        assertEquals(600f, record.marchTrajectory.last().y, 0.01f)
     }
 }
