@@ -223,6 +223,13 @@ class LiveMapScanner(context: Context) {
             .takeIf { it.size > 32 }
             ?.forEach(targetStabilityTrackers::remove)
 
+        val selectedFusionCandidate = candidateObservation?.let { observation ->
+            result.fused.firstOrNull { fused ->
+                fused.coordinate == observation.coordinate &&
+                    fused.classification.kind == observation.kind &&
+                    fused.classification.level == observation.level
+            }
+        }
         val selectedActionCandidate = candidateTargets.firstOrNull { it.observation == candidateObservation }
         val actionButton = selectedActionCandidate?.actionButton
         val validation = selectedActionCandidate?.validation ?: validationEngine.validate(
