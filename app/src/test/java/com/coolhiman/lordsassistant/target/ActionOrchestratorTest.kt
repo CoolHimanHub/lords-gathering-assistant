@@ -142,6 +142,25 @@ class ActionOrchestratorTest {
 
 
     @Test
+    fun durableAttemptAllocatorPreventsAttemptIdReuse() {
+        var persistedAttemptId = 17L
+        val orchestrator = ActionOrchestrator(
+            attemptIdAllocator = { minimumPreviousId ->
+                persistedAttemptId = maxOf(persistedAttemptId, minimumPreviousId) + 1L
+                persistedAttemptId
+            }
+        )
+
+        val first = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 68_000L)
+        assertEquals(18L, first.session?.attemptId)
+
+        orchestrator.reset()
+
+        val second = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 68_100L)
+        assertEquals(19L, second.session?.attemptId)
+    }
+
+    @Test
     fun persistedRecoveryEpochCanSeedTheNextOrchestrator() {
         val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 41L)
         assertEquals(41L, orchestrator.currentRecoveryEpoch)
