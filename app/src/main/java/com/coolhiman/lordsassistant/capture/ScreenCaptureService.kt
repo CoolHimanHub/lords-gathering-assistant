@@ -197,18 +197,19 @@ class ScreenCaptureService : Service() {
                     // with a real detected action-button point into the scheduler.
                     // Ranked map-memory targets without a verified interaction
                     // control are never manufactured into actionable candidates.
-                    val currentCandidates = scan.actionCandidates.map { candidate ->
-                        ActionScheduleCandidate(
-                            target = candidate.target,
-                            priority = 0,
-                            plannerRank = candidate.plannerRank,
-                            plannerScore = candidate.plannerScore,
-                            stabilityFrames = candidate.stability.consecutiveFrames,
-                            validationSafe = candidate.validation.safe &&
-                                candidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
-                            queuedAtMs = now
-                        )
-                    }
+                    val currentCandidates = scan.actionCandidates
+                        .filter(com.coolhiman.lordsassistant.target.LiveActionCandidatePolicy::isSchedulerEligible)
+                        .map { candidate ->
+                            ActionScheduleCandidate(
+                                target = candidate.target,
+                                priority = 0,
+                                plannerRank = candidate.plannerRank,
+                                plannerScore = candidate.plannerScore,
+                                stabilityFrames = candidate.stability.consecutiveFrames,
+                                validationSafe = true,
+                                queuedAtMs = now
+                            )
+                        }
                     actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
                         actionAuditLog.appendIfChanged(
                             ActionAuditEvent(
