@@ -20,6 +20,7 @@ data class ActionDiagnosticsSnapshot(
     val targetStability: TargetStability,
     val lifecycle: ActionLifecycleSnapshot,
     val actionAttemptId: Long?,
+    val recoveryEpoch: Long = 0L,
     val evidence: PostActionEvidenceRecord?
 ) {
     companion object {
@@ -28,12 +29,13 @@ data class ActionDiagnosticsSnapshot(
             lifecycle: ActionLifecycleSnapshot,
             evidence: PostActionEvidenceRecord?,
             actionAttemptId: Long? = null,
+            recoveryEpoch: Long = 0L,
             timestampMs: Long = System.currentTimeMillis()
         ) = ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
             scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
-            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, evidence
+            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, recoveryEpoch, evidence
         )
     }
 }
@@ -60,6 +62,7 @@ object ActionDiagnosticsFormatter {
             }
             appendLine("Target stability: ${snapshot.targetStability.consecutiveFrames} frames  •  stable=${snapshot.targetStability.stable}")
             appendLine("Lifecycle: ${snapshot.lifecycle.state.name}")
+            appendLine("Recovery epoch: ${snapshot.recoveryEpoch}")
             appendLine("Action attempt: ${snapshot.actionAttemptId?.toString() ?: "none"}")
             appendLine(
                 "Automatic recovery: " +
@@ -69,6 +72,7 @@ object ActionDiagnosticsFormatter {
             if (evidence == null) {
                 appendLine("Post-action evidence: none")
             } else {
+                appendLine("Evidence epoch: ${evidence.recoveryEpoch}")
                 appendLine("Evidence attempt: ${evidence.attemptId}")
                 appendLine("Evidence matches current attempt: ${snapshot.actionAttemptId == evidence.attemptId}")
                 appendLine("Post-action evidence: ${evidence.evidence.joinToString(", ") { it.name }}")
