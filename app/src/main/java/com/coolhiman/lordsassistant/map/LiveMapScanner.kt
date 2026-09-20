@@ -29,6 +29,14 @@ import com.coolhiman.lordsassistant.vision.TemporalMarchSignalTracker
 import com.coolhiman.lordsassistant.vision.TemporalObservationTracker
 import com.coolhiman.lordsassistant.vision.VisionPipeline
 
+data class LiveActionCandidate(
+    val target: ActionTargetSnapshot,
+    val observation: MapObservation,
+    val actionButton: ActionButton,
+    val validation: TargetValidationResult,
+    val stability: TargetStability
+)
+
 data class LiveMapScanResult(
     val observations: List<MapObservation>,
     val plan: TargetPlan,
@@ -41,6 +49,7 @@ data class LiveMapScanResult(
     val validation: TargetValidationResult = TargetValidationResult(false, com.coolhiman.lordsassistant.target.TargetValidationStage.DETECTED),
     val actionButton: ActionButton? = null,
     val selectedActionTarget: ActionTargetSnapshot? = null,
+    val actionCandidates: List<LiveActionCandidate> = emptyList(),
     val selectedObservation: MapObservation? = null,
     val marchSignals: List<com.coolhiman.lordsassistant.vision.MarchSignal> = emptyList(),
     val popupState: PopupState? = null,
@@ -61,8 +70,13 @@ class LiveMapScanner(context: Context) {
     private val viewportGuard = ViewportGuard()
     private val cameraStateTracker = CameraStateTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
+    private val targetStabilityTrackers = linkedMapOf<String, TargetStabilityTracker>()
     private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
     private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
+
+    companion object {
+        private const val ACTION_BUTTON_TARGET_MAX_DISTANCE_PX = 420f
+    }
 
     fun scan(
         bitmap: Bitmap,
@@ -139,31 +153,71 @@ class LiveMapScanner(context: Context) {
         }
         val targetStability = targetStabilityTracker.update(candidateObservation, camera.state)
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
-        val actionButton = ActionButtonDetector.detect(
+        val detectedActionButtons = ActionButtonDetector.detect(
             textRegions = textRegions,
             popupPresent = popupState?.isPopup == true,
-            targetKind = candidateObservation?.kind
-        ).firstOrNull { button ->
-            when (candidateObservation?.kind) {
-                com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
-                com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
-                null -> false
+            targetKind = null
+        )
+
+        val candidateTargets = stateAware
+            .filter { it.coordinate != null && it.kind != null && it.level != null }
+            .mapNotNull { observation ->
+                val button = detectedActionButtons
+                    .filter { actionButton ->
+                        when (observation.kind) {
+                            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> actionButton.kind == ActionKind.GATHER
+                            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> actionButton.kind == ActionKind.HUNT || actionButton.kind == ActionKind.ATTACK
+                            null -> false
+                        }
+                    }
+                    .minByOrNull { button -> distance(button.point, observation.screenPoint) }
+                    ?.takeIf { button -> distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX }
+                    ?: return@mapNotNull null
+
+                val key = "${observation.coordinate}:${observation.kind}:${observation.level}"
+                val stabilityTracker = targetStabilityTrackers.getOrPut(key) { TargetStabilityTracker() }
+                val stability = stabilityTracker.update(observation, camera.state)
+                val fused = result.fused.firstOrNull { item ->
+                    item.coordinate == observation.coordinate &&
+                        item.classification.kind == observation.kind &&
+                        item.classification.level == observation.level
+                }
+                val actionValidation = validationEngine.validate(
+                    observation = observation,
+                    cameraStable = camera.state == CameraState.STABLE,
+                    calibrationValid = calibrationValid,
+                    targetStable = stability.stable,
+                    marchAssociationStatus = fused?.marchAssociation?.status
+                        ?: com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
+                    popupState = popupState,
+                    interactionPointValid = true,
+                    actionKind = button.kind
+                )
+                val target = ActionTargetSnapshot(
+                    coordinate = observation.coordinate!!,
+                    kind = observation.kind!!,
+                    level = observation.level!!,
+                    actionKind = button.kind,
+                    point = button.point
+                )
+                LiveActionCandidate(target, observation, button, actionValidation, stability)
             }
-        }
-        val selectedFusionCandidate = candidateObservation?.let { target ->
-            result.fused.firstOrNull { fused ->
-                fused.coordinate == target.coordinate &&
-                    fused.classification.kind == target.kind &&
-                    fused.classification.level == target.level
-            }
-        }
-        val validation = validationEngine.validate(
+
+        targetStabilityTrackers.keys
+            .filter { key -> candidateTargets.none { candidate ->
+                "${candidate.target.coordinate}:${candidate.target.kind}:${candidate.target.level}" == key
+            } }
+            .takeIf { it.size > 32 }
+            ?.forEach(targetStabilityTrackers::remove)
+
+        val selectedActionCandidate = candidateTargets.firstOrNull { it.observation == candidateObservation }
+        val actionButton = selectedActionCandidate?.actionButton
+        val validation = selectedActionCandidate?.validation ?: validationEngine.validate(
             observation = candidateObservation,
             cameraStable = camera.state == CameraState.STABLE,
             calibrationValid = calibrationValid,
             targetStable = targetStability.stable,
-            marchAssociationStatus = selectedFusionCandidate?.marchAssociation?.status
-                ?: com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
+            marchAssociationStatus = com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
             popupState = popupState,
             interactionPointValid = actionButton != null,
             actionKind = actionButton?.kind
@@ -193,12 +247,18 @@ class LiveMapScanner(context: Context) {
             validation = validation,
             actionButton = actionButton,
             selectedActionTarget = selectedActionTarget,
+            actionCandidates = candidateTargets,
             selectedObservation = candidateObservation,
             marchSignals = marchSignals,
             popupState = popupState,
             selectedMarchAssociation = selectedFusionCandidate?.marchAssociation,
             targetStability = targetStability
         )
+    }
+
+    private fun distance(a: com.coolhiman.lordsassistant.model.ScreenPoint, b: com.coolhiman.lordsassistant.model.ScreenPoint?): Float {
+        if (b == null) return Float.MAX_VALUE
+        return kotlin.math.hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble()).toFloat()
     }
 
     fun close() {
