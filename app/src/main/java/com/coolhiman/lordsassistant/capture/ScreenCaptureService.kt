@@ -29,6 +29,9 @@ import com.coolhiman.lordsassistant.target.ActionScheduler
 import com.coolhiman.lordsassistant.target.LiveActionSchedulerAdapter
 import com.coolhiman.lordsassistant.target.ActionScheduleCandidate
 import com.coolhiman.lordsassistant.target.ActionSchedulerSafetyState
+import com.coolhiman.lordsassistant.target.ActionAuditEvent
+import com.coolhiman.lordsassistant.target.ActionAuditEventType
+import com.coolhiman.lordsassistant.target.ActionAuditLogStore
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -46,6 +49,7 @@ class ScreenCaptureService : Service() {
     private lateinit var actionOrchestrator: ActionOrchestrator
     private lateinit var actionSchedulerAdapter: LiveActionSchedulerAdapter
     private lateinit var actionJournal: ActionExecutionJournal
+    private lateinit var actionAuditLog: ActionAuditLogStore
     private lateinit var recoveryEpochStore: ActionRecoveryEpochStore
     private lateinit var actionAttemptIdStore: ActionAttemptIdStore
     private var restartQuarantine = false
@@ -69,6 +73,7 @@ class ScreenCaptureService : Service() {
         recoveryEpochStore = ActionRecoveryEpochStore(this)
         actionAttemptIdStore = ActionAttemptIdStore(this)
         actionJournal = ActionExecutionJournal(this)
+        actionAuditLog = ActionAuditLogStore(this)
         actionSchedulerAdapter = LiveActionSchedulerAdapter(ActionScheduler())
 
         // Reconcile all durable provenance sources before creating the live
@@ -239,6 +244,12 @@ class ScreenCaptureService : Service() {
                                     previous.validation.safe &&
                                     previous.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
                                 ) {
+                                    actionAuditLog.append(ActionAuditEvent(
+                                        timestampMs = now,
+                                        type = ActionAuditEventType.CANDIDATE_SELECTED,
+                                        target = scheduled.target,
+                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch
+                                    ))
                                     actionOrchestrator.request(
                                         automaticActionsEnabled = true,
                                         selected = scheduled.target,
@@ -248,6 +259,13 @@ class ScreenCaptureService : Service() {
                                         baselineMarchSignals = previous.marchSignals,
                                         nowMs = now
                                     )
+                                    actionAuditLog.append(ActionAuditEvent(
+                                        timestampMs = now,
+                                        type = ActionAuditEventType.ACTION_REQUESTED,
+                                        attemptId = actionOrchestrator.session?.attemptId,
+                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                        target = scheduled.target
+                                    ))
                                     actionOrchestrator.revalidate(
                                         latestObservation = scan.selectedObservation,
                                         latestValidation = scan.validation,
@@ -266,6 +284,13 @@ class ScreenCaptureService : Service() {
                                             provenance.matches(actionOrchestrator.session) &&
                                             actionJournal.markInFlight(provenance)
                                         ) {
+                                            actionAuditLog.append(ActionAuditEvent(
+                                                timestampMs = now,
+                                                type = ActionAuditEventType.DISPATCH_BARRIER_OPENED,
+                                                attemptId = provenance.attemptId,
+                                                recoveryEpoch = provenance.recoveryEpoch,
+                                                target = scheduled.target
+                                            ))
                                             actionOrchestrator.dispatch(now) {
                                             LmAccessibilityService.instance?.tapRevalidated(
                                                 selected = previous.selectedActionTarget,
@@ -274,6 +299,14 @@ class ScreenCaptureService : Service() {
                                                 latestAction = scan.actionButton
                                             ) == true
                                             }.also { result ->
+                                                actionAuditLog.append(ActionAuditEvent(
+                                                    timestampMs = now,
+                                                    type = if (result.lifecycle.state == ActionLifecycleState.FAILED) ActionAuditEventType.DISPATCH_FAILED else ActionAuditEventType.DISPATCH_SUCCEEDED,
+                                                    attemptId = provenance.attemptId,
+                                                    recoveryEpoch = provenance.recoveryEpoch,
+                                                    target = scheduled.target,
+                                                    detail = result.lifecycle.state.name
+                                                ))
                                                 if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
                                             }
                                         } else if (provenance != null) {
@@ -294,7 +327,16 @@ class ScreenCaptureService : Service() {
                                 )
                                 if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED ||
                                     verification.lifecycle.state == ActionLifecycleState.FAILED
-                                ) actionJournal.clear()
+                                ) {
+                                    actionAuditLog.append(ActionAuditEvent(
+                                        timestampMs = now,
+                                        type = if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED) ActionAuditEventType.VERIFICATION_SUCCEEDED else ActionAuditEventType.VERIFICATION_FAILED,
+                                        attemptId = actionOrchestrator.session?.attemptId,
+                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                        detail = verification.lifecycle.state.name
+                                    ))
+                                    actionJournal.clear()
+                                }
                             }
                         }
                     } else if (active != ActionLifecycleState.IDLE && !restartQuarantine) {
