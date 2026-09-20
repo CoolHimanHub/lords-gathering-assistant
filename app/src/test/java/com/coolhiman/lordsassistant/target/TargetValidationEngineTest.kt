@@ -1,6 +1,7 @@
 package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -20,7 +21,7 @@ class TargetValidationEngineTest {
     private fun popup() = PopupState(kind = TargetKind.RESOURCE, resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD, level = 3, quantity = 720000, occupied = false, incomingTroops = false, coordinate = coordinate, isPopup = true)
 
     @Test fun freeConfirmedMatchingPopupIsSafe() {
-        val r = engine.validate(observation(), true, true, popup())
+        val r = engine.validate(observation(), true, true, popup(), actionKind = ActionKind.GATHER)
         assertTrue(r.safe)
         assertTrue(r.stage == TargetValidationStage.SAFE_TO_INTERACT)
     }
@@ -77,10 +78,10 @@ class TargetValidationEngineTest {
     @Test
     fun resourceRequiresGatherAction() {
         val result = engine.validate(
-            observation = baseObservation.copy(kind = TargetKind.RESOURCE, label = ResourceType.WOOD.name),
+            observation = observation(),
             cameraStable = true,
             calibrationValid = true,
-            popupState = matchingPopup,
+            popupState = popup(),
             interactionPointValid = true,
             actionKind = ActionKind.HUNT
         )
@@ -91,10 +92,10 @@ class TargetValidationEngineTest {
     @Test
     fun monsterAcceptsHuntOrAttackOnly() {
         val hunt = engine.validate(
-            observation = baseObservation.copy(kind = TargetKind.MONSTER, label = "Frostwing"),
+            observation = observation().copy(kind = TargetKind.MONSTER, label = "Frostwing"),
             cameraStable = true,
             calibrationValid = true,
-            popupState = matchingPopup.copy(kind = TargetKind.MONSTER, resource = null),
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null),
             interactionPointValid = true,
             actionKind = ActionKind.HUNT
         )
