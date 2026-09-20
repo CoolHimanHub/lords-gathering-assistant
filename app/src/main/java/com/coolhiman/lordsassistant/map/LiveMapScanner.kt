@@ -92,18 +92,20 @@ class LiveMapScanner(context: Context) {
         val origin = ocrCoordinate
         val preferences = preferencesStore.load()
         val snapshot = mapMemory.snapshot()
-        val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
-        val candidateObservation = if (planPlaceholder(snapshot, preferences, origin, camera.state == CameraState.STABLE).ranked.firstOrNull() != null) {
-            val ranked = planPlaceholder(snapshot, preferences, origin, camera.state == CameraState.STABLE).ranked.first()
-            snapshot.firstOrNull { it.coordinate == ranked.tile.coordinate && it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE }
-        } else null
-
         val plan = if (origin != null) {
             planner.plan(origin.x, origin.y, snapshot, preferences, camera.state == CameraState.STABLE)
         } else {
             TargetPlan(snapshot, emptyList())
         }
 
+        val candidate = plan.ranked.firstOrNull()
+        val candidateObservation = candidate?.let { ranked ->
+            snapshot.firstOrNull {
+                it.coordinate == ranked.tile.coordinate &&
+                    it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE
+            }
+        }
+        val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
         val validation = validationEngine.validate(
             observation = candidateObservation,
             cameraStable = camera.state == CameraState.STABLE,
@@ -121,16 +123,6 @@ class LiveMapScanner(context: Context) {
             cameraSharedTargets = camera.sharedTargets,
             validation = validation
         )
-    }
-
-    private fun planPlaceholder(
-        observations: List<MapObservation>,
-        preferences: com.coolhiman.lordsassistant.model.UserPreferences,
-        origin: WorldCoordinate?,
-        cameraStable: Boolean
-    ): TargetPlan {
-        return if (origin != null) planner.plan(origin.x, origin.y, observations, preferences, cameraStable)
-        else TargetPlan(observations, emptyList())
     }
 
     fun close() {
