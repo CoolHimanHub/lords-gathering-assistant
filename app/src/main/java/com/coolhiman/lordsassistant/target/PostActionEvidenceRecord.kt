@@ -2,7 +2,6 @@ package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
-import com.coolhiman.lordsassistant.vision.MarchSignal
 
 /**
  * Structured provenance for post-action verification.
@@ -27,5 +26,6 @@ data class PostActionEvidenceRecord(
     val cameraStable: Boolean,
     val confirmingFrames: Int,
     val timestampMs: Long,
-    val marchTrajectory: List<MarchSignal> = emptyList()
+    val marchTrajectory: List<MarchSignal> = emptyList(),
+    val marchTrajectoryEvidence: MarchTrajectoryEvidence? = null
 )
