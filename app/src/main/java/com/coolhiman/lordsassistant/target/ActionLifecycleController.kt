@@ -118,7 +118,10 @@ class ActionLifecycleController(
             )
             return snapshot
         }
-        val selected = snapshot.selected
+        val selected = snapshot.selected ?: return snapshot.copy(
+            state = ActionLifecycleState.FAILED,
+            failure = ActionLifecycleFailure.DISPATCH_FAILED
+        )
         executionController.markDispatched(selected, nowMs)
         snapshot = snapshot.copy(state = ActionLifecycleState.WAITING_FOR_RESULT)
         return snapshot
