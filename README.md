@@ -397,6 +397,14 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added regression coverage proving allocator failure stops before session creation and dispatch.
 - Automatic Gather/Hunt actions remain disabled by default.
 
+### V0.4.49 — Fail-closed action identity overflow
+
+- Durable action-attempt allocation now detects Long.MAX_VALUE instead of allowing numeric overflow to wrap the identity into a negative value.
+- Overflow is treated as an allocation failure, so the orchestrator creates no action session and cannot reach guarded dispatch.
+- Added regression coverage for normal advancement, the exact maximum boundary, and the no-wrap invariant.
+- Automatic Gather/Hunt actions remain disabled by default.
+
+
 ### V0.4.48 — Durable provenance consistency diagnostics
 
 - Live safety diagnostics now expose the durable in-flight journal attempt ID and recovery epoch alongside the current action provenance.
