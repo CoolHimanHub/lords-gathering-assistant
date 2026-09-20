@@ -41,12 +41,32 @@ class CameraInvariantWorldModel(
     private val maxAnchorResidualPx: Double = 25.0
 ) {
     fun fit(anchors: List<CameraWorldAnchor>): CameraModel? {
-        if (anchors.size < 2) return null
+        if (anchors.size < 3) return null
 
         val basePoints = anchors.map { baseCalibration.predict(it.world) }
         val currentPoints = anchors.map { it.screen }
 
         val baseMeanX = basePoints.map { it.x.toDouble() }.average()
+        // At least three non-collinear anchors are required. Two points can
+        // always be explained by a misleading scale/translation fit and cannot
+        // distinguish ordinary zoom from rotation or other geometry changes.
+        var maxTriangleArea = 0.0
+        for (i in 0 until basePoints.size) {
+            for (j in i + 1 until basePoints.size) {
+                for (k in j + 1 until basePoints.size) {
+                    val ax = basePoints[j].x - basePoints[i].x
+                    val ay = basePoints[j].y - basePoints[i].y
+                    val bx = basePoints[k].x - basePoints[i].x
+                    val by = basePoints[k].y - basePoints[i].y
+                    maxTriangleArea = maxOf(
+                        maxTriangleArea,
+                        kotlin.math.abs(ax * by - ay * bx).toDouble()
+                    )
+                }
+            }
+        }
+        if (maxTriangleArea < 25.0) return null
+
         val baseMeanY = basePoints.map { it.y.toDouble() }.average()
         val currentMeanX = currentPoints.map { it.x.toDouble() }.average()
         val currentMeanY = currentPoints.map { it.y.toDouble() }.average()
