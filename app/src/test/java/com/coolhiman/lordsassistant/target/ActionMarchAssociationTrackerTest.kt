@@ -99,3 +99,26 @@ class ActionMarchAssociationTrackerTest {
         assertFalse(third.ownMarchConfirmed)
     }
 }
+
+    @Test
+    fun firstMovementTowardActionPointDoesNotConfirm() {
+        val tracker = ActionMarchAssociationTracker(
+            confirmationFrames = 2,
+            minDisplacementPx = 5f,
+            minDepartureCosine = 0.35f
+        )
+        val session = tracker.begin(ScreenPoint(500f, 500f), emptyList())
+
+        val first = tracker.update(
+            session,
+            listOf(MarchSignal(530f, 500f, 80.0, 0.9f)),
+            1_000L
+        )
+        val second = tracker.update(
+            first.session,
+            listOf(MarchSignal(520f, 500f, 82.0, 0.92f)),
+            1_200L
+        )
+
+        assertFalse(second.ownMarchConfirmed)
+    }
