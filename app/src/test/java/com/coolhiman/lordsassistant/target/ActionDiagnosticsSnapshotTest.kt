@@ -70,5 +70,6 @@ class ActionDiagnosticsSnapshotTest {
         assertTrue(text.contains("Association ratio: 0.40"))
         assertTrue(text.contains("Target stability: 0 frames"))
         assertTrue(text.contains("Action attempt: none"))
+        assertTrue(text.contains("Recovery epoch: 0"))
     }
 }
