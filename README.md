@@ -269,3 +269,11 @@ The supplied recordings already provide the necessary examples for resource popu
 - Stationary, pre-existing, stale, or inconsistent-trajectory signals do not confirm ownership.
 - The component is UI/Accessibility agnostic and does not dispatch gestures or enable automation.
 - The next integration step is to feed this evidence into the existing action lifecycle after a real dispatch, while keeping automatic gameplay disabled by default.
+
+
+### V0.4.23 — March departure-direction hardening
+
+- Strengthened action-to-march association by checking the first detected movement against the selected interaction point.
+- A candidate that moves toward the action point is not accepted as own-march evidence.
+- Added regression coverage for an opposite-direction trajectory.
+- This remains evidence-only; no automatic gesture dispatch is enabled.
