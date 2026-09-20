@@ -97,9 +97,17 @@ class ActionOrchestratorTest {
         orchestrator.observeMarch(listOf(first), 10_100L)
         orchestrator.observeMarch(listOf(second), 10_200L)
 
+        val firstResult = orchestrator.verifyPostAction(
+            afterObservation = observation,
+            popupAfter = popup,
+            nowMs = 10_300L
+        )
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, firstResult.lifecycle.state)
+
         val result = orchestrator.verifyPostAction(
             afterObservation = observation,
-            popupAfter = popup
+            popupAfter = popup,
+            nowMs = 10_400L
         )
 
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
