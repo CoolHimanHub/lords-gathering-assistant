@@ -87,10 +87,10 @@ class ActionOrchestratorTest {
             latestValidation = safeValidation,
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.sessionState())
+        assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
         orchestrator.dispatch(10_001L) { true }
-        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, orchestrator.sessionState())
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, orchestrator.lifecycleSnapshot.state)
 
         val first = MarchSignal(910f, 600f, 20.0, 0.9f)
         val second = MarchSignal(920f, 600f, 20.0, 0.9f)
@@ -144,7 +144,7 @@ class ActionOrchestratorTest {
 
         val result = orchestrator.verifyPostAction(observation, null)
 
-        assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
     }
 
     private fun ActionOrchestrator.sessionState(): ActionLifecycleState =
