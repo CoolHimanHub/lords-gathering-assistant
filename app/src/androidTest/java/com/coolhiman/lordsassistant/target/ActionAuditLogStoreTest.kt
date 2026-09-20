@@ -54,7 +54,10 @@ class ActionAuditLogStoreTest {
             ActionAuditEventType.REVALIDATION_FAILED,
             ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED,
             ActionAuditEventType.UNKNOWN_ENTERED,
-            ActionAuditEventType.VERIFICATION_TIMEOUT
+            ActionAuditEventType.VERIFICATION_TIMEOUT,
+            ActionAuditEventType.DISPATCH_BARRIER_FAILED,
+            ActionAuditEventType.RECOVERY_EPOCH_PERSISTENCE_FAILED,
+            ActionAuditEventType.CANDIDATE_DROPPED
         ).forEachIndexed { index, type ->
             assertEquals(
                 true,
@@ -73,7 +76,10 @@ class ActionAuditLogStoreTest {
                 ActionAuditEventType.REVALIDATION_FAILED,
                 ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED,
                 ActionAuditEventType.UNKNOWN_ENTERED,
-                ActionAuditEventType.VERIFICATION_TIMEOUT
+                ActionAuditEventType.VERIFICATION_TIMEOUT,
+                ActionAuditEventType.DISPATCH_BARRIER_FAILED,
+                ActionAuditEventType.RECOVERY_EPOCH_PERSISTENCE_FAILED,
+                ActionAuditEventType.CANDIDATE_DROPPED
             ),
             store.readAll().map { it.type }
         )
