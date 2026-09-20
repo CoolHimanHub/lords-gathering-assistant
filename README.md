@@ -600,3 +600,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Post-dispatch lifecycle continuity now also uses stable target identity when associating the active session with later observations.
 - Screen-point movement therefore cannot accidentally terminate an otherwise valid logical post-action session.
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
+
+
+### V0.6.6 — CI unit-test verification boundary
+
+- GitHub Actions now runs the Android JVM unit-test suite before assembling the debug APK.
+- The action-safety regression suite therefore becomes a required build-stage verification step rather than relying only on source-level review.
+- APK assembly remains a separate step after tests complete successfully.
+- Latest commits still require an actual GitHub Actions run before CI success can be claimed.
