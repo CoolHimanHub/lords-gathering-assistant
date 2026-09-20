@@ -88,6 +88,26 @@ class PostActionStateVerifierTest {
 
 
     @Test
+    fun coordinateMatchWithWrongKindDoesNotCountAsRemovedTarget() {
+        val wrongKind = observation().copy(kind = TargetKind.MONSTER)
+        val evidence = PostActionStateVerifier.collectEvidence(
+            target, wrongKind, null, popup(true), popup(false)
+        )
+        assertFalse(PostActionEvidence.TARGET_REMOVED in evidence)
+    }
+
+    @Test
+    fun unrelatedPopupDisappearanceDoesNotCount() {
+        val unrelatedPopup = popup(true).copy(
+            coordinate = WorldCoordinate(355, 168, 511)
+        )
+        val evidence = PostActionStateVerifier.collectEvidence(
+            target, observation(), observation(), unrelatedPopup, popup(false)
+        )
+        assertFalse(PostActionEvidence.POPUP_DISAPPEARED in evidence)
+    }
+
+    @Test
     fun cameraUnstableDoesNotCreatePostActionStateEvidence() {
         val unstable = observation().copy(
             evidence = setOf(
