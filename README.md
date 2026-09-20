@@ -350,3 +350,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Definitive dispatch failure and verified success/failure clear the journal; UNKNOWN does not.
 - Added lifecycle regression coverage for restart recovery state.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.40 — Fresh recovery boundary & durable dispatch barrier
+
+- Manual UNKNOWN recovery now clears the previous scan baseline, so a recovered action cannot immediately reuse pre-recovery target/march evidence.
+- The in-flight action journal now uses synchronous SharedPreferences commit before Accessibility dispatch; if the durable barrier cannot be persisted, the gesture is not dispatched.
+- Definitive dispatch failure and verified outcomes continue to clear the journal, while unresolved outcomes remain quarantined.
+- Added this boundary as the next safety checkpoint before further automation features.
+- Automatic Gather/Hunt actions remain disabled by default.
