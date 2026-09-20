@@ -139,6 +139,11 @@ class LiveMapScanner(context: Context) {
             observations = result.fused.map(ObservationMapper::map)
         }
 
+        // Persist the final coordinate pass as the baseline for the next
+        // frame. The returned anchors are intentionally ignored here because
+        // camera fitting already happened above.
+        cameraAnchorTracker.update(observations)
+
         // Temporal stabilization and camera-state assessment happen exactly
         // once for the final coordinate pass, so one bitmap cannot advance
         // stability or fabricate a stable camera state.
