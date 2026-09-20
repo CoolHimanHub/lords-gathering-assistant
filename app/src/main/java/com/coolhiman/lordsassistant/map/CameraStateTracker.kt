@@ -36,6 +36,7 @@ class CameraStateTracker(
             val dy = p.second - old.second
             sqrt(dx * dx + dy * dy)
         }
+        val scaleChangePercent = estimateScaleChange(current)
         previous = current
 
         if (shifts.size < minSharedTargets) return CameraAssessment(CameraState.STABLE, shifts.size, 0f, 0f)
@@ -45,7 +46,6 @@ class CameraStateTracker(
         val deviations = sorted.map { abs(it - median) }.sorted()
         val spread = deviations[deviations.size / 2]
 
-        val scaleChangePercent = estimateScaleChange(current)
         val state = when {
             spread >= unstableSpreadPx -> CameraState.UNSTABLE
             scaleChangePercent >= unstableScaleChangePercent -> CameraState.UNSTABLE
