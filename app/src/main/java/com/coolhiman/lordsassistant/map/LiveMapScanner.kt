@@ -36,7 +36,9 @@ data class LiveMapScanResult(
     val cameraSharedTargets: Int = 0,
     val validation: TargetValidationResult = TargetValidationResult(false, com.coolhiman.lordsassistant.target.TargetValidationStage.DETECTED),
     val actionButton: ActionButton? = null,
-    val selectedActionTarget: ActionTargetSnapshot? = null
+    val selectedActionTarget: ActionTargetSnapshot? = null,
+    val selectedObservation: MapObservation? = null,
+    val marchSignals: List<com.coolhiman.lordsassistant.vision.MarchSignal> = emptyList()
 )
 
 class LiveMapScanner(context: Context) {
@@ -160,7 +162,9 @@ class LiveMapScanner(context: Context) {
             cameraSharedTargets = camera.sharedTargets,
             validation = validation,
             actionButton = actionButton,
-            selectedActionTarget = selectedActionTarget
+            selectedActionTarget = selectedActionTarget,
+            selectedObservation = candidateObservation,
+            marchSignals = marchSignals
         )
     }
 
