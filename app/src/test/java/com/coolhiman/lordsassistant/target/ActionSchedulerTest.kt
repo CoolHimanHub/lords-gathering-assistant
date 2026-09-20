@@ -206,4 +206,32 @@ class ActionSchedulerTest {
         assertEquals(0, scheduler.queuedCount())
     }
 
+    @Test
+    fun refreshReturnsTargetsDroppedByLatestSafeSet() {
+        val scheduler = ActionScheduler()
+        scheduler.offer(ActionScheduleCandidate(target(1), 10, 2, true, 1_000L))
+        scheduler.offer(ActionScheduleCandidate(target(2), 9, 2, true, 1_100L))
+
+        val dropped = scheduler.refresh(
+            listOf(ActionScheduleCandidate(target(2), 9, 2, true, 2_000L))
+        )
+
+        assertEquals(listOf(target(1)), dropped)
+        assertEquals(1, scheduler.queuedCount())
+        assertEquals(target(2), scheduler.peek(5_000L).candidate?.target)
+    }
+
+    @Test
+    fun refreshNeverAdmitsUnsafeOrUnstableCandidates() {
+        val scheduler = ActionScheduler()
+        scheduler.offer(ActionScheduleCandidate(target(1), 10, 2, true, 1_000L))
+
+        val dropped = scheduler.refresh(
+            listOf(ActionScheduleCandidate(target(2), 20, 1, true, 2_000L))
+        )
+
+        assertEquals(listOf(target(1)), dropped)
+        assertEquals(0, scheduler.queuedCount())
+    }
+
 }
