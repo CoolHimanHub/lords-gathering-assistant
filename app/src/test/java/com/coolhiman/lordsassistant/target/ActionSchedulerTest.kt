@@ -212,6 +212,41 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun sameWorldTargetWithMovedActionPointReplacesTransientMetadata() {
+        val scheduler = ActionScheduler()
+        val first = ActionScheduleCandidate(
+            target = target(1), priority = 0, stabilityFrames = 3,
+            validationSafe = true, queuedAtMs = 1_000L,
+            plannerRank = 1, plannerScore = 20.0
+        )
+        val moved = first.copy(
+            target = first.target.copy(point = ScreenPoint(940f, 640f)),
+            queuedAtMs = 2_000L,
+            plannerRank = 0,
+            plannerScore = 30.0
+        )
+
+        scheduler.refresh(listOf(first))
+        val dropped = scheduler.refresh(listOf(moved))
+
+        assertTrue(dropped.isEmpty())
+        assertEquals(1, scheduler.queuedCount())
+        assertEquals(moved.target, scheduler.peek(5_000L).candidate?.target)
+    }
+
+    @Test
+    fun completedTargetRemainsSuppressedWhenOnlyActionPointMoves() {
+        val scheduler = ActionScheduler()
+        val completed = candidate(priority = 0, stabilityFrames = 3, safe = true, targetX = 1)
+        scheduler.markTargetCompleted(completed.target, 2_000L)
+
+        val moved = completed.copy(target = completed.target.copy(point = ScreenPoint(999f, 700f)))
+        scheduler.refresh(listOf(moved))
+
+        assertEquals(0, scheduler.queuedCount())
+    }
+
+    @Test
     fun completedTargetIsNotRequeuedImmediately() {
         val scheduler = ActionScheduler()
         val completed = ActionScheduleCandidate(
