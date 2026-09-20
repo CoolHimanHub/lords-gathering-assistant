@@ -25,12 +25,18 @@ object PostActionStateVerifier {
 
         if (cameraUnstable) return evidence
 
-        val popupWasVisible = popupBefore?.isPopup == true
-        val popupIsVisible = popupAfter?.isPopup == true
-        if (popupWasVisible && !popupIsVisible) {
+        val popupBeforeMatchesTarget = popupBefore?.isPopup == true &&
+            popupBefore.coordinate == selected.coordinate &&
+            popupBefore.kind == selected.kind &&
+            popupBefore.level == selected.level
+        val popupAfterIsVisible = popupAfter?.isPopup == true
+        if (popupBeforeMatchesTarget && !popupAfterIsVisible) {
             evidence += PostActionEvidence.POPUP_DISAPPEARED
         }
 
+        val beforeMatchesTarget = before?.coordinate == selected.coordinate &&
+            before.kind == selected.kind &&
+            before.level == selected.level
         val sameTarget = after?.coordinate == selected.coordinate &&
             after.kind == selected.kind &&
             after.level == selected.level
@@ -39,7 +45,7 @@ object PostActionStateVerifier {
             if (after.occupied == true || after.incomingTroops == true) {
                 evidence += PostActionEvidence.TARGET_OCCUPIED
             }
-        } else if (before?.coordinate == selected.coordinate) {
+        } else if (beforeMatchesTarget) {
             evidence += PostActionEvidence.TARGET_REMOVED
         }
 
