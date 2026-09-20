@@ -23,7 +23,8 @@ enum class ActionLifecycleFailure {
     REVALIDATION_FAILED,
     DISPATCH_FAILED,
     VERIFICATION_FAILED,
-    VERIFICATION_TIMEOUT
+    VERIFICATION_TIMEOUT,
+    RECOVERY_EPOCH_EXHAUSTED
 }
 
 /**
@@ -42,6 +43,10 @@ object ActionRecoveryPolicy {
         ActionLifecycleState.WAITING_FOR_RESULT,
         ActionLifecycleState.UNKNOWN -> false
     }
+
+    fun mayStartAutomaticAttempt(snapshot: ActionLifecycleSnapshot): Boolean =
+        snapshot.failure != ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED &&
+            mayStartAutomaticAttempt(snapshot.state)
 }
 
 data class ActionLifecycleSnapshot(
@@ -182,6 +187,14 @@ class ActionLifecycleController(
         snapshot = ActionLifecycleSnapshot(
             state = ActionLifecycleState.UNKNOWN,
             failure = ActionLifecycleFailure.VERIFICATION_TIMEOUT
+        )
+        return snapshot
+    }
+
+    fun recoveryEpochExhausted(): ActionLifecycleSnapshot {
+        snapshot = ActionLifecycleSnapshot(
+            state = ActionLifecycleState.FAILED,
+            failure = ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED
         )
         return snapshot
     }
