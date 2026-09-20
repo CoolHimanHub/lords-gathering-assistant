@@ -21,6 +21,7 @@ data class ActionDiagnosticsSnapshot(
     val lifecycle: ActionLifecycleSnapshot,
     val actionAttemptId: Long?,
     val recoveryEpoch: Long = 0L,
+    val recoveryEpochPersistenceHealthy: Boolean = true,
     val evidence: PostActionEvidenceRecord?
 ) {
     companion object {
@@ -30,12 +31,13 @@ data class ActionDiagnosticsSnapshot(
             evidence: PostActionEvidenceRecord?,
             actionAttemptId: Long? = null,
             recoveryEpoch: Long = 0L,
+            recoveryEpochPersistenceHealthy: Boolean = true,
             timestampMs: Long = System.currentTimeMillis()
         ) = ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
             scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
-            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, recoveryEpoch, evidence
+            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, recoveryEpoch, recoveryEpochPersistenceHealthy, evidence
         )
     }
 }
@@ -63,6 +65,7 @@ object ActionDiagnosticsFormatter {
             appendLine("Target stability: ${snapshot.targetStability.consecutiveFrames} frames  •  stable=${snapshot.targetStability.stable}")
             appendLine("Lifecycle: ${snapshot.lifecycle.state.name}")
             appendLine("Recovery epoch: ${snapshot.recoveryEpoch}")
+            appendLine("Recovery epoch persistence: ${if (snapshot.recoveryEpochPersistenceHealthy) "healthy" else "FAILED — automatic execution blocked"}")
             appendLine("Action attempt: ${snapshot.actionAttemptId?.toString() ?: "none"}")
             appendLine(
                 "Automatic recovery: " +
