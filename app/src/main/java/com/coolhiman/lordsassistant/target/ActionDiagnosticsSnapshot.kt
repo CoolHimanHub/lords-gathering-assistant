@@ -9,6 +9,7 @@ data class ActionDiagnosticsSnapshot(
     val processingMs: Long,
     val cameraState: CameraState,
     val cameraSharedTargets: Int,
+    val cameraScaleChangePercent: Float,
     val validationStage: TargetValidationStage,
     val validationReasons: Set<TargetBlockReason>,
     val validationSafe: Boolean,
@@ -25,7 +26,7 @@ data class ActionDiagnosticsSnapshot(
             timestampMs: Long = System.currentTimeMillis()
         ) = ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
-            scan.cameraSharedTargets, scan.validation.stage, scan.validation.reasons,
+            scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
             lifecycle, evidence
         )
@@ -41,7 +42,7 @@ object ActionDiagnosticsFormatter {
             appendLine("LIVE EVIDENCE / SAFETY DIAGNOSTICS")
             appendLine("Frame: ${snapshot.timestampMs}")
             appendLine("Tiles: ${snapshot.detectedTiles}  •  ${snapshot.processingMs} ms")
-            appendLine("Camera: ${snapshot.cameraState.name}  •  shared=${snapshot.cameraSharedTargets}")
+            appendLine("Camera: ${snapshot.cameraState.name}  •  shared=${snapshot.cameraSharedTargets}  •  scale=${"%.1f".format(snapshot.cameraScaleChangePercent)}%")
             appendLine("Validation: ${snapshot.validationStage.name}  •  safe=${snapshot.validationSafe}")
             if (snapshot.validationReasons.isNotEmpty()) appendLine("Blocked: ${snapshot.validationReasons.joinToString(", ") { it.name.replace('_', ' ') }}")
             appendLine("Selected: ${selected?.let { "${it.coordinate.kingdom}:${it.coordinate.x},${it.coordinate.y} ${it.kind.name} L${it.level}" } ?: "none"}")
