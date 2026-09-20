@@ -25,6 +25,8 @@ class DetectionFusionTest {
         assertTrue(result.single().occupied == true)
         assertTrue(result.single().incomingTroops == true)
         assertEquals(200, result.single().coordinate?.x)
+        assertEquals(MarchAssociationStatus.CLEAR_MARCH, result.single().marchAssociation.status)
+        assertEquals(55f, result.single().marchAssociation.nearestDistancePx!!, 0.01f)
     }
 
     @Test
@@ -84,6 +86,25 @@ class DetectionFusionTest {
 
         assertNull(result.single().occupied)
         assertNull(result.single().incomingTroops)
+        assertEquals(MarchAssociationStatus.AMBIGUOUS_MARCH, result.single().marchAssociation.status)
+        assertEquals(35f, result.single().marchAssociation.nearestDistancePx!!, 0.01f)
+        assertEquals(35f, result.single().marchAssociation.secondNearestDistancePx!!, 0.01f)
+    }
+
+    @Test
+    fun noNearbyMarchReportsNoMarchAssociation() {
+        val tile = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f,100f,140f,140f), 0.9
+        )
+        val result = DetectionFusion(maxMarchDistancePx = 30f).fuse(
+            DetectionFrame(listOf(tile), 1),
+            emptyList(),
+            listOf(MarchSignal(300f, 300f, 50.0, 0.8f))
+        ) { _, _ -> null }
+
+        assertEquals(MarchAssociationStatus.NO_MARCH, result.single().marchAssociation.status)
+        assertNull(result.single().marchAssociation.nearestDistancePx)
+        assertNull(result.single().marchAssociation.secondNearestDistancePx)
     }
 
 }
