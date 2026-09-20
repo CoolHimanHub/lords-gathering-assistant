@@ -33,7 +33,7 @@ class CameraStateTrackerTest {
     fun contradictoryShiftsAreUnstable() {
         val tracker = CameraStateTracker()
         tracker.update(listOf(obs(100f, 100f, 1), obs(200f, 200f, 2), obs(300f, 300f, 3)))
-        val result = tracker.update(listOf(obs(300f, 100f, 1), obs(200f, 200f, 2), obs(100f, 300f, 3)))
+        val result = tracker.update(listOf(obs(300f, 100f, 1), obs(200f, 200f, 2), obs(200f, 300f, 3)))
         assertEquals(CameraState.UNSTABLE, result.state)
     }
 }
