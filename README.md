@@ -602,6 +602,16 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.1 — Live camera-invariant coordinate integration
+
+- LiveMapScanner now performs a provisional affine vision pass, extracts only unique semantic cross-frame anchors, and estimates camera scale/translation from those anchors.
+- When the camera model passes its residual/geometry gate, the scanner performs a second coordinate-resolution pass using the camera-aware world model.
+- Temporal target stabilization and camera-state assessment run exactly once on the final coordinate pass; a single frame cannot artificially advance stability.
+- Ambiguous duplicate semantic observations are excluded from camera anchors.
+- Existing CameraState.STABLE planning and action-validation gates remain unchanged, so camera correction does not authorize actions by itself.
+- Added regression coverage for unique anchor association, duplicate-anchor rejection, and reset behavior.
+- App version is now 0.7.1.
+
 ## V0.7.0 — Camera-invariant world-coordinate foundation
 
 - Added a camera-aware world model that keeps the learned affine world geometry separate from transient camera state.
