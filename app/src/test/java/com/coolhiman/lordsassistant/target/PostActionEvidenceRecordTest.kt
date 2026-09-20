@@ -55,7 +55,8 @@ class PostActionEvidenceRecordTest {
 
         val record = orchestrator.lastPostActionEvidence
         assertTrue(record != null)
-        assertTrue(PostActionEvidence.OWN_MARCH_CONFIRMED in record!!.evidence)
+        assertEquals(1L, record!!.attemptId)
+        assertTrue(PostActionEvidence.OWN_MARCH_CONFIRMED in record.evidence)
         assertTrue(PostActionEvidenceSource.MARCH_ASSOCIATION in record.sources)
         assertEquals(selected, record.selected)
         assertEquals(2, record.confirmingFrames)
