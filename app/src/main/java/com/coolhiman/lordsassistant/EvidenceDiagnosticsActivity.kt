@@ -6,7 +6,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.ScrollView
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import com.coolhiman.lordsassistant.target.ActionLifecycleState
+import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsFormatter
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
 
@@ -28,7 +33,28 @@ class EvidenceDiagnosticsActivity : Activity() {
             setBackgroundColor(Color.rgb(16, 18, 22))
             typeface = android.graphics.Typeface.MONOSPACE
         }
-        setContentView(ScrollView(this).apply { addView(text) })
+        val recoveryButton = Button(this).apply {
+            text = "Reset UNKNOWN recovery state"
+            setOnClickListener {
+                val current = ActionDiagnosticsStore.latest?.lifecycle?.state
+                if (current != ActionLifecycleState.UNKNOWN) {
+                    Toast.makeText(this@EvidenceDiagnosticsActivity, "No UNKNOWN action state to reset.", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                ActionManualRecoveryStore.requestReset()
+                Toast.makeText(
+                    this@EvidenceDiagnosticsActivity,
+                    "Recovery requested. Keep Automatic actions OFF until the next scan confirms IDLE.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(recoveryButton)
+            addView(ScrollView(this@EvidenceDiagnosticsActivity).apply { addView(text) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        setContentView(root)
     }
     override fun onResume() { super.onResume(); handler.post(refresh) }
     override fun onPause() { handler.removeCallbacks(refresh); super.onPause() }
