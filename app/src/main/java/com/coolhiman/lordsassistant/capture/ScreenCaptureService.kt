@@ -189,6 +189,7 @@ class ScreenCaptureService : Service() {
                         scan = scan,
                         lifecycle = actionOrchestrator.lifecycleSnapshot,
                         evidence = actionOrchestrator.lastPostActionEvidence,
+                        actionAttemptId = actionOrchestrator.session?.attemptId,
                         timestampMs = now
                     )
 
