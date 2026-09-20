@@ -602,6 +602,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.3 — End-to-end camera movement regression
+
+- Added multi-frame camera simulation coverage proving that pan + zoom preserve the same world identity after camera correction.
+- Added rotation regression coverage proving rotation is not silently accepted as ordinary pan/zoom.
+- Existing CameraStateTracker behavior remains the final stability gate: panning/zooming stays outside automatic action eligibility.
+- App version is now 0.7.3.
+
 ## V0.7.2 — Camera anchor geometry hardening
 
 - Camera fitting now requires at least three non-collinear world anchors, preventing a two-point fit from masking rotation or other 2D geometry changes.
