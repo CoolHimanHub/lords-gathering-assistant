@@ -78,7 +78,7 @@ class DetectionFusionTest {
             emptyList(),
             listOf(
                 MarchSignal(155f, 120f, 50.0, 0.95f),
-                MarchSignal(100f, 170f, 50.0, 0.90f)
+                MarchSignal(120f, 155f, 50.0, 0.90f)
             )
         ) { _, _ -> WorldCoordinate(1, 200, 300) }
 
