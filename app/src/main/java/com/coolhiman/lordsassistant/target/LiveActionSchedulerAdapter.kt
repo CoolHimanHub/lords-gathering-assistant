@@ -11,9 +11,8 @@ class LiveActionSchedulerAdapter(
     private val scheduler: ActionScheduler
 ) {
 
-    fun update(candidates: Collection<ActionScheduleCandidate>) {
+    fun update(candidates: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> =
         scheduler.refresh(candidates)
-    }
 
     fun select(
         nowMs: Long,
