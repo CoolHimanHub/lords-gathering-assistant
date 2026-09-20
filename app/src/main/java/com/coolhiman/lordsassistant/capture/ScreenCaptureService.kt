@@ -45,6 +45,7 @@ class ScreenCaptureService : Service() {
     private lateinit var actionAttemptIdStore: ActionAttemptIdStore
     private var restartQuarantine = false
     private var recoveryEpochPersistenceHealthy = true
+    private var reconciledInitialEpoch = 0L
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
@@ -69,7 +70,7 @@ class ScreenCaptureService : Service() {
         // lower recovery epoch after restart.
         val persistedRecoveryEpoch = recoveryEpochStore.read()
         val inFlightEntry = actionJournal.readInFlight()
-        val reconciledInitialEpoch = maxOf(
+        reconciledInitialEpoch = maxOf(
             persistedRecoveryEpoch,
             inFlightEntry?.recoveryEpoch ?: 0L
         )
@@ -181,6 +182,11 @@ class ScreenCaptureService : Service() {
                                 evidence = null,
                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                 recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
+                                journalAttemptId = actionJournal.readInFlight()?.attemptId,
+                                journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
+                                journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
+                                reconciledInitialEpoch = reconciledInitialEpoch,
+                                restartQuarantine = restartQuarantine,
                                 timestampMs = now
                             )
                         }
@@ -274,6 +280,11 @@ class ScreenCaptureService : Service() {
                             ?: actionJournal.readInFlight()?.attemptId,
                         recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                         recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
+                        journalAttemptId = actionJournal.readInFlight()?.attemptId,
+                        journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
+                        journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
+                        reconciledInitialEpoch = reconciledInitialEpoch,
+                        restartQuarantine = restartQuarantine,
                         timestampMs = now
                     )
 
