@@ -101,6 +101,44 @@ class ActionMarchAssociationTrackerTest {
 }
 
     @Test
+    fun tangentialMovementDoesNotConfirmOwnMarch() {
+        val tracker = ActionMarchAssociationTracker(
+            confirmationFrames = 2,
+            minDisplacementPx = 5f,
+            minRadialDeparturePx = 3f
+        )
+        val session = tracker.begin(ScreenPoint(500f, 500f), emptyList())
+
+        val first = tracker.update(
+            session,
+            listOf(MarchSignal(530f, 500f, 80.0, 0.9f)),
+            1_000L
+        )
+        val second = tracker.update(
+            first.session,
+            listOf(MarchSignal(530f, 510f, 82.0, 0.92f)),
+            1_200L
+        )
+
+        assertFalse(second.ownMarchConfirmed)
+    }
+
+    @Test
+    fun marchStartingTooFarFromActionPointIsIgnored() {
+        val tracker = ActionMarchAssociationTracker(startRadiusPx = 120f)
+        val session = tracker.begin(ScreenPoint(500f, 500f), emptyList())
+
+        val update = tracker.update(
+            session,
+            listOf(MarchSignal(650f, 500f, 80.0, 0.9f)),
+            1_000L
+        )
+
+        assertFalse(update.ownMarchConfirmed)
+        assertTrue(update.session.lastSignal == null)
+    }
+
+    @Test
     fun firstMovementTowardActionPointDoesNotConfirm() {
         val tracker = ActionMarchAssociationTracker(
             confirmationFrames = 2,
