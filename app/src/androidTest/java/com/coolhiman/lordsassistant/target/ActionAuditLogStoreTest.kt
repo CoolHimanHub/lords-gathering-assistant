@@ -44,6 +44,28 @@ class ActionAuditLogStoreTest {
     }
 
     @Test
+    @Test
+    fun appendIfChangedDoesNotSpamIdenticalEvents() {
+        val context = androidx.test.core.app.ApplicationProvider
+            .getApplicationContext<android.content.Context>()
+        val store = ActionAuditLogStore(context)
+        store.clear()
+
+        val event = ActionAuditEvent(
+            timestampMs = 1L,
+            type = ActionAuditEventType.SCHEDULER_BLOCKED,
+            recoveryEpoch = 4L,
+            detail = "ACTION_RECOVERY_BLOCKED"
+        )
+
+        assertEquals(true, store.appendIfChanged(event))
+        assertEquals(true, store.appendIfChanged(event.copy(timestampMs = 2L)))
+        assertEquals(1, store.readAll().size)
+
+        store.clear()
+    }
+
+    @Test
     fun logIsBoundedToLatestEvents() {
         val context = androidx.test.core.app.ApplicationProvider
             .getApplicationContext<android.content.Context>()
