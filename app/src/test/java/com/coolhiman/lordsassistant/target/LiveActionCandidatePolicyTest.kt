@@ -2,11 +2,9 @@ package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.map.LiveActionCandidate
 import com.coolhiman.lordsassistant.model.MapObservation
-import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
-import com.coolhiman.lordsassistant.vision.PopupState
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -76,7 +74,7 @@ class LiveActionCandidatePolicyTest {
                 candidate.copy(
                     validation = TargetValidationResult(
                         safe = false,
-                        stage = TargetValidationStage.BLOCKED
+                        stage = TargetValidationStage.DETECTED
                     )
                 )
             )
