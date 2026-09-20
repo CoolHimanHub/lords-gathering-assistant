@@ -36,8 +36,7 @@ class TemporalObservationTracker(
         for (observation in observations) {
             val key = observation.coordinate ?: continue
             val old = tracks[key]
-            val strongOccupied = observation.confidence >= 0.92f ||
-                observation.occupied == true ||
+            val strongOccupied = observation.occupied == true ||
                 observation.incomingTroops == true
 
             val track = if (old == null || nowMs - old.lastSeen > maxGapMs) {
