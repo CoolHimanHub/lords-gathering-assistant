@@ -115,6 +115,24 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun ownMarchConfirmationIsIgnoredWhenAfterObservationIsAnotherTarget() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 15_000L)
+        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.dispatch(15_001L) { true }
+
+        orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 15_100L)
+        orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 15_200L)
+
+        val unrelated = observation.copy(
+            coordinate = WorldCoordinate(355, 168, 511)
+        )
+
+        val result = orchestrator.verifyPostAction(unrelated, null, 15_300L)
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, result.lifecycle.state)
+    }
+
+    @Test
     fun popupDisappearanceAndTargetChangeCanConfirmSuccess() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(
