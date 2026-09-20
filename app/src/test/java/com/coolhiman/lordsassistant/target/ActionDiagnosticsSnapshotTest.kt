@@ -9,6 +9,8 @@ import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.PopupState
+import com.coolhiman.lordsassistant.vision.MarchAssociationDiagnostics
+import com.coolhiman.lordsassistant.vision.MarchAssociationStatus
 import android.graphics.RectF
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,7 +55,8 @@ class ActionDiagnosticsSnapshotTest {
             selectedActionTarget = selected,
             selectedObservation = null,
             marchSignals = emptyList(),
-            popupState = PopupState(isPopup = true, kind = TargetKind.RESOURCE, resource = ResourceType.WOOD, level = 3)
+            popupState = PopupState(isPopup = true, kind = TargetKind.RESOURCE, resource = ResourceType.WOOD, level = 3),
+            selectedMarchAssociation = MarchAssociationDiagnostics(MarchAssociationStatus.CLEAR_MARCH, 28f, 70f, 0.40f)
         )
         val text = ActionDiagnosticsFormatter.format(
             ActionDiagnosticsSnapshot.fromScan(scan, lifecycle, null, 123L)
@@ -62,5 +65,8 @@ class ActionDiagnosticsSnapshotTest {
         assertTrue(text.contains("GATHER"))
         assertTrue(text.contains("STABLE"))
         assertTrue(text.contains("L3"))
+        assertTrue(text.contains("CLEAR_MARCH"))
+        assertTrue(text.contains("Nearest march: 28.0 px"))
+        assertTrue(text.contains("Association ratio: 0.40"))
     }
 }
