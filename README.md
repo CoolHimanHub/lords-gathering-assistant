@@ -359,3 +359,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Definitive dispatch failure and verified outcomes continue to clear the journal, while unresolved outcomes remain quarantined.
 - Added this boundary as the next safety checkpoint before further automation features.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.41 — Recovery epoch provenance
+
+- Added a monotonic recovery epoch to action sessions so each deliberate recovery/restart boundary is distinguishable from the previous execution context.
+- Post-action evidence now records the recovery epoch as well as the action attempt ID.
+- Live diagnostics expose the current recovery epoch and evidence epoch for operator verification.
+- Restart quarantine creates a new epoch; deliberate recovery/reset creates the next fresh epoch before a new action attempt.
+- Added regression coverage proving a fresh post-recovery attempt cannot share the prior recovery epoch.
+- Automatic Gather/Hunt actions remain disabled by default.
