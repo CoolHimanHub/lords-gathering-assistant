@@ -32,7 +32,7 @@ class ActionOrchestrator(
     private var recoveryEpoch = initialRecoveryEpoch
 
     val currentRecoveryEpoch: Long get() = recoveryEpoch
-    private var completedTarget: ActionTargetSnapshot? = null
+    private var completedTargetIdentity: ActionTargetIdentity? = null
     private var postActionStartedAtMs: Long? = null
     private var postEvidenceSignature: Set<PostActionEvidence>? = null
     private var postEvidenceFrames = 0
@@ -66,7 +66,7 @@ class ActionOrchestrator(
         }
 
         if (lifecycle.snapshot.state == ActionLifecycleState.SUCCEEDED &&
-            selected != null && selected == completedTarget) return Result(lifecycle.snapshot, session)
+            selected != null && selected.identity() == completedTargetIdentity) return Result(lifecycle.snapshot, session)
 
         lastPostActionEvidence = null
         val attemptId = attemptIdAllocator?.invoke(nextAttemptId) ?: (nextAttemptId + 1L)
@@ -171,7 +171,7 @@ class ActionOrchestrator(
 
         val verified = lifecycle.verify(evidence)
         if (verified.state == ActionLifecycleState.SUCCEEDED) {
-            completedTarget = selected
+            completedTargetIdentity = selected.identity()
             postActionStartedAtMs = null
             postEvidenceSignature = null
             postEvidenceFrames = 0
@@ -191,7 +191,7 @@ class ActionOrchestrator(
             return Result(lifecycle.recoveryEpochExhausted(), null)
         }
         session = null
-        completedTarget = null
+        completedTargetIdentity = null
         postActionStartedAtMs = null
         postEvidenceSignature = null
         postEvidenceFrames = 0
