@@ -91,5 +91,6 @@ class DetectionFusion(
 
 data class TextRegion(
     val bounds: RectF,
-    val classification: TextClassification
+    val classification: TextClassification,
+    val text: String = ""
 )
