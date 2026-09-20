@@ -549,3 +549,10 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Verified successful targets are suppressed from immediate scheduler re-entry for a bounded 5-second window.
 - Suppression is scheduler-local and expires automatically, allowing a genuinely fresh later observation to become eligible again.
 - Regression tests cover immediate suppression and re-entry after the window.
+
+### V0.6.5 follow-up — Latest-frame queue authority
+
+- Scheduler reconciliation now rebuilds its queued candidate set from the latest safe scan.
+- A target retaining the same identity cannot keep stale planner rank, score, stability, or queue timestamp from an earlier frame.
+- A changed target identity is explicitly dropped and replaced by the latest candidate.
+- Regression tests cover same-identity metadata replacement and target-identity change.
