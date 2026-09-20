@@ -323,3 +323,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Manual UNKNOWN recovery does not reset the attempt counter, preserving provenance across recovery boundaries.
 - Added regression coverage proving the successful post-action evidence record is bound to attempt 1.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.37 — Cross-attempt evidence isolation
+
+- Added regression coverage for a completed action followed by a fresh action attempt on the same target.
+- The second attempt starts with a new `attemptId`, clears prior evidence, and treats the previous march signal as baseline/stale evidence.
+- Only newly observed trajectory evidence can contribute to the second attempt's post-action confirmation.
+- This protects against stale march evidence leaking across retries or deliberate recovery boundaries.
+- Automatic Gather/Hunt actions remain disabled by default.
