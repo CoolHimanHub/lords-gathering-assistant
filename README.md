@@ -562,3 +562,9 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Scheduler completed-target suppression is now applied only after `SUCCEEDED` post-action verification.
 - A `FAILED` verification no longer marks the target as completed, preventing a failed action from being treated as successful completion.
 - `UNKNOWN` remains non-retryable automatically and is handled by the existing recovery boundary.
+
+### V0.6.5 follow-up — Multi-target failure isolation
+
+- Claiming one candidate removes only that candidate from the scheduler.
+- Revalidation or dispatch failure for the claimed target does not discard independently validated queued targets.
+- Regression coverage verifies the remaining target can still be selected after the first target fails.
