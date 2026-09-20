@@ -166,6 +166,13 @@ class ScreenCaptureService : Service() {
                             )
                         }
                     }
+                    if (!recoveryEpochPersistenceHealthy && actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.IDLE) {
+                        if (persistRecoveryEpoch()) {
+                            actionJournal.clear()
+                            restartQuarantine = false
+                            previousScan = null
+                        }
+                    }
                     val active = actionOrchestrator.lifecycleSnapshot.state
                     if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !restartQuarantine) {
                         when {
