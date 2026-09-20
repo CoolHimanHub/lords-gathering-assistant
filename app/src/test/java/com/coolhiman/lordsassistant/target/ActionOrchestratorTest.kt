@@ -352,6 +352,24 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun postActionVerificationKeepsLogicalSessionWhenPointMoves() {
+        val moved = selected.copy(point = ScreenPoint(930f, 620f))
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 43_000L)
+        orchestrator.revalidate(
+            observation.copy(screenPoint = moved.point),
+            safeValidation,
+            ActionButton(ActionKind.GATHER, moved.point, 0.95f)
+        )
+        orchestrator.dispatch(43_001L) { true }
+
+        val result = orchestrator.verifyPostAction(observation.copy(screenPoint = moved.point), popup, 43_100L)
+
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, result.lifecycle.state)
+        assertEquals(selected.identity(), result.session?.selected?.identity())
+    }
+
+    @Test
     fun popupDisappearanceAloneRemainsUnknown() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(
