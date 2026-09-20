@@ -51,6 +51,39 @@ class CameraAnchorTrackerTest {
     }
 
     @Test
+    fun repeatedSemanticTargetsAreMatchedOneToOne() {
+        val tracker = CameraAnchorTracker()
+
+        tracker.update(
+            listOf(
+                observation(100f, 100f, 10),
+                observation(200f, 100f, 20)
+            )
+        )
+
+        val anchors = tracker.update(
+            listOf(
+                observation(130f, 120f, 10),
+                observation(230f, 120f, 20)
+            )
+        )
+
+        assertEquals(2, anchors.size)
+        assertEquals(WorldCoordinate(1, 10, 100), anchors[0].world)
+        assertEquals(WorldCoordinate(1, 20, 100), anchors[1].world)
+    }
+
+    @Test
+    fun farSemanticMovementIsNotAssociated() {
+        val tracker = CameraAnchorTracker(maxAssociationDistancePx = 50f)
+
+        tracker.update(listOf(observation(100f, 100f, 10)))
+        val anchors = tracker.update(listOf(observation(300f, 300f, 10)))
+
+        assertTrue(anchors.isEmpty())
+    }
+
+    @Test
     fun duplicateSemanticTargetsAreExcluded() {
         val tracker = CameraAnchorTracker()
 
