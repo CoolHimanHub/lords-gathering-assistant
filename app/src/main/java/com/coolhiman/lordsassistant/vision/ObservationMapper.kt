@@ -1,6 +1,7 @@
 package com.coolhiman.lordsassistant.vision
 
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 
@@ -11,6 +12,12 @@ object ObservationMapper {
             TileClass.MONSTER -> TargetKind.MONSTER
         }
         val label = candidate.classification.resource?.name ?: candidate.tile.label
+        val evidence = buildSet {
+            if (candidate.popupState?.active == true) add(ObservationEvidence.POPUP_CONFIRMED)
+            if (candidate.classification.kind != null || candidate.classification.resource != null || candidate.classification.level != null) add(ObservationEvidence.OCR_CONFIRMED)
+            if (candidate.incomingTroops == true) add(ObservationEvidence.MARCH_CONFIRMED)
+            if (candidate.occupied == null || candidate.incomingTroops == null) add(ObservationEvidence.STATE_UNKNOWN)
+        }
         return MapObservation(
             coordinate = candidate.coordinate,
             screenPoint = ScreenPoint(candidate.tile.centerX, candidate.tile.centerY),
@@ -20,7 +27,8 @@ object ObservationMapper {
             occupied = candidate.occupied,
             incomingTroops = candidate.incomingTroops,
             kind = kind,
-            confidence = candidate.confidence.toFloat().coerceIn(0f, 1f)
+            confidence = candidate.confidence.toFloat().coerceIn(0f, 1f),
+            evidence = evidence
         )
     }
 }
