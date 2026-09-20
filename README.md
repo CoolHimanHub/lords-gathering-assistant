@@ -602,6 +602,16 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.0 — Camera-invariant world-coordinate foundation
+
+- Added a camera-aware world model that keeps the learned affine world geometry separate from transient camera state.
+- Live world/screen anchors estimate only uniform camera scale (zoom) and screen translation (pan); the base world mapping is not refit on every camera movement.
+- Screen-to-world resolution normalizes the current camera state before using the established affine inverse.
+- The model fails closed when there are too few anchors, non-finite/invalid scale, or excessive anchor residual.
+- Rotation/skew changes are intentionally not absorbed as if they were ordinary pan/zoom; those conditions remain invalid until the camera model is recalibrated.
+- Added JVM regression coverage for exact pan+zoom recovery, inconsistent-anchor rejection, and insufficient-anchor rejection.
+- This is the V0.7 coordinate-model foundation; live scanner integration remains gated on camera-anchor extraction and validation.
+
 ### V0.6.8 — Restart and process-failure safety verification
 
 V0.6.8 extends lifecycle regression coverage around restart recovery, UNKNOWN outcomes, and recovery-epoch exhaustion. An unresolved or quarantined action remains ineligible for automatic retry; only the established safe terminal lifecycle states may cross the automatic recovery boundary.
