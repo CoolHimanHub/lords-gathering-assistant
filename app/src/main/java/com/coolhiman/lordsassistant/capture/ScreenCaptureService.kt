@@ -23,6 +23,7 @@ import com.coolhiman.lordsassistant.target.ActionRecoveryPolicy
 import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.target.ActionExecutionJournal
 import com.coolhiman.lordsassistant.target.ActionRecoveryEpochStore
+import com.coolhiman.lordsassistant.target.ActionAttemptIdStore
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -40,6 +41,7 @@ class ScreenCaptureService : Service() {
     private lateinit var actionOrchestrator: ActionOrchestrator
     private lateinit var actionJournal: ActionExecutionJournal
     private lateinit var recoveryEpochStore: ActionRecoveryEpochStore
+    private lateinit var actionAttemptIdStore: ActionAttemptIdStore
     private var restartQuarantine = false
     private var recoveryEpochPersistenceHealthy = true
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
@@ -58,7 +60,11 @@ class ScreenCaptureService : Service() {
         analyzer = FrameAnalyzer()
         liveScanner = LiveMapScanner(this)
         recoveryEpochStore = ActionRecoveryEpochStore(this)
-        actionOrchestrator = ActionOrchestrator(recoveryEpochStore.read())
+        actionAttemptIdStore = ActionAttemptIdStore(this)
+        actionOrchestrator = ActionOrchestrator(
+            initialRecoveryEpoch = recoveryEpochStore.read(),
+            attemptIdAllocator = { minimumPreviousId -> actionAttemptIdStore.allocateNext(minimumPreviousId) }
+        )
         actionJournal = ActionExecutionJournal(this)
         actionJournal.readInFlight()?.let { entry ->
             actionOrchestrator.restoreUnknown(entry.attemptId)
