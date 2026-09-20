@@ -38,6 +38,7 @@ class ScreenCaptureService : Service() {
     private lateinit var liveScanner: LiveMapScanner
     private lateinit var actionOrchestrator: ActionOrchestrator
     private lateinit var actionJournal: ActionExecutionJournal
+    private var restartQuarantine = false
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
@@ -52,6 +53,7 @@ class ScreenCaptureService : Service() {
         actionJournal = ActionExecutionJournal(this)
         actionJournal.readInFlight()?.let { entry ->
             actionOrchestrator.restoreUnknown(entry.attemptId)
+            restartQuarantine = true
         }
     }
 
@@ -136,6 +138,7 @@ class ScreenCaptureService : Service() {
                     ) {
                         actionOrchestrator.reset()
                         actionJournal.clear()
+                        restartQuarantine = false
                         ActionDiagnosticsStore.latest?.let { latest ->
                             ActionDiagnosticsStore.latest = latest.copy(
                                 lifecycle = actionOrchestrator.lifecycleSnapshot,
@@ -195,7 +198,7 @@ class ScreenCaptureService : Service() {
                                 ) actionJournal.clear()
                             }
                         }
-                    } else if (active != ActionLifecycleState.IDLE) {
+                    } else if (active != ActionLifecycleState.IDLE && !restartQuarantine) {
                         actionOrchestrator.reset()
                         actionJournal.clear()
                     }
@@ -204,7 +207,8 @@ class ScreenCaptureService : Service() {
                         scan = scan,
                         lifecycle = actionOrchestrator.lifecycleSnapshot,
                         evidence = actionOrchestrator.lastPostActionEvidence,
-                        actionAttemptId = actionOrchestrator.session?.attemptId,
+                        actionAttemptId = actionOrchestrator.session?.attemptId
+                            ?: actionJournal.readInFlight()?.attemptId,
                         timestampMs = now
                     )
 
