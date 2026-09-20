@@ -25,7 +25,9 @@ data class LiveMapScanResult(
     val plan: TargetPlan,
     val detectedTiles: Int,
     val processingMs: Long,
-    val origin: WorldCoordinate?
+    val origin: WorldCoordinate?,
+    val cameraState: CameraState = CameraState.STABLE,
+    val cameraSharedTargets: Int = 0
 )
 
 class LiveMapScanner(context: Context) {
@@ -38,6 +40,7 @@ class LiveMapScanner(context: Context) {
     private val orangeMarchDetector = OrangeMarchDetector()
     private val marchTracker = TemporalMarchSignalTracker()
     private val viewportGuard = ViewportGuard()
+    private val cameraStateTracker = CameraStateTracker()
     private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
     private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
 
@@ -56,7 +59,8 @@ class LiveMapScanner(context: Context) {
                 plan = TargetPlan(snapshot, emptyList()),
                 detectedTiles = 0,
                 processingMs = System.currentTimeMillis() - started,
-                origin = null
+                origin = null,
+                cameraState = CameraState.UNSTABLE
             )
         }
         val kingdom = ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
@@ -75,13 +79,17 @@ class LiveMapScanner(context: Context) {
 
         val observations = result.fused.map(ObservationMapper::map)
         val stable = tracker.update(observations)
-        mapMemory.upsertAll(stable)
+        val camera = cameraStateTracker.update(stable)
+        val stateAware = if (camera.state == CameraState.STABLE) stable else stable.map {
+            it.copy(evidence = it.evidence + com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE)
+        }
+        mapMemory.upsertAll(stateAware)
 
         val origin = ocrCoordinate
         val preferences = preferencesStore.load()
         val snapshot = mapMemory.snapshot()
         val plan = if (origin != null) {
-            planner.plan(origin.x, origin.y, snapshot, preferences)
+            planner.plan(origin.x, origin.y, snapshot, preferences, camera.state == CameraState.STABLE)
         } else {
             TargetPlan(snapshot, emptyList())
         }
@@ -91,7 +99,9 @@ class LiveMapScanner(context: Context) {
             plan = plan,
             detectedTiles = result.detection.tiles.size,
             processingMs = System.currentTimeMillis() - started,
-            origin = origin
+            origin = origin,
+            cameraState = camera.state,
+            cameraSharedTargets = camera.sharedTargets
         )
     }
 
