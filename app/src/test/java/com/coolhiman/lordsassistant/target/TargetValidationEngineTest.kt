@@ -44,6 +44,24 @@ class TargetValidationEngineTest {
         assertTrue(TargetBlockReason.POPUP_MISMATCH in r.reasons)
     }
 
+    @Test fun popupKindMismatchBlocksInteraction() {
+        val r = engine.validate(observation(), true, true, popup().copy(kind = TargetKind.MONSTER))
+        assertFalse(r.safe)
+        assertTrue(TargetBlockReason.POPUP_KIND_MISMATCH in r.reasons)
+    }
+
+    @Test fun popupResourceMismatchBlocksInteraction() {
+        val r = engine.validate(observation(), true, true, popup().copy(resource = com.coolhiman.lordsassistant.model.ResourceType.STONE))
+        assertFalse(r.safe)
+        assertTrue(TargetBlockReason.POPUP_RESOURCE_MISMATCH in r.reasons)
+    }
+
+    @Test fun popupLevelMismatchBlocksInteraction() {
+        val r = engine.validate(observation(), true, true, popup().copy(level = 4))
+        assertFalse(r.safe)
+        assertTrue(TargetBlockReason.POPUP_LEVEL_MISMATCH in r.reasons)
+    }
+
     @Test fun unknownStateBlocksInteraction() {
         val r = engine.validate(observation(null, null), true, true, popup())
         assertFalse(r.safe)
