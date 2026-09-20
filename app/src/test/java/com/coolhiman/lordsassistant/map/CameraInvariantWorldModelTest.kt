@@ -76,6 +76,31 @@ class CameraInvariantWorldModelTest {
     }
 
     @Test
+    fun twoAnchorsCannotOpenCameraModel() {
+        val fitted = model.fit(
+            listOf(
+                CameraWorldAnchor(world(0, 0), currentScreen(0, 0)),
+                CameraWorldAnchor(world(10, 0), currentScreen(10, 0))
+            )
+        )
+
+        assertNull(fitted)
+    }
+
+    @Test
+    fun collinearAnchorsCannotOpenCameraModel() {
+        val fitted = model.fit(
+            listOf(
+                CameraWorldAnchor(world(0, 0), currentScreen(0, 0)),
+                CameraWorldAnchor(world(10, 0), currentScreen(10, 0)),
+                CameraWorldAnchor(world(20, 0), currentScreen(20, 0))
+            )
+        )
+
+        assertNull(fitted)
+    }
+
+    @Test
     fun tooFewAnchorsCannotOpenCameraModel() {
         val fitted = model.fit(
             listOf(
