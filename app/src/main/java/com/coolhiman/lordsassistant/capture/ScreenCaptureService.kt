@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
 import com.coolhiman.lordsassistant.map.LiveMapScanner
+import com.coolhiman.lordsassistant.target.TargetBlockReason
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
@@ -103,6 +104,13 @@ class ScreenCaptureService : Service() {
                             append(" Y").append(origin.y)
                         } else {
                             append("\nCalibrate + expose K/X/Y for ranking")
+                        }
+                        append("\nCamera: ").append(scan.cameraState.name)
+                        append("  Validation: ").append(scan.validation.stage.name)
+                        if (scan.validation.reasons.isNotEmpty()) {
+                            append("\nBlocked: ").append(scan.validation.reasons.joinToString(", ") { reason ->
+                                reason.name.replace('_', ' ')
+                            })
                         }
                         append("\n").append(scan.processingMs).append("ms")
                     }
