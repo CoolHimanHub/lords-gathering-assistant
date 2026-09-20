@@ -378,3 +378,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Restart quarantine and deliberate recovery continue to advance the epoch before a new execution context.
 - Added regression coverage for seeding a new orchestrator from persisted epoch state.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.43 — Fail-closed recovery epoch persistence
+
+- Recovery epoch persistence failures are now explicit in the live safety diagnostics.
+- Automatic execution is blocked whenever the current recovery epoch is not durably persisted.
+- Deliberate UNKNOWN recovery does not clear the in-flight journal or restart quarantine until the new epoch is successfully persisted.
+- Persistence is retried safely before leaving quarantine; a transient storage failure therefore cannot silently reopen automatic execution.
+- Automatic Gather/Hunt actions remain disabled by default.
