@@ -162,6 +162,8 @@ class ScreenCaptureService : Service() {
                             ActionDiagnosticsStore.latest = latest.copy(
                                 lifecycle = actionOrchestrator.lifecycleSnapshot,
                                 evidence = null,
+                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
                                 timestampMs = now
                             )
                         }
