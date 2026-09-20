@@ -511,6 +511,14 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added instrumentation coverage for audit-event deduplication.
 - The audit trail remains diagnostic-only and cannot authorize or bypass an action.
 
+### V0.6.3 — Audit completeness and reconciliation diagnostics
+- scheduler reconciliation now returns targets dropped from the durable candidate queue
+- live capture records CANDIDATE_DROPPED when a target disappears from the latest safe candidate set
+- explicit DISPATCH_BARRIER_FAILED audit event records a failed durable in-flight barrier before recovery
+- explicit RECOVERY_EPOCH_PERSISTENCE_FAILED audit event records a failed recovery-boundary persistence attempt
+- audit persistence tests cover the new event taxonomy
+- audit remains diagnostic only and never authorizes gesture execution
+
 ### V0.6.2 — Complete lifecycle audit coverage
 
 - Added persistent audit events for revalidation success/failure, attempt-ID persistence failure, UNKNOWN entry, and verification timeout.
