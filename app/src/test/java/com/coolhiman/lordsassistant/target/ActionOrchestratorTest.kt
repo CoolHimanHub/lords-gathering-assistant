@@ -128,6 +128,25 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun completedTargetIsNotImmediatelyDispatchedAgain() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_000L)
+        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.dispatch(40_001L) { true }
+        orchestrator.verifyPostAction(observation, popup)
+
+        var dispatched = false
+        val result = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_500L)
+        orchestrator.dispatch(40_501L) {
+            dispatched = true
+            true
+        }
+
+        assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
+        assertFalse(dispatched)
+    }
+
+    @Test
     fun popupDisappearanceAloneRemainsUnknown() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(
