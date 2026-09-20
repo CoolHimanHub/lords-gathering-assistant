@@ -6,6 +6,7 @@ import com.coolhiman.lordsassistant.vision.MarchSignal
 import com.coolhiman.lordsassistant.vision.PopupState
 
 class ActionOrchestrator(
+    initialRecoveryEpoch: Long = 0L,
     private val lifecycle: ActionLifecycleController = ActionLifecycleController(),
     private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker()
 ) {
@@ -27,7 +28,7 @@ class ActionOrchestrator(
         private set
 
     private var nextAttemptId = 0L
-    private var recoveryEpoch = 0L
+    private var recoveryEpoch = initialRecoveryEpoch
 
     val currentRecoveryEpoch: Long get() = recoveryEpoch
     private var completedTarget: ActionTargetSnapshot? = null
