@@ -170,7 +170,9 @@ class ScreenCaptureService : Service() {
                         actionOrchestrator.reset()
                     }
 
-                    OverlayService.instance?.showStatus(status)
+                    OverlayService.instance?.showStatus(
+                        status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name
+                    )
                     OverlayService.instance?.showTargets(scan.plan.ranked)
                     previousScan = scan
                 } finally {
