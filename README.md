@@ -602,7 +602,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
-### V0.6.7 — Live action eligibility boundary
+### V0.6.8 — Restart and process-failure safety verification
+
+V0.6.8 extends lifecycle regression coverage around restart recovery, UNKNOWN outcomes, and recovery-epoch exhaustion. An unresolved or quarantined action remains ineligible for automatic retry; only the established safe terminal lifecycle states may cross the automatic recovery boundary.
+
+## V0.6.7 — Live action eligibility boundary
 
 V0.6.7 hardens the scanner-to-scheduler boundary. A live candidate is eligible for automatic scheduling only when the current-frame validation stage is `SAFE_TO_INTERACT`, the planner rank is a valid non-negative value, and the planner score is finite. Visually detected or otherwise independently validated candidates that are not represented by the current planner remain diagnostic-only and cannot cross into automatic scheduling.
 
