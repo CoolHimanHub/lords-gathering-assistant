@@ -10,6 +10,7 @@ class ActionOrchestrator(
     private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker()
 ) {
     data class Session(
+        val attemptId: Long,
         val selected: ActionTargetSnapshot,
         val beforeObservation: MapObservation?,
         val popupBefore: PopupState?,
@@ -24,6 +25,7 @@ class ActionOrchestrator(
     var lastPostActionEvidence: PostActionEvidenceRecord? = null
         private set
 
+    private var nextAttemptId = 0L
     private var completedTarget: ActionTargetSnapshot? = null
     private var postActionStartedAtMs: Long? = null
     private var postEvidenceSignature: Set<PostActionEvidence>? = null
@@ -47,8 +49,15 @@ class ActionOrchestrator(
             selected != null && selected == completedTarget) return Result(lifecycle.snapshot, session)
 
         lastPostActionEvidence = null
+        val attemptId = ++nextAttemptId
         session = selected?.let {
-            Session(it, beforeObservation, popupBefore, marchTracker.begin(it.point, baselineMarchSignals))
+            Session(
+                attemptId = attemptId,
+                selected = it,
+                beforeObservation = beforeObservation,
+                popupBefore = popupBefore,
+                marchSession = marchTracker.begin(it.point, baselineMarchSignals)
+            )
         }
         return Result(lifecycle.request(automaticActionsEnabled, selected, validation, nowMs), session)
     }
@@ -112,11 +121,18 @@ class ActionOrchestrator(
         postEvidenceFrames = if (postEvidenceSignature == evidence) postEvidenceFrames + 1 else 1
         postEvidenceSignature = evidence.toSet()
         lastPostActionEvidence = PostActionEvidenceRecord(
-            evidence.toSet(), sources.toSet(), selected,
-            afterObservation?.coordinate, afterObservation?.kind, afterObservation?.level,
-            cameraStable, postEvidenceFrames, nowMs,
-            current.marchSession.trajectory,
-            MarchTrajectoryEvidence.from(
+            attemptId = current.attemptId,
+            evidence = evidence.toSet(),
+            sources = sources.toSet(),
+            selected = selected,
+            observedCoordinate = afterObservation?.coordinate,
+            observedKind = afterObservation?.kind,
+            observedLevel = afterObservation?.level,
+            cameraStable = cameraStable,
+            confirmingFrames = postEvidenceFrames,
+            timestampMs = nowMs,
+            marchTrajectory = current.marchSession.trajectory,
+            marchTrajectoryEvidence = MarchTrajectoryEvidence.from(
                 actionPoint = selected.point,
                 trajectory = current.marchSession.trajectory,
                 confirmingFrames = current.marchSession.confirmedFrames,
