@@ -277,3 +277,22 @@ The supplied recordings already provide the necessary examples for resource popu
 - A candidate that moves toward the action point is not accepted as own-march evidence.
 - Added regression coverage for an opposite-direction trajectory.
 - This remains evidence-only; no automatic gesture dispatch is enabled.
+
+### V0.4.24–V0.4.33 — Guarded action execution, evidence provenance & safety hardening
+
+The action layer was progressively integrated without making gameplay automation the default:
+
+- **V0.4.24:** added the integrated action orchestrator connecting selection, lifecycle, pre-action revalidation, dispatch decision, and post-action observation.
+- **V0.4.25:** wired guarded action orchestration into the live scanner while keeping the Accessibility gesture path explicitly opt-in.
+- **V0.4.26:** bounded post-action observation and prevented immediate retry loops after incomplete verification.
+- **V0.4.27/V0.4.28:** hardened completed-target handling, camera-stable verification, target identity checks, and multi-frame post-action confirmation.
+- **V0.4.29/V0.4.30:** added structured post-action evidence provenance and session-bound march trajectory history so diagnostics can show why an action was considered successful or inconclusive.
+- **V0.4.31:** added a live evidence/safety diagnostics screen and scanner-to-diagnostics state bridge, including camera scale, target stability, validation reasons, lifecycle state, and post-action evidence.
+- **V0.4.32:** hardened march-to-tile association. Multiple nearby marches can now be reported as ambiguous instead of being arbitrarily assigned to a target; ambiguous association blocks interaction validation.
+- **V0.4.33:** integrated temporal target stability into the final validation gate and requires the current-frame target, stable camera state, valid calibration, explicit target state, popup identity, target-specific action, and non-ambiguous march association before an interaction can be considered safe.
+
+Current safety pipeline:
+
+capture → detect → fuse → temporal state → camera state → target stability → target selection → popup/action validation → march-association validation → pre-action revalidation → guarded dispatch → multi-frame post-action verification → evidence provenance
+
+The latest main branch has a passing Android CI build. Automatic Gather/Hunt actions remain disabled by default and all gesture dispatch remains behind explicit user opt-in plus the complete safety chain.
