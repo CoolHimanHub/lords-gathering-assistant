@@ -397,6 +397,16 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added regression coverage proving allocator failure stops before session creation and dispatch.
 - Automatic Gather/Hunt actions remain disabled by default.
 
+### V0.4.48 — Durable provenance consistency diagnostics
+
+- Live safety diagnostics now expose the durable in-flight journal attempt ID and recovery epoch alongside the current action provenance.
+- Diagnostics explicitly identify legacy journal entries whose recovery epoch was written before epoch provenance existed.
+- Startup reconciliation is now operator-visible through the reconciled startup epoch and restart-quarantine state.
+- When restart quarantine is active, diagnostics show that deliberate recovery is required instead of implying that automatic retry is available.
+- Added regression coverage for the journal/current-attempt distinction, durable epoch provenance, startup reconciliation, and active quarantine messaging.
+- Automatic Gather/Hunt actions remain disabled by default.
+
+
 ### V0.4.47 — Restart provenance reconciliation
 
 - Restart recovery now reconciles the persisted recovery epoch with the epoch stored in any in-flight journal before constructing the new action orchestrator.
