@@ -58,6 +58,10 @@ object ActionDiagnosticsFormatter {
             }
             appendLine("Target stability: ${snapshot.targetStability.consecutiveFrames} frames  •  stable=${snapshot.targetStability.stable}")
             appendLine("Lifecycle: ${snapshot.lifecycle.state.name}")
+            appendLine(
+                "Automatic recovery: " +
+                    if (ActionRecoveryPolicy.mayStartAutomaticAttempt(snapshot.lifecycle.state)) "allowed" else "blocked"
+            )
             snapshot.lifecycle.failure?.let { appendLine("Failure: ${it.name}") }
             if (evidence == null) {
                 appendLine("Post-action evidence: none")
