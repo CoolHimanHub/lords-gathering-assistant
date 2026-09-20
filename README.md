@@ -224,3 +224,15 @@ The supplied recordings already provide the necessary examples for resource popu
 - Added regression tests for unchanged targets, target changes, action changes, point drift, and newly occupied targets.
 - LmAccessibilityService.tapRevalidated() now routes future gestures through this final revalidation step.
 - This does not enable automatic gameplay actions; the existing opt-in/disabled-by-default behavior remains unchanged.
+
+
+### V0.4.19 — Guarded action-execution policy
+
+- Added an explicit action-execution policy layer after target revalidation.
+- Automation must be explicitly enabled before an action request can be accepted.
+- Invalid or non-safe validation results are rejected.
+- Added a 1.5-second global dispatch cooldown to prevent rapid repeated gestures.
+- Added a 3-second same-target duplicate window so consecutive scans cannot repeatedly trigger the same target.
+- Dispatch history can be reset when the game state changes or a new execution session starts.
+- The controller only makes an execution decision; it does not itself dispatch a gesture.
+- Accessibility gestures therefore remain behind the existing validation and interaction gates.
