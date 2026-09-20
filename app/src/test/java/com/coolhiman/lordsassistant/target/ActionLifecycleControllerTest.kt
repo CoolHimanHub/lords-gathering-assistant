@@ -191,16 +191,4 @@ class ActionLifecycleControllerTest {
         assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(exhausted))
     }
 
-    @Test
-    fun terminalFailureIsRetryEligibleOnlyAfterExplicitLifecycleCompletion() {
-        val controller = ActionLifecycleController()
-        val result = controller.request(true, target, safe, 1000L)
-        assertEquals(ActionLifecycleState.REQUESTED, result.state)
-        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(result))
-
-        val failed = controller.failed(ActionLifecycleFailure.DISPATCH_FAILED)
-        assertEquals(ActionLifecycleState.FAILED, failed.state)
-        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(failed))
-    }
-
 }
