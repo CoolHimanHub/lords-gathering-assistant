@@ -9,8 +9,8 @@ data class FusionCandidate(
     val tile: DetectedTile,
     val classification: TextClassification,
     val coordinate: WorldCoordinate?,
-    val occupied: Boolean,
-    val incomingTroops: Boolean,
+    val occupied: Boolean?,
+    val incomingTroops: Boolean?,
     val confidence: Double
 )
 
@@ -54,19 +54,19 @@ class DetectionFusion(
                     level = popupState.level ?: classification.level,
                     quantity = popupState.quantity ?: classification.quantity,
                     occupied = popupState.occupied ?: classification.occupied,
-                    incomingTroops = popupState.incomingTroops == true || classification.incomingTroops == true
+                    incomingTroops = popupState.incomingTroops ?: classification.incomingTroops
                 )
             }
 
             val incoming = if (popupMatches && popupState?.incomingTroops != null) {
                 popupState.incomingTroops
             } else {
-                classification.incomingTroops == true || march != null
+                classification.incomingTroops ?: march?.let { true }
             }
             val occupied = if (popupMatches && popupState?.occupied != null) {
                 popupState.occupied
             } else {
-                classification.occupied == true || incoming
+                if (incoming == true) true else classification.occupied
             }
 
             val evidence = listOf(
