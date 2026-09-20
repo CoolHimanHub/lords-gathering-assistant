@@ -201,3 +201,14 @@ The supplied recordings already provide the necessary examples for resource popu
 - Added regression coverage so high-confidence unknown observations remain unknown and distant march signals do not create false free/occupied state.
 - Target planning continues to require explicit `occupied=false` and `incomingTroops=false`.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+## V0.4.14 — World Identity & Camera-State Safety
+
+- Added stable observation identity from kingdom/X/Y plus target kind and level.
+- Added explicit observation evidence reasons for OCR, march, temporal confirmation, and unknown state.
+- Added camera-state tracking using repeated world identities and screen displacement.
+- Camera states are **STABLE**, **PANNING**, or **UNSTABLE**.
+- Target planning is paused while the camera is panning or unstable, preventing coordinate-driven selection during viewport transitions.
+- Added regression tests for consistent camera movement and contradictory screen shifts.
+- Automatic in-game actions remain disabled.
