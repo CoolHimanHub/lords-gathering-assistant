@@ -182,3 +182,11 @@ The supplied recordings already provide the necessary examples for resource popu
 - Added regression tests for single-frame march rejection, repeated march confirmation, stale march expiry, stable viewport dimensions, dimension changes, and invalid dimensions.
 - Added manual GitHub Actions dispatch support so the Android build can be explicitly rerun when needed.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.12 — explicit target-state safety
+
+- Target planning now requires explicit `occupied=false` and `incomingTroops=false`; unknown state is no longer treated as free.
+- Added regression coverage for unknown versus explicitly-free resource observations.
+- This keeps target ranking conservative while camera/world-state continuity work proceeds.
+- Automatic Gather/Hunt actions remain disabled by default.
