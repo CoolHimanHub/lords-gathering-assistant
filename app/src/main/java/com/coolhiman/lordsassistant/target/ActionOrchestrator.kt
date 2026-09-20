@@ -114,7 +114,8 @@ class ActionOrchestrator(
         lastPostActionEvidence = PostActionEvidenceRecord(
             evidence.toSet(), sources.toSet(), selected,
             afterObservation?.coordinate, afterObservation?.kind, afterObservation?.level,
-            cameraStable, postEvidenceFrames, nowMs
+            cameraStable, postEvidenceFrames, nowMs,
+            current.marchSession.trajectory
         )
 
         if (postEvidenceFrames < POST_ACTION_CONFIRMATION_FRAMES) return Result(lifecycle.snapshot, session)
