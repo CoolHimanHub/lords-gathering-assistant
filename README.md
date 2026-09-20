@@ -369,3 +369,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Restart quarantine creates a new epoch; deliberate recovery/reset creates the next fresh epoch before a new action attempt.
 - Added regression coverage proving a fresh post-recovery attempt cannot share the prior recovery epoch.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.42 — Persistent recovery epoch
+
+- Recovery epoch is now persisted independently of the in-flight action journal.
+- A clean process/service restart retains the last recovery epoch instead of silently returning to epoch 0.
+- Restart quarantine and deliberate recovery continue to advance the epoch before a new execution context.
+- Added regression coverage for seeding a new orchestrator from persisted epoch state.
+- Automatic Gather/Hunt actions remain disabled by default.
