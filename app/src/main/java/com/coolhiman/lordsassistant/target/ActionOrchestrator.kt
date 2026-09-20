@@ -11,6 +11,7 @@ class ActionOrchestrator(
 ) {
     data class Session(
         val attemptId: Long,
+        val recoveryEpoch: Long,
         val selected: ActionTargetSnapshot,
         val beforeObservation: MapObservation?,
         val popupBefore: PopupState?,
@@ -26,6 +27,9 @@ class ActionOrchestrator(
         private set
 
     private var nextAttemptId = 0L
+    private var recoveryEpoch = 0L
+
+    val currentRecoveryEpoch: Long get() = recoveryEpoch
     private var completedTarget: ActionTargetSnapshot? = null
     private var postActionStartedAtMs: Long? = null
     private var postEvidenceSignature: Set<PostActionEvidence>? = null
@@ -53,6 +57,7 @@ class ActionOrchestrator(
         session = selected?.let {
             Session(
                 attemptId = attemptId,
+                recoveryEpoch = recoveryEpoch,
                 selected = it,
                 beforeObservation = beforeObservation,
                 popupBefore = popupBefore,
@@ -122,6 +127,7 @@ class ActionOrchestrator(
         postEvidenceSignature = evidence.toSet()
         lastPostActionEvidence = PostActionEvidenceRecord(
             attemptId = current.attemptId,
+            recoveryEpoch = current.recoveryEpoch,
             evidence = evidence.toSet(),
             sources = sources.toSet(),
             selected = selected,
@@ -158,6 +164,7 @@ class ActionOrchestrator(
 
     fun restoreUnknown(attemptId: Long): Result {
         nextAttemptId = maxOf(nextAttemptId, attemptId)
+        recoveryEpoch++
         session = null
         completedTarget = null
         postActionStartedAtMs = null
@@ -170,6 +177,7 @@ class ActionOrchestrator(
     fun timeout(): Result = Result(lifecycle.timeout(), session)
 
     fun reset(): Result {
+        recoveryEpoch++
         lifecycle.reset()
         session = null
         completedTarget = null
