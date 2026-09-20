@@ -502,3 +502,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Evidence & Safety Diagnostics now shows the latest persistent action-audit events.
 - The timeline is read-only and has no control over scheduling, recovery, validation, or gesture dispatch.
 - Operators can correlate attempt ID, recovery epoch, target identity, dispatch, verification, and quarantine events from the same diagnostics screen.
+
+### V0.6.1 — Complete scheduler audit coverage
+
+- Scheduler admission is now persistently audited for safe current-frame candidates.
+- Scheduler safety blocks are recorded with their concrete block reason.
+- Identical repeated scheduler-block events are deduplicated to prevent frame-rate log flooding.
+- Added instrumentation coverage for audit-event deduplication.
+- The audit trail remains diagnostic-only and cannot authorize or bypass an action.
