@@ -36,8 +36,8 @@ class ActionScheduler(
     private val cooldownMs: Long = DEFAULT_COOLDOWN_MS,
     private val minimumStabilityFrames: Int = DEFAULT_MIN_STABILITY_FRAMES
 ) {
-    private val candidates = linkedMapOf<ActionTargetSnapshot, ActionScheduleCandidate>()
-    private val completedUntilMs = linkedMapOf<ActionTargetSnapshot, Long>()
+    private val candidates = linkedMapOf<ActionTargetIdentity, ActionScheduleCandidate>()
+    private val completedUntilMs = linkedMapOf<ActionTargetIdentity, Long>()
     private var inFlight = false
     private var lastDispatchAtMs: Long? = null
 
@@ -46,9 +46,10 @@ class ActionScheduler(
         if (candidate.stabilityFrames < minimumStabilityFrames) return
         if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return
 
-        val existing = candidates[candidate.target]
+        val identity = candidate.target.identity()
+        val existing = candidates[identity]
         if (existing == null || compare(candidate, existing) < 0) {
-            candidates[candidate.target] = candidate
+            candidates[identity] = candidate
         }
     }
 
@@ -61,7 +62,7 @@ class ActionScheduler(
      * admission rules.
      */
     fun refresh(current: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> {
-        val previousTargets = candidates.keys.toSet()
+        val previousTargets = candidates.values.map { it.target }.toSet()
         val latestSafe = linkedMapOf<ActionTargetSnapshot, ActionScheduleCandidate>()
 
         current.forEach { candidate ->
@@ -84,7 +85,7 @@ class ActionScheduler(
     }
 
     fun remove(target: ActionTargetSnapshot) {
-        candidates.remove(target)
+        candidates.remove(target.identity())
     }
 
     fun clear() {
@@ -107,7 +108,7 @@ class ActionScheduler(
      */
     fun markTargetCompleted(target: ActionTargetSnapshot, nowMs: Long) {
         candidates.remove(target)
-        completedUntilMs[target] = nowMs + COMPLETED_TARGET_SUPPRESSION_MS
+        completedUntilMs[target.identity()] = nowMs + COMPLETED_TARGET_SUPPRESSION_MS
         completedUntilMs.entries.removeIf { it.value <= nowMs }
     }
 
@@ -178,9 +179,10 @@ class ActionScheduler(
     fun isInFlight(): Boolean = inFlight
 
     private fun isCompletedAndSuppressed(target: ActionTargetSnapshot, nowMs: Long): Boolean {
-        val until = completedUntilMs[target] ?: return false
+        val identity = target.identity()
+        val until = completedUntilMs[identity] ?: return false
         if (until <= nowMs) {
-            completedUntilMs.remove(target)
+            completedUntilMs.remove(identity)
             return false
         }
         return true
