@@ -19,6 +19,7 @@ enum class ActionLifecycleState {
 
 enum class ActionLifecycleFailure {
     EXECUTION_BLOCKED,
+    ATTEMPT_ID_PERSISTENCE_FAILED,
     REVALIDATION_FAILED,
     DISPATCH_FAILED,
     VERIFICATION_FAILED,
@@ -107,6 +108,15 @@ class ActionLifecycleController(
             )
             snapshot
         }
+    }
+
+    fun attemptIdPersistenceFailed(selected: ActionTargetSnapshot?): ActionLifecycleSnapshot {
+        snapshot = ActionLifecycleSnapshot(
+            state = ActionLifecycleState.FAILED,
+            selected = selected,
+            failure = ActionLifecycleFailure.ATTEMPT_ID_PERSISTENCE_FAILED
+        )
+        return snapshot
     }
 
     fun revalidated(validation: TargetValidationResult): ActionLifecycleSnapshot {
