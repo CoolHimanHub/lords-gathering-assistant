@@ -295,7 +295,7 @@ class ScreenCaptureService : Service() {
                                         target = scheduled.target,
                                         recoveryEpoch = actionOrchestrator.currentRecoveryEpoch
                                     ))
-                                    actionOrchestrator.request(
+                                    val requestResult = actionOrchestrator.request(
                                         automaticActionsEnabled = true,
                                         selected = scheduled.target,
                                         validation = previous.validation,
@@ -304,19 +304,35 @@ class ScreenCaptureService : Service() {
                                         baselineMarchSignals = previous.marchSignals,
                                         nowMs = now
                                     )
-                                    actionAuditLog.append(ActionAuditEvent(
-                                        timestampMs = now,
-                                        type = ActionAuditEventType.ACTION_REQUESTED,
-                                        attemptId = actionOrchestrator.session?.attemptId,
-                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                        target = scheduled.target
-                                    ))
+                                    actionAuditLog.append(
+                                        ActionAuditEvent(
+                                            timestampMs = now,
+                                            type = if (requestResult.lifecycle.failure == ActionLifecycleFailure.ATTEMPT_ID_PERSISTENCE_FAILED) {
+                                                ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED
+                                            } else {
+                                                ActionAuditEventType.ACTION_REQUESTED
+                                            },
+                                            attemptId = requestResult.session?.attemptId,
+                                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                            target = scheduled.target,
+                                            detail = requestResult.lifecycle.failure?.name
+                                        )
+                                    )
                                     actionOrchestrator.revalidate(
                                         latestObservation = scan.selectedObservation,
                                         latestValidation = scan.validation,
                                         latestAction = scan.actionButton
                                     )
                                     if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
+                                        actionAuditLog.append(
+                                            ActionAuditEvent(
+                                                timestampMs = now,
+                                                type = ActionAuditEventType.ACTION_REVALIDATED,
+                                                attemptId = actionOrchestrator.session?.attemptId,
+                                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                                target = scheduled.target
+                                            )
+                                        )
                                         val session = actionOrchestrator.session
                                         val provenance = session?.let {
                                             ActionDispatchProvenance(
