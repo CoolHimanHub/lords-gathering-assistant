@@ -340,3 +340,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Post-action evidence displays its originating attempt ID and whether it matches the current action attempt.
 - This makes cross-attempt evidence isolation observable during manual diagnostics instead of relying only on internal guards.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.39 — Restart-safe action quarantine
+
+- Added a durable in-flight action journal written before Accessibility dispatch.
+- If the capture service/process restarts while an action may already have reached the game, the new service restores a non-retryable UNKNOWN quarantine instead of starting a fresh automatic attempt.
+- The quarantine remains active even with Automatic actions disabled until the deliberate diagnostics recovery control clears it.
+- Definitive dispatch failure and verified success/failure clear the journal; UNKNOWN does not.
+- Added lifecycle regression coverage for restart recovery state.
+- Automatic Gather/Hunt actions remain disabled by default.
