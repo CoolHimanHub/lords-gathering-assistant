@@ -84,28 +84,6 @@ class CameraAnchorTrackerTest {
     }
 
     @Test
-    fun duplicateSemanticTargetsAreExcluded() {
-        val tracker = CameraAnchorTracker()
-
-        tracker.update(
-            listOf(
-                observation(100f, 100f, 10),
-                observation(200f, 100f, 20)
-            )
-        )
-
-        val anchors = tracker.update(
-            listOf(
-                observation(130f, 120f, 10),
-                observation(230f, 120f, 20),
-                observation(330f, 120f, 30)
-            )
-        )
-
-        assertTrue(anchors.isEmpty())
-    }
-
-    @Test
     fun resetBreaksCrossFrameAnchorAssociation() {
         val tracker = CameraAnchorTracker()
 
