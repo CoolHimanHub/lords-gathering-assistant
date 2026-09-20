@@ -14,6 +14,9 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import com.coolhiman.lordsassistant.map.LiveMapScanner
 import com.coolhiman.lordsassistant.overlay.OverlayService
+import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
+import com.coolhiman.lordsassistant.target.ActionLifecycleState
+import com.coolhiman.lordsassistant.target.ActionOrchestrator
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -28,6 +31,8 @@ class ScreenCaptureService : Service() {
     private var reader: ImageReader? = null
     private lateinit var analyzer: FrameAnalyzer
     private lateinit var liveScanner: LiveMapScanner
+    private lateinit var actionOrchestrator: ActionOrchestrator
+    private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
@@ -37,6 +42,7 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         analyzer = FrameAnalyzer()
         liveScanner = LiveMapScanner(this)
+        actionOrchestrator = ActionOrchestrator()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -114,8 +120,58 @@ class ScreenCaptureService : Service() {
                         }
                         append("\n").append(scan.processingMs).append("ms")
                     }
+                    val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
+                    val active = actionOrchestrator.lifecycleSnapshot.state
+                    if (prefs.automaticActions) {
+                        when {
+                            active == ActionLifecycleState.IDLE ||
+                                active == ActionLifecycleState.SUCCEEDED ||
+                                active == ActionLifecycleState.FAILED ||
+                                active == ActionLifecycleState.UNKNOWN -> {
+                                val previous = previousScan
+                                if (previous?.selectedActionTarget != null &&
+                                    previous.validation.safe &&
+                                    previous.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
+                                ) {
+                                    actionOrchestrator.request(
+                                        automaticActionsEnabled = true,
+                                        selected = previous.selectedActionTarget,
+                                        validation = previous.validation,
+                                        beforeObservation = previous.selectedObservation,
+                                        popupBefore = null,
+                                        baselineMarchSignals = previous.marchSignals,
+                                        nowMs = now
+                                    )
+                                    actionOrchestrator.revalidate(
+                                        latestObservation = scan.selectedObservation,
+                                        latestValidation = scan.validation,
+                                        latestAction = scan.actionButton
+                                    )
+                                    if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
+                                        actionOrchestrator.dispatch(now) {
+                                            LmAccessibilityService.instance?.tapRevalidated(
+                                                selected = previous.selectedActionTarget,
+                                                latestObservation = scan.selectedObservation,
+                                                latestValidation = scan.validation,
+                                                latestAction = scan.actionButton
+                                            ) == true
+                                        }
+                                    }
+                                }
+                            }
+                            active == ActionLifecycleState.WAITING_FOR_RESULT -> {
+                                actionOrchestrator.observeMarch(scan.marchSignals, now)
+                                actionOrchestrator.verifyPostAction(
+                                    afterObservation = scan.selectedObservation,
+                                    popupAfter = null
+                                )
+                            }
+                        }
+                    }
+
                     OverlayService.instance?.showStatus(status)
                     OverlayService.instance?.showTargets(scan.plan.ranked)
+                    previousScan = scan
                 } finally {
                     if (!bitmap.isRecycled) bitmap.recycle()
                     busy.set(false)
