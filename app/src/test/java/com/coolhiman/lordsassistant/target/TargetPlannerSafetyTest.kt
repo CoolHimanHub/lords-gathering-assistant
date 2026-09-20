@@ -51,3 +51,42 @@ class TargetPlannerSafetyTest {
         assertEquals(1, plan.ranked.size)
     }
 }
+
+
+    @Test
+    fun safeMonsterIsRankedWhenLevelConfigured() {
+        val planner = TargetPlanner()
+        val observation = MapObservation(
+            coordinate = WorldCoordinate(1, 100, 100),
+            screenPoint = ScreenPoint(500f, 500f),
+            label = "Frostwing",
+            level = 3,
+            quantity = null,
+            occupied = false,
+            incomingTroops = false,
+            kind = TargetKind.MONSTER,
+            confidence = 0.90f,
+            evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)
+        )
+        val plan = planner.plan(90, 90, listOf(observation), UserPreferences(monsterLevels = setOf(3)))
+        assertEquals(1, plan.rankedMonsters.size)
+        assertEquals(3, plan.rankedMonsters.first().target.level)
+    }
+
+    @Test
+    fun unknownMonsterStateIsNotRanked() {
+        val planner = TargetPlanner()
+        val observation = MapObservation(
+            coordinate = WorldCoordinate(1, 100, 100),
+            screenPoint = ScreenPoint(500f, 500f),
+            label = "Frostwing",
+            level = 3,
+            quantity = null,
+            occupied = null,
+            incomingTroops = null,
+            kind = TargetKind.MONSTER,
+            confidence = 0.90f
+        )
+        val plan = planner.plan(90, 90, listOf(observation), UserPreferences(monsterLevels = setOf(3)))
+        assertTrue(plan.rankedMonsters.isEmpty())
+    }
