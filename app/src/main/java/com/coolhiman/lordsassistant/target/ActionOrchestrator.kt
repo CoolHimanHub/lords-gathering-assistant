@@ -156,6 +156,17 @@ class ActionOrchestrator(
         return Result(verified, current)
     }
 
+    fun restoreUnknown(attemptId: Long): Result {
+        nextAttemptId = maxOf(nextAttemptId, attemptId)
+        session = null
+        completedTarget = null
+        postActionStartedAtMs = null
+        postEvidenceSignature = null
+        postEvidenceFrames = 0
+        lastPostActionEvidence = null
+        return Result(lifecycle.restoreUnknown(), null)
+    }
+
     fun timeout(): Result = Result(lifecycle.timeout(), session)
 
     fun reset(): Result {
