@@ -585,3 +585,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - A moving interaction point therefore does not discard an otherwise continuous logical target between frames.
 - The latest frame remains authoritative for the actual action point, and the existing pre-action revalidator still enforces the 45 px interaction-point drift limit before dispatch.
 - This separates logical target continuity from transient screen geometry without weakening the final fail-closed interaction gate.
+
+
+### V0.6.5 follow-up — Complete stable-identity lifecycle handoff
+
+- ActionOrchestrator session/revalidation/dispatch/verification continuity now compares logical target identity separately from transient screen point.
+- A moved interaction point can remain the same logical action session; the latest point is still accepted only through PreActionRevalidator's explicit drift and action checks.
+- Cleared a stale completed-target reset reference left from the identity migration.
+- Added regression coverage proving point movement within the permitted drift remains the same logical session.
