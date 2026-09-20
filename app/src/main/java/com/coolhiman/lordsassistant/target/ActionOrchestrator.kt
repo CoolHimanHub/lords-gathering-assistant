@@ -119,7 +119,7 @@ class ActionOrchestrator(
     fun verifyPostAction(afterObservation: MapObservation?, popupAfter: PopupState?, nowMs: Long = System.currentTimeMillis()): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected != current.selected || lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) return Result(lifecycle.snapshot, current)
+        if (current == null || selected == null || selected.identity() != current.selected.identity() || lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) return Result(lifecycle.snapshot, current)
 
         val evidence = PostActionStateVerifier.collectEvidence(selected, current.beforeObservation, afterObservation, current.popupBefore, popupAfter).toMutableSet()
         val cameraStable = afterObservation?.evidence?.contains(ObservationEvidence.CAMERA_UNSTABLE) != true
