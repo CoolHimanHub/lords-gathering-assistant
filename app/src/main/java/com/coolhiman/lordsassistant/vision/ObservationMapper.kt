@@ -13,7 +13,6 @@ object ObservationMapper {
         }
         val label = candidate.classification.resource?.name ?: candidate.tile.label
         val evidence = buildSet {
-            if (candidate.popupState?.active == true) add(ObservationEvidence.POPUP_CONFIRMED)
             if (candidate.classification.kind != null || candidate.classification.resource != null || candidate.classification.level != null) add(ObservationEvidence.OCR_CONFIRMED)
             if (candidate.incomingTroops == true) add(ObservationEvidence.MARCH_CONFIRMED)
             if (candidate.occupied == null || candidate.incomingTroops == null) add(ObservationEvidence.STATE_UNKNOWN)
