@@ -100,15 +100,30 @@ class TargetValidationEngineTest {
             actionKind = ActionKind.HUNT
         )
         val attack = engine.validate(
-            observation = baseObservation.copy(kind = TargetKind.MONSTER, label = "Frostwing"),
+            observation = observation().copy(kind = TargetKind.MONSTER, label = "Frostwing"),
             cameraStable = true,
             calibrationValid = true,
-            popupState = matchingPopup.copy(kind = TargetKind.MONSTER, resource = null),
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null),
             interactionPointValid = true,
             actionKind = ActionKind.ATTACK
         )
         assertTrue(hunt.safe)
         assertTrue(attack.safe)
+    }
+
+    @Test
+    fun unstableTargetBlocksInteractionEvenWhenOtherEvidenceMatches() {
+        val result = engine.validate(
+            observation = observation(),
+            cameraStable = true,
+            calibrationValid = true,
+            targetStable = false,
+            popupState = popup(),
+            interactionPointValid = true,
+            actionKind = ActionKind.GATHER
+        )
+        assertFalse(result.safe)
+        assertTrue(result.reasons.contains(TargetBlockReason.TARGET_UNSTABLE))
     }
 
 }
