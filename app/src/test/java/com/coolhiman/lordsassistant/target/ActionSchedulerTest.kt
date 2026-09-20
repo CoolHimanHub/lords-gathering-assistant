@@ -107,4 +107,44 @@ class ActionSchedulerTest {
         scheduler.markActionFinished()
         assertFalse(scheduler.peek(5_000L).candidate?.target == target(2))
     }
+    @Test
+    fun safetyStateBlocksSelectionEvenWithSafeCandidate() {
+        val scheduler = ActionScheduler()
+        scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true))
+
+        val safety = ActionSchedulerSafetyState(
+            lifecycle = ActionLifecycleSnapshot(
+                state = ActionLifecycleState.UNKNOWN,
+                failure = null
+            ),
+            automaticActionsEnabled = true,
+            restartQuarantine = false,
+            recoveryEpochPersistenceHealthy = true
+        )
+
+        val decision = scheduler.peek(10_000L, safety)
+
+        assertEquals(ActionScheduleBlockReason.SAFETY_BLOCKED, decision.reason)
+        assertEquals(null, decision.candidate)
+        assertEquals(1, scheduler.queuedCount())
+    }
+
+    @Test
+    fun safetyStateAllowsSelectionOnlyWhenCoreRecoveryIsReady() {
+        val scheduler = ActionScheduler()
+        scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true))
+
+        val safety = ActionSchedulerSafetyState(
+            lifecycle = ActionLifecycleSnapshot(
+                state = ActionLifecycleState.IDLE,
+                failure = null
+            ),
+            automaticActionsEnabled = true,
+            restartQuarantine = false,
+            recoveryEpochPersistenceHealthy = true
+        )
+
+        assertTrue(scheduler.peek(10_000L, safety).candidate != null)
+    }
+
 }
