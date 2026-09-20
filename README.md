@@ -397,6 +397,14 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added regression coverage proving allocator failure stops before session creation and dispatch.
 - Automatic Gather/Hunt actions remain disabled by default.
 
+### V0.4.47 — Restart provenance reconciliation
+
+- Restart recovery now reconciles the persisted recovery epoch with the epoch stored in any in-flight journal before constructing the new action orchestrator.
+- The recovered orchestrator therefore starts from the highest known durable epoch and advances it again when entering UNKNOWN quarantine.
+- Legacy journals without an epoch remain safely quarantined while the persisted recovery epoch remains authoritative.
+- This prevents stale journal metadata from ever causing a lower recovery epoch to be reused after restart.
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ### V0.4.46 — Durable action provenance boundary
 
 - Added an explicit immutable pre-dispatch provenance record binding the action attempt ID, recovery epoch, and dispatch timestamp.
