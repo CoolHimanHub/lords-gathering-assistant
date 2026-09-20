@@ -133,6 +133,8 @@ class ActionOrchestratorTest {
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_000L)
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
         orchestrator.dispatch(40_001L) { true }
+        orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 40_100L)
+        orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 40_200L)
         orchestrator.verifyPostAction(observation, popup)
 
         var dispatched = false
