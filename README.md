@@ -577,3 +577,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Completed-target suppression follows the same stable identity across interaction-point movement.
 
 - The core ActionOrchestrator completed-target guard now uses the same stable identity, so a moved interaction point cannot bypass successful-completion protection.
+
+
+### V0.6.5 follow-up — Stable identity across live-frame point movement
+
+- Live scheduler reconciliation now matches the previous and current action candidates by stable target identity rather than full screen-point equality.
+- A moving interaction point therefore does not discard an otherwise continuous logical target between frames.
+- The latest frame remains authoritative for the actual action point, and the existing pre-action revalidator still enforces the 45 px interaction-point drift limit before dispatch.
+- This separates logical target continuity from transient screen geometry without weakening the final fail-closed interaction gate.
