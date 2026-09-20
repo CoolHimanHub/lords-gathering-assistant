@@ -55,6 +55,16 @@ class ActionOrchestrator(
             session = null
             return Result(lifecycle.snapshot, null)
         }
+
+        // Keep the recovery invariant at the orchestration boundary itself.
+        // The capture service also checks this policy, but callers must not be
+        // able to bypass it by invoking request() directly after UNKNOWN or
+        // while another action is still in flight.
+        if (!ActionRecoveryPolicy.mayStartAutomaticAttempt(lifecycle.snapshot)) {
+            session = null
+            return Result(lifecycle.snapshot, null)
+        }
+
         if (lifecycle.snapshot.state == ActionLifecycleState.SUCCEEDED &&
             selected != null && selected == completedTarget) return Result(lifecycle.snapshot, session)
 
