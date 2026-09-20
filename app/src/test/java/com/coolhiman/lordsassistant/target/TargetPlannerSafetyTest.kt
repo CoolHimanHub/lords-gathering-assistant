@@ -1,11 +1,14 @@
 package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
+import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.UserPreferences
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TargetPlannerSafetyTest {
@@ -50,8 +53,6 @@ class TargetPlannerSafetyTest {
         val plan = planner.plan(90, 90, listOf(observation), prefs)
         assertEquals(1, plan.ranked.size)
     }
-}
-
 
     @Test
     fun safeMonsterIsRankedWhenLevelConfigured() {
@@ -90,3 +91,5 @@ class TargetPlannerSafetyTest {
         val plan = planner.plan(90, 90, listOf(observation), UserPreferences(monsterLevels = setOf(3)))
         assertTrue(plan.rankedMonsters.isEmpty())
     }
+
+}
