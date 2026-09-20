@@ -14,11 +14,9 @@ class ActionAttemptIdStore(context: Context) {
 
     fun read(): Long = prefs.getLong(KEY_ATTEMPT_ID, 0L)
 
-    fun allocateNext(minimumPreviousId: Long = 0L): Long {
+    fun allocateNext(minimumPreviousId: Long = 0L): Long? {
         val next = maxOf(read(), minimumPreviousId) + 1L
-        check(prefs.edit().putLong(KEY_ATTEMPT_ID, next).commit()) {
-            "Unable to durably persist action attempt ID"
-        }
+        if (!prefs.edit().putLong(KEY_ATTEMPT_ID, next).commit()) return null
         return next
     }
 
