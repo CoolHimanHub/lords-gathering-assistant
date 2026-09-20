@@ -478,3 +478,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - A target that becomes validation-unsafe or falls below the stability threshold is removed before selection.
 - This prevents stale queued targets from surviving across changing frames.
 - Scheduler selection remains subordinate to the existing recovery, revalidation, provenance, journal, interaction, and post-action verification boundaries.
+
+### V0.5.1 follow-up — Live capture integration boundary
+
+- The live capture service now feeds the scheduler from the existing current-frame validated action target.
+- Scheduler selection is additionally checked against the existing lifecycle, automatic-action preference, restart quarantine, and recovery-epoch persistence state.
+- The scheduler cannot manufacture actionable coordinates for merely ranked map targets; an interaction point must already come from the existing scanner/action-button validation path.
+- A scheduled target must still match the previous scan before entering the existing pre-action revalidation and guarded dispatch pipeline.
+- Queue reconciliation remains frame-driven, so a target change causes the prior candidate to stop being actionable.
