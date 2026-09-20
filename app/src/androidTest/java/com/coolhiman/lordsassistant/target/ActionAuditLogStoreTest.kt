@@ -44,8 +44,6 @@ class ActionAuditLogStoreTest {
     }
 
     @Test
-    @Test
-    @Test
     fun lifecycleFailureTypesArePersistable() {
         val context = androidx.test.core.app.ApplicationProvider
             .getApplicationContext<android.content.Context>()
