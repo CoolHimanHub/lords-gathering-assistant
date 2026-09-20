@@ -387,3 +387,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Deliberate UNKNOWN recovery does not clear the in-flight journal or restart quarantine until the new epoch is successfully persisted.
 - Persistence is retried safely before leaving quarantine; a transient storage failure therefore cannot silently reopen automatic execution.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.44 — Durable action attempt identity
+
+- Action attempt IDs are now persisted independently of the in-flight action journal.
+- Attempt allocation is committed before guarded dispatch, preventing clean process/service restarts from silently reusing a prior attempt ID.
+- Recovered legacy/in-flight attempt IDs advance the durable allocator before a fresh attempt is created.
+- Added regression coverage for monotonic durable attempt allocation.
+- Automatic Gather/Hunt actions remain disabled by default.
