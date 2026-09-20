@@ -54,19 +54,20 @@ class ActionScheduler(
      * Current candidates are then offered using the normal stability/safety
      * admission rules.
      */
-    fun refresh(current: Collection<ActionScheduleCandidate>) {
+    fun refresh(current: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> {
         val safeTargets = current
             .asSequence()
             .filter { it.validationSafe && it.stabilityFrames >= minimumStabilityFrames }
             .map { it.target }
             .toSet()
 
-        candidates.keys
+        val dropped = candidates.keys
             .filter { it !in safeTargets }
             .toList()
-            .forEach(candidates::remove)
 
+        dropped.forEach(candidates::remove)
         current.forEach(::offer)
+        return dropped
     }
 
     fun remove(target: ActionTargetSnapshot) {
