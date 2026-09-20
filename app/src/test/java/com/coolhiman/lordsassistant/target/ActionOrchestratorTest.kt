@@ -165,7 +165,24 @@ class ActionOrchestratorTest {
 
         val result = orchestrator.verifyPostAction(observation, null)
 
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, result.lifecycle.state)
+    }
+
+    @Test
+    fun inconclusiveObservationTimesOutWithoutRetrying() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 50_000L)
+        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.dispatch(50_001L) { true }
+
+        val result = orchestrator.verifyPostAction(
+            afterObservation = observation,
+            popupAfter = popup,
+            nowMs = 50_001L + ActionOrchestrator.POST_ACTION_TIMEOUT_MS
+        )
+
         assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.VERIFICATION_TIMEOUT, result.lifecycle.failure)
     }
 
     private fun ActionOrchestrator.sessionState(): ActionLifecycleState =
