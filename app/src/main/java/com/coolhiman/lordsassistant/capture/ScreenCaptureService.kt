@@ -41,11 +41,17 @@ class ScreenCaptureService : Service() {
     private lateinit var actionJournal: ActionExecutionJournal
     private lateinit var recoveryEpochStore: ActionRecoveryEpochStore
     private var restartQuarantine = false
+    private var recoveryEpochPersistenceHealthy = true
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
+
+    private fun persistRecoveryEpoch(): Boolean {
+        recoveryEpochPersistenceHealthy = recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
+        return recoveryEpochPersistenceHealthy
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -56,7 +62,7 @@ class ScreenCaptureService : Service() {
         actionJournal = ActionExecutionJournal(this)
         actionJournal.readInFlight()?.let { entry ->
             actionOrchestrator.restoreUnknown(entry.attemptId)
-            recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
+            persistRecoveryEpoch()
             restartQuarantine = true
         }
     }
@@ -141,10 +147,17 @@ class ScreenCaptureService : Service() {
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
                         actionOrchestrator.reset()
-                        recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
-                        actionJournal.clear()
-                        restartQuarantine = false
-                        previousScan = null
+                        val recoveryPersisted = persistRecoveryEpoch()
+                        if (recoveryPersisted) {
+                            actionJournal.clear()
+                            restartQuarantine = false
+                            previousScan = null
+                        } else {
+                            // Keep the service quarantined if the fresh recovery boundary
+                            // cannot be durably persisted. Automatic execution must not
+                            // resume with ambiguous epoch provenance.
+                            restartQuarantine = true
+                        }
                         ActionDiagnosticsStore.latest?.let { latest ->
                             ActionDiagnosticsStore.latest = latest.copy(
                                 lifecycle = actionOrchestrator.lifecycleSnapshot,
@@ -154,7 +167,7 @@ class ScreenCaptureService : Service() {
                         }
                     }
                     val active = actionOrchestrator.lifecycleSnapshot.state
-                    if (prefs.automaticActions) {
+                    if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !restartQuarantine) {
                         when {
                             ActionRecoveryPolicy.mayStartAutomaticAttempt(active) -> {
                                 val previous = previousScan
@@ -191,8 +204,9 @@ class ScreenCaptureService : Service() {
                                             }
                                         } else if (attemptId != null) {
                                             actionOrchestrator.reset()
-                                            recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
+                                            persistRecoveryEpoch()
                                             actionJournal.clear()
+                                            restartQuarantine = !recoveryEpochPersistenceHealthy
                                         }
                                     }
                                 }
@@ -211,8 +225,9 @@ class ScreenCaptureService : Service() {
                         }
                     } else if (active != ActionLifecycleState.IDLE && !restartQuarantine) {
                         actionOrchestrator.reset()
-                        recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
+                        persistRecoveryEpoch()
                         actionJournal.clear()
+                        restartQuarantine = !recoveryEpochPersistenceHealthy
                     }
 
                     ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
@@ -222,6 +237,7 @@ class ScreenCaptureService : Service() {
                         actionAttemptId = actionOrchestrator.session?.attemptId
                             ?: actionJournal.readInFlight()?.attemptId,
                         recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                        recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
                         timestampMs = now
                     )
 
