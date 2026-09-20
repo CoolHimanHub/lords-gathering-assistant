@@ -34,7 +34,7 @@ class LiveActionCandidatePolicyTest {
             point = point
         ),
         observation = observation,
-        actionButton = ActionButton(ActionKind.GATHER, point, 0.95f),
+        actionButton = ActionButton(\n            kind = ActionKind.GATHER,\n            bounds = android.graphics.RectF(890f, 588f, 910f, 612f),\n            point = point,\n            confidence = 0.95f\n        ),
         validation = validation,
         stability = TargetStability(stable = true, consecutiveFrames = 3),
         plannerRank = 0,
