@@ -62,12 +62,22 @@ class ScreenCaptureService : Service() {
         liveScanner = LiveMapScanner(this)
         recoveryEpochStore = ActionRecoveryEpochStore(this)
         actionAttemptIdStore = ActionAttemptIdStore(this)
+        actionJournal = ActionExecutionJournal(this)
+
+        // Reconcile all durable provenance sources before creating the live
+        // orchestrator. A stale journal epoch must never be allowed to seed a
+        // lower recovery epoch after restart.
+        val persistedRecoveryEpoch = recoveryEpochStore.read()
+        val inFlightEntry = actionJournal.readInFlight()
+        val reconciledInitialEpoch = maxOf(
+            persistedRecoveryEpoch,
+            inFlightEntry?.recoveryEpoch ?: 0L
+        )
         actionOrchestrator = ActionOrchestrator(
-            initialRecoveryEpoch = recoveryEpochStore.read(),
+            initialRecoveryEpoch = reconciledInitialEpoch,
             attemptIdAllocator = { minimumPreviousId -> actionAttemptIdStore.allocateNext(minimumPreviousId) }
         )
-        actionJournal = ActionExecutionJournal(this)
-        actionJournal.readInFlight()?.let { entry ->
+        inFlightEntry?.let { entry ->
             actionOrchestrator.restoreUnknown(entry.attemptId)
             persistRecoveryEpoch()
             restartQuarantine = true
