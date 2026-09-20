@@ -259,3 +259,13 @@ The supplied recordings already provide the necessary examples for resource popu
 - The verifier deliberately does **not** infer that a detected march belongs to our action; march ownership/association requires stronger evidence.
 - Added regression tests for target association, removal, occupied state, unrelated observations, and popup-only disappearance.
 - Automatic gameplay remains opt-in and disabled by default.
+
+
+### V0.4.22 — Action-to-march association
+
+- Added a pure action-to-march association tracker for post-dispatch evidence.
+- The tracker snapshots march signals before an action and rejects signals that were already present near the action point.
+- A post-action candidate must appear near the selected interaction point, persist across frames, and show consistent motion before producing `OWN_MARCH_CONFIRMED`-compatible evidence.
+- Stationary, pre-existing, stale, or inconsistent-trajectory signals do not confirm ownership.
+- The component is UI/Accessibility agnostic and does not dispatch gestures or enable automation.
+- The next integration step is to feed this evidence into the existing action lifecycle after a real dispatch, while keeping automatic gameplay disabled by default.
