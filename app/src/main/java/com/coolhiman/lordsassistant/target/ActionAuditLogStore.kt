@@ -17,6 +17,8 @@ enum class ActionAuditEventType {
     CANDIDATE_QUEUED,
     CANDIDATE_SELECTED,
     ACTION_REQUESTED,
+    SCHEDULER_BLOCKED,
+    CANDIDATE_DROPPED,
     ACTION_REVALIDATED,
     DISPATCH_BARRIER_OPENED,
     DISPATCH_SUCCEEDED,
@@ -39,6 +41,15 @@ data class ActionAuditEvent(
 
 class ActionAuditLogStore(context: Context) {
     private val prefs = context.getSharedPreferences("lm_action_audit", Context.MODE_PRIVATE)
+
+    fun appendIfChanged(event: ActionAuditEvent): Boolean {
+        val previous = readAll().lastOrNull()
+        if (previous != null && previous.type == event.type && previous.attemptId == event.attemptId &&
+            previous.recoveryEpoch == event.recoveryEpoch && previous.target == event.target && previous.detail == event.detail) {
+            return true
+        }
+        return append(event)
+    }
 
     fun append(event: ActionAuditEvent): Boolean {
         val existing = prefs.getString(KEY_EVENTS, "[]") ?: "[]"
