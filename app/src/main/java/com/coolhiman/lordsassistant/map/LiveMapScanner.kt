@@ -12,6 +12,7 @@ import com.coolhiman.lordsassistant.target.TargetPlanner
 import com.coolhiman.lordsassistant.vision.BlueMarchDetector
 import com.coolhiman.lordsassistant.vision.DetectionFusion
 import com.coolhiman.lordsassistant.vision.ObservationMapper
+import com.coolhiman.lordsassistant.vision.OrangeMarchDetector
 import com.coolhiman.lordsassistant.vision.PopupState
 import com.coolhiman.lordsassistant.vision.TemplateLibrary
 import com.coolhiman.lordsassistant.vision.TemplateTileDetector
