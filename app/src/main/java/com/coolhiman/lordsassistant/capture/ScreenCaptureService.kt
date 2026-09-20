@@ -164,9 +164,9 @@ class ScreenCaptureService : Service() {
                     if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
-                        actionOrchestrator.reset()
+                        val recoveryResult = actionOrchestrator.reset()
                         val recoveryPersisted = persistRecoveryEpoch()
-                        if (recoveryPersisted) {
+                        if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
                             actionJournal.clear()
                             restartQuarantine = false
                             previousScan = null
@@ -201,7 +201,7 @@ class ScreenCaptureService : Service() {
                     val active = actionOrchestrator.lifecycleSnapshot.state
                     if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !restartQuarantine) {
                         when {
-                            ActionRecoveryPolicy.mayStartAutomaticAttempt(active) -> {
+                            ActionRecoveryPolicy.mayStartAutomaticAttempt(actionOrchestrator.lifecycleSnapshot) -> {
                                 val previous = previousScan
                                 if (previous?.selectedActionTarget != null &&
                                     previous.validation.safe &&
@@ -266,10 +266,13 @@ class ScreenCaptureService : Service() {
                             }
                         }
                     } else if (active != ActionLifecycleState.IDLE && !restartQuarantine) {
-                        actionOrchestrator.reset()
+                        val resetResult = actionOrchestrator.reset()
                         persistRecoveryEpoch()
-                        actionJournal.clear()
-                        restartQuarantine = !recoveryEpochPersistenceHealthy
+                        if (resetResult.lifecycle.state == ActionLifecycleState.IDLE && recoveryEpochPersistenceHealthy) {
+                            actionJournal.clear()
+                        }
+                        restartQuarantine = resetResult.lifecycle.state != ActionLifecycleState.IDLE ||
+                            !recoveryEpochPersistenceHealthy
                     }
 
                     ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
