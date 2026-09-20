@@ -19,6 +19,7 @@ data class ActionDiagnosticsSnapshot(
     val marchAssociation: MarchAssociationDiagnostics?,
     val targetStability: TargetStability,
     val lifecycle: ActionLifecycleSnapshot,
+    val actionAttemptId: Long?,
     val evidence: PostActionEvidenceRecord?
 ) {
     companion object {
@@ -26,12 +27,13 @@ data class ActionDiagnosticsSnapshot(
             scan: LiveMapScanResult,
             lifecycle: ActionLifecycleSnapshot,
             evidence: PostActionEvidenceRecord?,
+            actionAttemptId: Long? = null,
             timestampMs: Long = System.currentTimeMillis()
         ) = ActionDiagnosticsSnapshot(
             timestampMs, scan.detectedTiles, scan.processingMs, scan.cameraState,
             scan.cameraSharedTargets, scan.cameraScaleChangePercent, scan.validation.stage, scan.validation.reasons,
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
-            scan.selectedMarchAssociation, scan.targetStability, lifecycle, evidence
+            scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, evidence
         )
     }
 }
@@ -58,6 +60,7 @@ object ActionDiagnosticsFormatter {
             }
             appendLine("Target stability: ${snapshot.targetStability.consecutiveFrames} frames  •  stable=${snapshot.targetStability.stable}")
             appendLine("Lifecycle: ${snapshot.lifecycle.state.name}")
+            appendLine("Action attempt: ${snapshot.actionAttemptId?.toString() ?: "none"}")
             appendLine(
                 "Automatic recovery: " +
                     if (ActionRecoveryPolicy.mayStartAutomaticAttempt(snapshot.lifecycle.state)) "allowed" else "blocked"
@@ -66,6 +69,8 @@ object ActionDiagnosticsFormatter {
             if (evidence == null) {
                 appendLine("Post-action evidence: none")
             } else {
+                appendLine("Evidence attempt: ${evidence.attemptId}")
+                appendLine("Evidence matches current attempt: ${snapshot.actionAttemptId == evidence.attemptId}")
                 appendLine("Post-action evidence: ${evidence.evidence.joinToString(", ") { it.name }}")
                 appendLine("Sources: ${evidence.sources.joinToString(", ") { it.name }}")
                 appendLine("Confirming frames: ${evidence.confirmingFrames}")
