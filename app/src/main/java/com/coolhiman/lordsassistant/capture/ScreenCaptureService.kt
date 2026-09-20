@@ -214,6 +214,7 @@ class ScreenCaptureService : Service() {
                         evidence = actionOrchestrator.lastPostActionEvidence,
                         actionAttemptId = actionOrchestrator.session?.attemptId
                             ?: actionJournal.readInFlight()?.attemptId,
+                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                         timestampMs = now
                     )
 
