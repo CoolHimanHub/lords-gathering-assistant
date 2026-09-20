@@ -511,6 +511,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added instrumentation coverage for audit-event deduplication.
 - The audit trail remains diagnostic-only and cannot authorize or bypass an action.
 
+### V0.6.4 — Independently validated live action candidates
+- LiveMapScanner now exposes current-frame action candidates with observation, real detected action-button point, validation result, and per-target stability evidence
+- action-button association is fail-closed and requires a unique current-frame target within a bounded screen distance
+- live scheduler now consumes all independently validated candidates instead of manufacturing candidates from the single planner winner
+- queued targets are still reconciled against the latest safe frame and dropped targets remain auditable
+- automatic actions remain disabled by default and every candidate still passes the existing revalidation/provenance/dispatch safety chain
+
 ### V0.6.3 — Audit completeness and reconciliation diagnostics
 - scheduler reconciliation now returns targets dropped from the durable candidate queue
 - live capture records CANDIDATE_DROPPED when a target disappears from the latest safe candidate set
