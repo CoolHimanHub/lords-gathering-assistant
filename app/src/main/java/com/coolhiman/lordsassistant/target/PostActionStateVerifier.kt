@@ -19,6 +19,11 @@ object PostActionStateVerifier {
         popupAfter: PopupState?
     ): Set<PostActionEvidence> {
         val evidence = linkedSetOf<PostActionEvidence>()
+        val cameraUnstable = after?.evidence?.contains(
+            com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE
+        ) == true
+
+        if (cameraUnstable) return evidence
 
         val popupWasVisible = popupBefore?.isPopup == true
         val popupIsVisible = popupAfter?.isPopup == true
