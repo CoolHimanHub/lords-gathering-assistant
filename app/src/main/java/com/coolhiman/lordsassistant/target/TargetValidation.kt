@@ -11,7 +11,7 @@ enum class TargetValidationStage {
 }
 
 enum class TargetBlockReason {
-    NO_TARGET, TARGET_CHANGED, CAMERA_UNSTABLE, CALIBRATION_INVALID, STATE_UNKNOWN,
+    NO_TARGET, TARGET_CHANGED, TARGET_UNSTABLE, CAMERA_UNSTABLE, CALIBRATION_INVALID, STATE_UNKNOWN,
     OCCUPIED, INCOMING_TROOPS, KIND_UNKNOWN, LEVEL_UNKNOWN, POPUP_MISSING,
     POPUP_MISMATCH, POPUP_KIND_MISMATCH, POPUP_RESOURCE_MISMATCH,
     POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID, ACTION_MISMATCH
@@ -28,6 +28,7 @@ class TargetValidationEngine {
         observation: MapObservation?,
         cameraStable: Boolean,
         calibrationValid: Boolean,
+        targetStable: Boolean = true,
         popupState: PopupState?,
         expectedCoordinate: WorldCoordinate? = observation?.coordinate,
         expectedKind: TargetKind? = observation?.kind,
@@ -40,6 +41,7 @@ class TargetValidationEngine {
         if (observation == null) return TargetValidationResult(false, TargetValidationStage.DETECTED, setOf(TargetBlockReason.NO_TARGET))
         val reasons = linkedSetOf<TargetBlockReason>()
         if (!cameraStable) reasons += TargetBlockReason.CAMERA_UNSTABLE
+        if (!targetStable) reasons += TargetBlockReason.TARGET_UNSTABLE
         if (!calibrationValid) reasons += TargetBlockReason.CALIBRATION_INVALID
         if (observation.coordinate == null) reasons += TargetBlockReason.TARGET_CHANGED
         if (observation.kind == null) reasons += TargetBlockReason.KIND_UNKNOWN
@@ -85,7 +87,7 @@ class TargetValidationEngine {
         if (!actionValid) reasons += TargetBlockReason.ACTION_MISMATCH
 
         val stage = when {
-            reasons.contains(TargetBlockReason.CAMERA_UNSTABLE) || reasons.contains(TargetBlockReason.CALIBRATION_INVALID) -> TargetValidationStage.IDENTIFIED
+            reasons.contains(TargetBlockReason.CAMERA_UNSTABLE) || reasons.contains(TargetBlockReason.CALIBRATION_INVALID) || reasons.contains(TargetBlockReason.TARGET_UNSTABLE) -> TargetValidationStage.IDENTIFIED
             reasons.contains(TargetBlockReason.POPUP_MISSING) || reasons.any {
                 it == TargetBlockReason.POPUP_MISMATCH ||
                     it == TargetBlockReason.POPUP_KIND_MISMATCH ||
