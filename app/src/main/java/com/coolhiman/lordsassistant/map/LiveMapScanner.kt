@@ -116,7 +116,7 @@ class LiveMapScanner(context: Context) {
 
         val resourceCandidate = plan.ranked.firstOrNull()
         val monsterCandidate = plan.rankedMonsters.firstOrNull()
-        val candidateObservation = resourceCandidate?.let { ranked ->
+        val plannedCandidate = resourceCandidate?.let { ranked ->
             snapshot.firstOrNull {
                 it.coordinate == ranked.tile.coordinate &&
                     it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE
@@ -125,6 +125,16 @@ class LiveMapScanner(context: Context) {
             snapshot.firstOrNull {
                 it.coordinate == ranked.target.coordinate &&
                     it.kind == com.coolhiman.lordsassistant.model.TargetKind.MONSTER
+            }
+        }
+
+        // Safety-critical selection must come from the current frame, not map memory.
+        // A stale memory entry may remain rankable after the node disappears from view.
+        val candidateObservation = plannedCandidate?.let { planned ->
+            stateAware.firstOrNull {
+                it.coordinate == planned.coordinate &&
+                    it.kind == planned.kind &&
+                    it.level == planned.level
             }
         }
         val targetStability = targetStabilityTracker.update(candidateObservation, camera.state)
