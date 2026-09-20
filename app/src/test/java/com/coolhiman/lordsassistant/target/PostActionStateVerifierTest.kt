@@ -86,6 +86,23 @@ class PostActionStateVerifierTest {
         assertFalse(PostActionEvidence.TARGET_OCCUPIED in evidence)
     }
 
+
+    @Test
+    fun cameraUnstableDoesNotCreatePostActionStateEvidence() {
+        val unstable = observation().copy(
+            evidence = setOf(
+                ObservationEvidence.TEMPORALLY_CONFIRMED,
+                ObservationEvidence.CAMERA_UNSTABLE
+            )
+        )
+        val evidence = PostActionStateVerifier.collectEvidence(
+            target, observation(), unstable, popup(true), popup(false)
+        )
+        assertFalse(PostActionEvidence.POPUP_DISAPPEARED in evidence)
+        assertFalse(PostActionEvidence.TARGET_OCCUPIED in evidence)
+        assertFalse(PostActionEvidence.TARGET_REMOVED in evidence)
+    }
+
     @Test
     fun popupDisappearanceAloneDoesNotClaimSuccess() {
         val evidence = PostActionStateVerifier.collectEvidence(
