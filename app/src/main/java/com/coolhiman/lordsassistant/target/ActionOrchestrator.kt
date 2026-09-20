@@ -9,7 +9,7 @@ class ActionOrchestrator(
     initialRecoveryEpoch: Long = 0L,
     private val lifecycle: ActionLifecycleController = ActionLifecycleController(),
     private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker(),
-    private val attemptIdAllocator: ((Long) -> Long)? = null
+    private val attemptIdAllocator: ((Long) -> Long?)? = null
 ) {
     data class Session(
         val attemptId: Long,
@@ -56,6 +56,10 @@ class ActionOrchestrator(
 
         lastPostActionEvidence = null
         val attemptId = attemptIdAllocator?.invoke(nextAttemptId) ?: (nextAttemptId + 1L)
+        if (attemptId == null) {
+            session = null
+            return Result(lifecycle.attemptIdPersistenceFailed(selected), null)
+        }
         nextAttemptId = maxOf(nextAttemptId, attemptId)
         session = selected?.let {
             Session(
