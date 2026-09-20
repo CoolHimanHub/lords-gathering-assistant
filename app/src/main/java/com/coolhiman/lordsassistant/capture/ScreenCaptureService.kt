@@ -332,7 +332,7 @@ class ScreenCaptureService : Service() {
                                     val requestResult = actionOrchestrator.request(
                                         automaticActionsEnabled = true,
                                         selected = scheduled.target,
-                                        validation = previous.validation,
+                                        validation = previousCandidate.validation,
                                         beforeObservation = previousCandidate.observation,
                                         popupBefore = previous.popupState,
                                         baselineMarchSignals = previous.marchSignals,
