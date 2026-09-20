@@ -24,6 +24,7 @@ import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.target.ActionExecutionJournal
 import com.coolhiman.lordsassistant.target.ActionRecoveryEpochStore
 import com.coolhiman.lordsassistant.target.ActionAttemptIdStore
+import com.coolhiman.lordsassistant.target.ActionDispatchProvenance
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -205,8 +206,18 @@ class ScreenCaptureService : Service() {
                                         latestAction = scan.actionButton
                                     )
                                     if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
-                                        val attemptId = actionOrchestrator.session?.attemptId
-                                        if (attemptId != null && actionJournal.markInFlight(attemptId, now)) {
+                                        val session = actionOrchestrator.session
+                                        val provenance = session?.let {
+                                            ActionDispatchProvenance(
+                                                attemptId = it.attemptId,
+                                                recoveryEpoch = it.recoveryEpoch,
+                                                startedAtMs = now
+                                            )
+                                        }
+                                        if (provenance != null &&
+                                            provenance.matches(actionOrchestrator.session) &&
+                                            actionJournal.markInFlight(provenance)
+                                        ) {
                                             actionOrchestrator.dispatch(now) {
                                             LmAccessibilityService.instance?.tapRevalidated(
                                                 selected = previous.selectedActionTarget,
@@ -217,7 +228,7 @@ class ScreenCaptureService : Service() {
                                             }.also { result ->
                                                 if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
                                             }
-                                        } else if (attemptId != null) {
+                                        } else if (provenance != null) {
                                             actionOrchestrator.reset()
                                             persistRecoveryEpoch()
                                             actionJournal.clear()
