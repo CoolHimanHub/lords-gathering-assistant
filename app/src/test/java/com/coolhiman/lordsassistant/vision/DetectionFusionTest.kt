@@ -4,6 +4,7 @@ import android.graphics.RectF
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.TargetKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -21,8 +22,8 @@ class DetectionFusionTest {
         ) { _, _ -> WorldCoordinate(1, 200, 300) }
 
         assertEquals(1, result.size)
-        assertTrue(result.single().occupied)
-        assertTrue(result.single().incomingTroops)
+        assertTrue(result.single().occupied == true)
+        assertTrue(result.single().incomingTroops == true)
         assertEquals(200, result.single().coordinate?.x)
     }
 
@@ -48,13 +49,14 @@ class DetectionFusionTest {
             { _, _ -> WorldCoordinate(1, 200, 300) },
             popup
         )
-        assertEquals(false, result.single().occupied)
+        assertNull(result.single().occupied)
+        assertNull(result.single().incomingTroops)
         assertEquals(false, result.single().incomingTroops)
         assertEquals(720000L, result.single().classification.quantity)
     }
 
     @Test
-    fun distantMarchDoesNotMarkTile() {
+    fun distantMarchLeavesOccupancyUnknownWhenNoOtherEvidenceExists() {
         val tile = DetectedTile(
             "WOOD", TileClass.RESOURCE, 3, RectF(100f,100f,140f,140f), 0.9
         )
