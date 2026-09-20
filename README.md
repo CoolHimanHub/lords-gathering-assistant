@@ -568,3 +568,10 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Claiming one candidate removes only that candidate from the scheduler.
 - Revalidation or dispatch failure for the claimed target does not discard independently validated queued targets.
 - Regression coverage verifies the remaining target can still be selected after the first target fails.
+
+### V0.6.5 follow-up — Stable target identity
+
+- Scheduler identity is now based on world coordinate, target kind, level, and action kind.
+- The transient screen interaction point is no longer part of scheduler identity, so camera/UI movement does not create a duplicate logical target.
+- The latest action point remains authoritative for dispatch and is still checked by the fail-closed pre-action revalidator.
+- Completed-target suppression follows the same stable identity across interaction-point movement.
