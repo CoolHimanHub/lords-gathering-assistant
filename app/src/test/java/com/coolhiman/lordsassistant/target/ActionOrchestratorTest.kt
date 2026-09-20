@@ -122,8 +122,10 @@ class ActionOrchestratorTest {
         orchestrator.dispatch(20_001L) { true }
 
         val after = observation.copy(coordinate = WorldCoordinate(355, 168, 511))
-        val result = orchestrator.verifyPostAction(after, null)
+        val first = orchestrator.verifyPostAction(after, null, 20_100L)
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, first.lifecycle.state)
 
+        val result = orchestrator.verifyPostAction(after, null, 20_200L)
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
     }
 
