@@ -468,6 +468,9 @@ class ScreenCaptureService : Service() {
                                         detail = verification.lifecycle.state.name
                                     ))
                                     actionJournal.clear()
+                                    actionOrchestrator.session?.selected?.let { completedTarget ->
+                                        actionSchedulerAdapter.markTargetCompleted(completedTarget, now)
+                                    }
                                 }
                             }
                         }
