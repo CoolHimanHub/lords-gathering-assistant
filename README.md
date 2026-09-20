@@ -458,3 +458,15 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added a second recovery-policy gate directly inside `ActionOrchestrator.request()`. The service-level policy remains in place, but the core now independently refuses new automatic attempts while an action is `UNKNOWN`, `REQUESTED`, `REVALIDATED`, or `WAITING_FOR_RESULT`.
 - The V0.5 invariant is explicit: **uncertain or stale evidence must never create a new automatic gesture.**
 - Automatic Gather/Hunt actions remain disabled by default.
+
+### V0.5.1 — Multi-target action scheduler
+
+- Added a pure `ActionScheduler` for multiple detected targets.
+- Candidates are accepted only when they meet the minimum stability requirement and are already marked validation-safe.
+- Selection order is deterministic: priority, then stability, then queue age.
+- An in-flight action blocks selection of another candidate.
+- A 1.5-second dispatch cooldown prevents immediate consecutive actions.
+- Claiming a candidate only removes it from the queue; it does **not** dispatch a gesture.
+- The selected candidate must still pass the existing pre-action revalidation, durable provenance, journal, interaction gate, and post-action verification pipeline.
+- Added regression coverage for priority, stability, safety, cooldown, in-flight blocking, duplicate targets, and candidate claiming.
+- Automatic Gather/Hunt remains disabled by default.
