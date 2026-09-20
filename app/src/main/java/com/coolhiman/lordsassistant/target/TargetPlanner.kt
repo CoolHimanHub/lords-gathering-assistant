@@ -23,8 +23,8 @@ class TargetPlanner(
             o.coordinate != null &&
                 o.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE &&
                 (o.level ?: 0) in preferences.resourceLevels &&
-                o.occupied != true &&
-                o.incomingTroops != true &&
+                o.occupied == false &&
+                o.incomingTroops == false &&
                 o.confidence >= minimumConfidence
         }
         val tiles = eligible.mapNotNull { o ->
