@@ -8,9 +8,28 @@ class CoordinateResolver(
     private val kingdom: Int,
     private val maxResidualPx: Double = 35.0
 ) {
-    fun resolve(screenX: Float, screenY: Float): WorldCoordinate? {
+    fun resolve(screenX: Float, screenY: Float): WorldCoordinate? =
+        resolve(ScreenPoint(screenX, screenY), null)
+
+    fun resolve(
+        screen: ScreenPoint,
+        cameraModel: CameraModel?
+    ): WorldCoordinate? {
         val calibration = calibrationStore.fit(kingdom) ?: return null
         if (!calibration.isUsable(maxResidualPx)) return null
-        return calibration.inverse(ScreenPoint(screenX, screenY), kingdom, maxResidualPx)
+
+        return if (cameraModel != null) {
+            CameraInvariantWorldModel(
+                baseCalibration = calibration,
+                maxAnchorResidualPx = maxResidualPx
+            ).resolve(
+                screen = screen,
+                kingdom = kingdom,
+                model = cameraModel,
+                maxResidualPx = maxResidualPx
+            )
+        } else {
+            calibration.inverse(screen, kingdom, maxResidualPx)
+        }
     }
 }
