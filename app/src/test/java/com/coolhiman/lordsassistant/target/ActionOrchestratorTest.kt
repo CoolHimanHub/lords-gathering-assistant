@@ -142,6 +142,14 @@ class ActionOrchestratorTest {
 
 
     @Test
+    fun persistedRecoveryEpochCanSeedTheNextOrchestrator() {
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 41L)
+        assertEquals(41L, orchestrator.currentRecoveryEpoch)
+        val result = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 69_000L)
+        assertEquals(41L, result.session?.recoveryEpoch)
+    }
+
+    @Test
     fun restartRecoveryStartsNewEpochBeforeFreshAttempt() {
         val orchestrator = ActionOrchestrator()
         orchestrator.restoreUnknown(7L)
