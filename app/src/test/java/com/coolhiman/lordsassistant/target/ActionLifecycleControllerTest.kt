@@ -176,4 +176,31 @@ class ActionLifecycleControllerTest {
         assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.WAITING_FOR_RESULT))
         assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.UNKNOWN))
     }
+
+    @Test
+    fun restartAndUnknownStatesRemainNonRetryableAcrossSafetyBoundary() {
+        val controller = ActionLifecycleController()
+
+        val unknown = controller.restoreUnknown()
+        assertEquals(ActionLifecycleState.UNKNOWN, unknown.state)
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(unknown))
+
+        val exhausted = controller.recoveryEpochExhausted()
+        assertEquals(ActionLifecycleState.FAILED, exhausted.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, exhausted.failure)
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(exhausted))
+    }
+
+    @Test
+    fun terminalFailureIsRetryEligibleOnlyAfterExplicitLifecycleCompletion() {
+        val controller = ActionLifecycleController()
+        val result = controller.request(true, target, safe, 1000L)
+        assertEquals(ActionLifecycleState.REQUESTED, result.state)
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(result))
+
+        val failed = controller.failed(ActionLifecycleFailure.DISPATCH_FAILED)
+        assertEquals(ActionLifecycleState.FAILED, failed.state)
+        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(failed))
+    }
+
 }
