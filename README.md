@@ -332,3 +332,11 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Only newly observed trajectory evidence can contribute to the second attempt's post-action confirmation.
 - This protects against stale march evidence leaking across retries or deliberate recovery boundaries.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+
+### V0.4.38 — Operator-visible action provenance
+
+- Live safety diagnostics now expose the current action attempt ID.
+- Post-action evidence displays its originating attempt ID and whether it matches the current action attempt.
+- This makes cross-attempt evidence isolation observable during manual diagnostics instead of relying only on internal guards.
+- Automatic Gather/Hunt actions remain disabled by default.
