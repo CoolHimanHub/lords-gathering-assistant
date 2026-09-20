@@ -602,6 +602,15 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.2 — Camera anchor geometry hardening
+
+- Camera fitting now requires at least three non-collinear world anchors, preventing a two-point fit from masking rotation or other 2D geometry changes.
+- Repeated semantic labels are matched one-to-one across adjacent frames by bounded nearest-neighbor screen distance instead of being discarded wholesale.
+- Anchor association is based on the previous frame's world coordinate and the current frame's screen position, avoiding self-referential current-frame camera fitting.
+- Large semantic movement beyond the association threshold is rejected rather than converted into camera motion.
+- Added regression coverage for repeated-label matching, far-movement rejection, two-anchor rejection, and collinear-anchor rejection.
+- App version is now 0.7.2.
+
 ## V0.7.1 — Live camera-invariant coordinate integration
 
 - LiveMapScanner now performs a provisional affine vision pass, extracts only unique semantic cross-frame anchors, and estimates camera scale/translation from those anchors.
