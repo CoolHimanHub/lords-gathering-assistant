@@ -60,7 +60,13 @@ class CameraInvariantWorldModelTest {
     fun inconsistentAnchorGeometryFailsClosed() {
         val anchors = listOf(
             CameraWorldAnchor(world(0, 0), currentScreen(0, 0)),
-            CameraWorldAnchor(world(10, 0), currentScreen(10, 0)),
+            CameraWorldAnchor(
+                world(10, 0),
+                ScreenPoint(
+                    currentScreen(10, 0).x + 100f,
+                    currentScreen(10, 0).y
+                )
+            ),
             CameraWorldAnchor(world(0, 10), currentScreen(0, 10))
         )
 
