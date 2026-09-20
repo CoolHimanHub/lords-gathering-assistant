@@ -15,8 +15,8 @@ import kotlin.math.hypot
  * 3) persist across the required number of post-action frames, and
  * 4) move with a consistent trajectory.
  *
- * This component only produces association evidence. It does not dispatch
- * gestures and does not enable automatic actions.
+ * The session retains the observed trajectory so post-action evidence can be
+ * tied back to the exact action session rather than a standalone boolean.
  */
 class ActionMarchAssociationTracker(
     private val startRadiusPx: Float = 120f,
@@ -37,7 +37,8 @@ class ActionMarchAssociationTracker(
         val lastDisplacementY: Float? = null,
         val confirmedFrames: Int = 0,
         val lastSeenMs: Long = 0L,
-        val confirmed: Boolean = false
+        val confirmed: Boolean = false,
+        val trajectory: List<MarchSignal> = emptyList()
     )
 
     data class Update(
@@ -57,7 +58,8 @@ class ActionMarchAssociationTracker(
                     lastDisplacementX = null,
                     lastDisplacementY = null,
                     confirmedFrames = 0,
-                    lastSeenMs = 0L
+                    lastSeenMs = 0L,
+                    trajectory = emptyList()
                 ),
                 false
             )
@@ -83,7 +85,8 @@ class ActionMarchAssociationTracker(
             val next = session.copy(
                 lastSignal = candidate,
                 confirmedFrames = 1,
-                lastSeenMs = nowMs
+                lastSeenMs = nowMs,
+                trajectory = listOf(candidate)
             )
             return Update(next, false)
         }
@@ -151,7 +154,8 @@ class ActionMarchAssociationTracker(
             lastDisplacementY = dy,
             confirmedFrames = nextFrames,
             lastSeenMs = nowMs,
-            confirmed = confirmed
+            confirmed = confirmed,
+            trajectory = (session.trajectory + candidate).takeLast(16)
         )
         return Update(next, confirmed)
     }
