@@ -318,6 +318,23 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun movedInteractionPointRemainsSameSessionUntilPreActionRevalidation() {
+        val moved = selected.copy(point = ScreenPoint(930f, 620f))
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 42_000L)
+
+        val result = orchestrator.revalidate(
+            latestObservation = observation.copy(screenPoint = moved.point),
+            latestValidation = safeValidation,
+            latestAction = ActionButton(ActionKind.GATHER, moved.point, 0.95f)
+        )
+
+        assertEquals(ActionLifecycleState.REVALIDATED, result.lifecycle.state)
+        assertEquals(selected.identity(), result.session?.selected?.identity())
+        assertEquals(selected.point, result.session?.selected?.point)
+    }
+
+    @Test
     fun completedTargetRemainsBlockedWhenInteractionPointMoves() {
         val moved = selected.copy(point = ScreenPoint(980f, 640f))
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 41_000L)
