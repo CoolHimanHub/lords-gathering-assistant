@@ -171,7 +171,11 @@ class ActionOrchestrator(
 
     fun restoreUnknown(attemptId: Long): Result {
         nextAttemptId = maxOf(nextAttemptId, attemptId)
-        recoveryEpoch++
+        if (!advanceRecoveryEpoch()) {
+            session = null
+            lastPostActionEvidence = null
+            return Result(lifecycle.recoveryEpochExhausted(), null)
+        }
         session = null
         completedTarget = null
         postActionStartedAtMs = null
@@ -184,7 +188,11 @@ class ActionOrchestrator(
     fun timeout(): Result = Result(lifecycle.timeout(), session)
 
     fun reset(): Result {
-        recoveryEpoch++
+        if (!advanceRecoveryEpoch()) {
+            session = null
+            lastPostActionEvidence = null
+            return Result(lifecycle.recoveryEpochExhausted(), null)
+        }
         lifecycle.reset()
         session = null
         completedTarget = null
@@ -193,5 +201,15 @@ class ActionOrchestrator(
         postEvidenceFrames = 0
         lastPostActionEvidence = null
         return Result(lifecycle.snapshot, null)
+    }
+
+    /**
+     * Advances the recovery boundary without allowing Long overflow to wrap
+     * the epoch and accidentally reuse an old provenance identity.
+     */
+    private fun advanceRecoveryEpoch(): Boolean {
+        if (recoveryEpoch == Long.MAX_VALUE) return false
+        recoveryEpoch += 1L
+        return true
     }
 }
