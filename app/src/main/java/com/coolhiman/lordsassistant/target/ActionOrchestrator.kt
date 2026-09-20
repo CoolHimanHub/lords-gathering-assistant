@@ -34,9 +34,12 @@ class ActionOrchestrator(
 
     private var completedTarget: ActionTargetSnapshot? = null
     private var postActionStartedAtMs: Long? = null
+    private var postEvidenceSignature: Set<PostActionEvidence>? = null
+    private var postEvidenceFrames: Int = 0
 
     companion object {
         const val POST_ACTION_TIMEOUT_MS = 4_000L
+        const val POST_ACTION_CONFIRMATION_FRAMES = 2
     }
 
     fun request(
@@ -144,6 +147,8 @@ class ActionOrchestrator(
 
         val predicted = ActionPostVerifier.verify(evidence)
         if (predicted == ActionLifecycleState.UNKNOWN) {
+            postEvidenceSignature = null
+            postEvidenceFrames = 0
             val startedAt = postActionStartedAtMs
             if (startedAt != null && nowMs - startedAt >= POST_ACTION_TIMEOUT_MS) {
                 postActionStartedAtMs = null
@@ -152,12 +157,27 @@ class ActionOrchestrator(
             return Result(lifecycle.snapshot, session)
         }
 
+        if (postEvidenceSignature == evidence) {
+            postEvidenceFrames += 1
+        } else {
+            postEvidenceSignature = evidence.toSet()
+            postEvidenceFrames = 1
+        }
+
+        if (postEvidenceFrames < POST_ACTION_CONFIRMATION_FRAMES) {
+            return Result(lifecycle.snapshot, session)
+        }
+
         val verified = lifecycle.verify(evidence)
         if (verified.state == ActionLifecycleState.SUCCEEDED) {
             completedTarget = selected
             postActionStartedAtMs = null
+            postEvidenceSignature = null
+            postEvidenceFrames = 0
         } else if (verified.state == ActionLifecycleState.FAILED) {
             postActionStartedAtMs = null
+            postEvidenceSignature = null
+            postEvidenceFrames = 0
         }
         return Result(
             lifecycle = verified,
@@ -173,6 +193,8 @@ class ActionOrchestrator(
         session = null
         completedTarget = null
         postActionStartedAtMs = null
+        postEvidenceSignature = null
+        postEvidenceFrames = 0
         return Result(lifecycle.snapshot, null)
     }
 }
