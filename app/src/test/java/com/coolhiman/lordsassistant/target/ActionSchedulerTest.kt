@@ -173,6 +173,48 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun completedTargetIsNotRequeuedImmediately() {
+        val scheduler = ActionScheduler()
+        val completed = ActionScheduleCandidate(
+            target = target(1), priority = 0, stabilityFrames = 3,
+            validationSafe = true, queuedAtMs = 1_000L,
+            plannerRank = 0, plannerScore = 50.0
+        )
+
+        scheduler.refresh(listOf(completed))
+        assertEquals(1, scheduler.queuedCount())
+
+        val claimed = scheduler.claim(2_000L)
+        assertEquals(completed.target, claimed.candidate?.target)
+        scheduler.markTargetCompleted(completed.target, 2_000L)
+
+        scheduler.refresh(listOf(completed.copy(queuedAtMs = 2_100L)))
+
+        assertEquals(0, scheduler.queuedCount())
+        assertEquals(ActionScheduleBlockReason.EMPTY_QUEUE, scheduler.peek(2_100L).reason)
+    }
+
+    @Test
+    fun completedTargetCanReenterAfterSuppressionWindow() {
+        val scheduler = ActionScheduler()
+        val completed = ActionScheduleCandidate(
+            target = target(1), priority = 0, stabilityFrames = 3,
+            validationSafe = true, queuedAtMs = 1_000L,
+            plannerRank = 0, plannerScore = 50.0
+        )
+
+        scheduler.markTargetCompleted(completed.target, 2_000L)
+        scheduler.refresh(listOf(completed.copy(queuedAtMs = 2_000L)))
+        assertEquals(0, scheduler.queuedCount())
+
+        val later = 2_000L + ActionScheduler.COMPLETED_TARGET_SUPPRESSION_MS
+        scheduler.refresh(listOf(completed.copy(queuedAtMs = later)))
+
+        assertEquals(1, scheduler.queuedCount())
+        assertEquals(completed.target, scheduler.peek(later).candidate?.target)
+    }
+
+    @Test
     fun safetyStateBlocksSelectionEvenWithSafeCandidate() {
         val scheduler = ActionScheduler()
         scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true))
