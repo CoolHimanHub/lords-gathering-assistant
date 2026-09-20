@@ -93,6 +93,15 @@ class ScreenCaptureService : Service() {
             actionOrchestrator.restoreUnknown(entry.attemptId)
             persistRecoveryEpoch()
             restartQuarantine = true
+            actionAuditLog.append(
+                ActionAuditEvent(
+                    timestampMs = System.currentTimeMillis(),
+                    type = ActionAuditEventType.RESTART_QUARANTINE,
+                    attemptId = entry.attemptId,
+                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                    detail = "Recovered in-flight action; automatic retry quarantined"
+                )
+            )
         }
     }
 
@@ -195,6 +204,18 @@ class ScreenCaptureService : Service() {
                     ) {
                         val recoveryResult = actionOrchestrator.reset()
                         val recoveryPersisted = persistRecoveryEpoch()
+                        actionAuditLog.append(
+                            ActionAuditEvent(
+                                timestampMs = now,
+                                type = ActionAuditEventType.RECOVERY_RESET,
+                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                detail = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
+                                    "Deliberate UNKNOWN recovery completed"
+                                } else {
+                                    "Deliberate UNKNOWN recovery did not establish a fresh durable boundary"
+                                }
+                            )
+                        )
                         if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
                             actionJournal.clear()
                             restartQuarantine = false
