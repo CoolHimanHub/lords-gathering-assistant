@@ -91,7 +91,7 @@ class ActionOrchestrator(
     fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected != current.selected) {
+        if (current == null || selected == null || selected.identity() != current.selected.identity()) {
             return Result(lifecycle.revalidated(TargetValidationResult(false, TargetValidationStage.DETECTED, setOf(TargetBlockReason.TARGET_CHANGED))), current)
         }
         return Result(lifecycle.revalidated(PreActionRevalidator.revalidate(selected, latestObservation, latestValidation, latestAction)), current)
@@ -100,7 +100,7 @@ class ActionOrchestrator(
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected != current.selected) return Result(lifecycle.dispatched(nowMs, false), current)
+        if (current == null || selected == null || selected.identity() != current.selected.identity()) return Result(lifecycle.dispatched(nowMs, false), current)
         val next = lifecycle.dispatched(nowMs, dispatch())
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
         return Result(next, current)
@@ -109,7 +109,7 @@ class ActionOrchestrator(
     fun observeMarch(signals: List<MarchSignal>, nowMs: Long): Result {
         val current = session ?: return Result(lifecycle.snapshot, null)
         val selected = lifecycle.snapshot.selected
-        if (selected == null || selected != current.selected || lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) return Result(lifecycle.snapshot, current)
+        if (selected == null || selected.identity() != current.selected.identity() || lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) return Result(lifecycle.snapshot, current)
         if (current.ownMarchConfirmed) return Result(lifecycle.snapshot, current)
         val update = marchTracker.update(current.marchSession, signals, nowMs)
         session = current.copy(marchSession = update.session, ownMarchConfirmed = update.ownMarchConfirmed)
@@ -209,7 +209,7 @@ class ActionOrchestrator(
         }
         lifecycle.reset()
         session = null
-        completedTarget = null
+        completedTargetIdentity = null
         postActionStartedAtMs = null
         postEvidenceSignature = null
         postEvidenceFrames = 0
