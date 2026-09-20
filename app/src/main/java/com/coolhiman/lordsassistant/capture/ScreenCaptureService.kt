@@ -18,6 +18,7 @@ import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsSnapshot
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
 import com.coolhiman.lordsassistant.target.ActionLifecycleState
+import com.coolhiman.lordsassistant.target.ActionLifecycleFailure
 import com.coolhiman.lordsassistant.target.ActionOrchestrator
 import com.coolhiman.lordsassistant.target.ActionRecoveryPolicy
 import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
