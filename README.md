@@ -543,3 +543,9 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Candidates that are independently validated but absent from the planner remain fail-closed and are ordered after planner-ranked candidates.
 - Regression tests cover planner-rank ordering and score tie-breaking.
 - Automatic actions remain disabled by default; planner ranking does not bypass current-frame validation, revalidation, provenance, journaling, or guarded dispatch.
+
+### V0.6.5 follow-up — Completed-target requeue suppression
+
+- Verified successful targets are suppressed from immediate scheduler re-entry for a bounded 5-second window.
+- Suppression is scheduler-local and expires automatically, allowing a genuinely fresh later observation to become eligible again.
+- Regression tests cover immediate suppression and re-entry after the window.
