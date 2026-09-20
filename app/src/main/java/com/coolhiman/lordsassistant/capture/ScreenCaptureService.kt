@@ -323,6 +323,18 @@ class ScreenCaptureService : Service() {
                                         latestValidation = scan.validation,
                                         latestAction = scan.actionButton
                                     )
+                                    if (actionOrchestrator.lifecycleSnapshot.state != ActionLifecycleState.REVALIDATED) {
+                                        actionAuditLog.appendIfChanged(
+                                            ActionAuditEvent(
+                                                timestampMs = now,
+                                                type = ActionAuditEventType.REVALIDATION_FAILED,
+                                                attemptId = actionOrchestrator.session?.attemptId,
+                                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                                target = scheduled.target,
+                                                detail = actionOrchestrator.lifecycleSnapshot.failure?.name
+                                            )
+                                        )
+                                    }
                                     if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
                                         actionAuditLog.append(
                                             ActionAuditEvent(
@@ -386,6 +398,22 @@ class ScreenCaptureService : Service() {
                                     popupAfter = scan.popupState,
                                     nowMs = now
                                 )
+                                if (verification.lifecycle.state == ActionLifecycleState.UNKNOWN) {
+                                    val failure = verification.lifecycle.failure
+                                    actionAuditLog.appendIfChanged(
+                                        ActionAuditEvent(
+                                            timestampMs = now,
+                                            type = if (failure == ActionLifecycleFailure.VERIFICATION_TIMEOUT) {
+                                                ActionAuditEventType.VERIFICATION_TIMEOUT
+                                            } else {
+                                                ActionAuditEventType.UNKNOWN_ENTERED
+                                            },
+                                            attemptId = actionOrchestrator.session?.attemptId,
+                                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                            detail = failure?.name ?: "POST_ACTION_EVIDENCE_INCONCLUSIVE"
+                                        )
+                                    )
+                                }
                                 if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED ||
                                     verification.lifecycle.state == ActionLifecycleState.FAILED
                                 ) {
