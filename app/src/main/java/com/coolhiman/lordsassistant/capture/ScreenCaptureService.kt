@@ -20,6 +20,7 @@ import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
 import com.coolhiman.lordsassistant.target.ActionLifecycleState
 import com.coolhiman.lordsassistant.target.ActionOrchestrator
 import com.coolhiman.lordsassistant.target.ActionRecoveryPolicy
+import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -124,6 +125,18 @@ class ScreenCaptureService : Service() {
                         append("\n").append(scan.processingMs).append("ms")
                     }
                     val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
+                    if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
+                        actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
+                    ) {
+                        actionOrchestrator.reset()
+                        ActionDiagnosticsStore.latest?.let { latest ->
+                            ActionDiagnosticsStore.latest = latest.copy(
+                                lifecycle = actionOrchestrator.lifecycleSnapshot,
+                                evidence = null,
+                                timestampMs = now
+                            )
+                        }
+                    }
                     val active = actionOrchestrator.lifecycleSnapshot.state
                     if (prefs.automaticActions) {
                         when {
