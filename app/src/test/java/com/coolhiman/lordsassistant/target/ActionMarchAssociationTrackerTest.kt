@@ -115,4 +115,35 @@ class ActionMarchAssociationTrackerTest {
         assertEquals(534f, third.session.lastSignal!!.x, 0.01f)
         assertEquals(517f, third.session.lastSignal!!.y, 0.01f)
     }
+    @Test
+    fun continuationStaysOnPredictedTrajectoryWhenAnotherMarchIsNearby() {
+        val tracker = ActionMarchAssociationTracker(
+            confirmationFrames = 3,
+            minDisplacementPx = 5f
+        )
+        val session = tracker.begin(ScreenPoint(500f, 500f), emptyList())
+        val first = tracker.update(
+            session,
+            listOf(MarchSignal(510f, 505f, 80.0, 0.90f)),
+            1_000L
+        )
+        val second = tracker.update(
+            first.session,
+            listOf(MarchSignal(522f, 511f, 82.0, 0.92f)),
+            1_200L
+        )
+        val third = tracker.update(
+            second.session,
+            listOf(
+                MarchSignal(534f, 517f, 84.0, 0.90f),
+                MarchSignal(520f, 535f, 140.0, 0.99f)
+            ),
+            1_400L
+        )
+
+        assertTrue(third.ownMarchConfirmed)
+        assertEquals(534f, third.session.lastSignal!!.x, 0.01f)
+        assertEquals(517f, third.session.lastSignal!!.y, 0.01f)
+    }
+
 }
