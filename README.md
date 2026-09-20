@@ -496,3 +496,9 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Target provenance is serialized and restored so audit history remains useful across service/process restarts.
 - Added instrumentation tests for provenance round-trip and bounded retention.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+### V0.6.0 follow-up — Read-only audit diagnostics
+
+- Evidence & Safety Diagnostics now shows the latest persistent action-audit events.
+- The timeline is read-only and has no control over scheduling, recovery, validation, or gesture dispatch.
+- Operators can correlate attempt ID, recovery epoch, target identity, dispatch, verification, and quarantine events from the same diagnostics screen.
