@@ -17,6 +17,18 @@ class ActionSchedulerTest {
         point = ScreenPoint(900f + x, 600f)
     )
 
+    private fun candidate(
+        priority: Int,
+        stabilityFrames: Int,
+        safe: Boolean
+    ) = ActionScheduleCandidate(
+        target = target(99),
+        priority = priority,
+        stabilityFrames = stabilityFrames,
+        validationSafe = safe,
+        queuedAtMs = 1_000L
+    )
+
     @Test
     fun higherPrioritySafeStableCandidateIsSelected() {
         val scheduler = ActionScheduler()
