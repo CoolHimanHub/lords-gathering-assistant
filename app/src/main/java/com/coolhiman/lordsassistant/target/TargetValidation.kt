@@ -2,6 +2,7 @@ package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ObservationEvidence
+import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.PopupState
 
@@ -12,7 +13,8 @@ enum class TargetValidationStage {
 enum class TargetBlockReason {
     NO_TARGET, TARGET_CHANGED, CAMERA_UNSTABLE, CALIBRATION_INVALID, STATE_UNKNOWN,
     OCCUPIED, INCOMING_TROOPS, KIND_UNKNOWN, LEVEL_UNKNOWN, POPUP_MISSING,
-    POPUP_MISMATCH, INTERACTION_POINT_INVALID
+    POPUP_MISMATCH, POPUP_KIND_MISMATCH, POPUP_RESOURCE_MISMATCH,
+    POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID
 }
 
 data class TargetValidationResult(
@@ -28,6 +30,10 @@ class TargetValidationEngine {
         calibrationValid: Boolean,
         popupState: PopupState?,
         expectedCoordinate: WorldCoordinate? = observation?.coordinate,
+        expectedKind: TargetKind? = observation?.kind,
+        expectedResource: com.coolhiman.lordsassistant.model.ResourceType? =
+            observation?.label?.let { runCatching { com.coolhiman.lordsassistant.model.ResourceType.valueOf(it) }.getOrNull() },
+        expectedLevel: Int? = observation?.level,
         interactionPointValid: Boolean = observation?.screenPoint != null
     ): TargetValidationResult {
         if (observation == null) return TargetValidationResult(false, TargetValidationStage.DETECTED, setOf(TargetBlockReason.NO_TARGET))
@@ -43,15 +49,42 @@ class TargetValidationEngine {
         if (!observation.evidence.contains(ObservationEvidence.TEMPORALLY_CONFIRMED)) {
             reasons += TargetBlockReason.STATE_UNKNOWN
         }
+
         if (popupState?.isPopup != true) {
             reasons += TargetBlockReason.POPUP_MISSING
-        } else if (popupState.coordinate == null || expectedCoordinate == null || popupState.coordinate != expectedCoordinate) {
-            reasons += TargetBlockReason.POPUP_MISMATCH
+        } else {
+            if (popupState.coordinate == null || expectedCoordinate == null || popupState.coordinate != expectedCoordinate) {
+                reasons += TargetBlockReason.POPUP_MISMATCH
+            }
+            if (expectedKind != null && popupState.kind != null && popupState.kind != expectedKind) {
+                reasons += TargetBlockReason.POPUP_KIND_MISMATCH
+            }
+            if (expectedKind != null && popupState.kind == null) {
+                reasons += TargetBlockReason.POPUP_KIND_MISMATCH
+            }
+            if (expectedResource != null && popupState.resource != null && popupState.resource != expectedResource) {
+                reasons += TargetBlockReason.POPUP_RESOURCE_MISMATCH
+            }
+            if (expectedResource != null && popupState.resource == null && expectedKind == TargetKind.RESOURCE) {
+                reasons += TargetBlockReason.POPUP_RESOURCE_MISMATCH
+            }
+            if (expectedLevel != null && popupState.level != null && popupState.level != expectedLevel) {
+                reasons += TargetBlockReason.POPUP_LEVEL_MISMATCH
+            }
+            if (expectedLevel != null && popupState.level == null) {
+                reasons += TargetBlockReason.POPUP_LEVEL_MISMATCH
+            }
         }
         if (!interactionPointValid) reasons += TargetBlockReason.INTERACTION_POINT_INVALID
+
         val stage = when {
             reasons.contains(TargetBlockReason.CAMERA_UNSTABLE) || reasons.contains(TargetBlockReason.CALIBRATION_INVALID) -> TargetValidationStage.IDENTIFIED
-            reasons.contains(TargetBlockReason.POPUP_MISSING) || reasons.contains(TargetBlockReason.POPUP_MISMATCH) -> TargetValidationStage.TEMPORALLY_CONFIRMED
+            reasons.contains(TargetBlockReason.POPUP_MISSING) || reasons.any {
+                it == TargetBlockReason.POPUP_MISMATCH ||
+                    it == TargetBlockReason.POPUP_KIND_MISMATCH ||
+                    it == TargetBlockReason.POPUP_RESOURCE_MISMATCH ||
+                    it == TargetBlockReason.POPUP_LEVEL_MISMATCH
+            } -> TargetValidationStage.TEMPORALLY_CONFIRMED
             reasons.contains(TargetBlockReason.STATE_UNKNOWN) || reasons.contains(TargetBlockReason.OCCUPIED) || reasons.contains(TargetBlockReason.INCOMING_TROOPS) -> TargetValidationStage.POPUP_CONFIRMED
             reasons.isNotEmpty() -> TargetValidationStage.STATE_VALIDATED
             else -> TargetValidationStage.SAFE_TO_INTERACT
