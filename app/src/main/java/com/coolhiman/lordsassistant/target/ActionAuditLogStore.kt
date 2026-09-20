@@ -2,6 +2,9 @@ package com.coolhiman.lordsassistant.target
 
 import android.content.Context
 import org.json.JSONObject
+import com.coolhiman.lordsassistant.model.ScreenPoint
+import com.coolhiman.lordsassistant.model.TargetKind
+import com.coolhiman.lordsassistant.model.WorldCoordinate
 
 /**
  * V0.6 persistent action audit trail.
@@ -95,11 +98,31 @@ class ActionAuditLogStore(context: Context) {
             ActionAuditEventType.valueOf(json.optString("type"))
         }.getOrNull() ?: return null
 
+        val target = json.optJSONObject("target")?.let { targetJson ->
+            runCatching {
+                ActionTargetSnapshot(
+                    coordinate = WorldCoordinate(
+                        targetJson.getInt("kingdom"),
+                        targetJson.getInt("x"),
+                        targetJson.getInt("y")
+                    ),
+                    kind = TargetKind.valueOf(targetJson.getString("kind")),
+                    level = targetJson.getInt("level"),
+                    actionKind = ActionKind.valueOf(targetJson.getString("actionKind")),
+                    point = ScreenPoint(
+                        targetJson.getDouble("pointX").toFloat(),
+                        targetJson.getDouble("pointY").toFloat()
+                    )
+                )
+            }.getOrNull()
+        }
+
         return ActionAuditEvent(
             timestampMs = json.optLong("timestampMs"),
             type = type,
             attemptId = json.optLongOrNull("attemptId"),
             recoveryEpoch = json.optLongOrNull("recoveryEpoch"),
+            target = target,
             detail = json.optString("detail").takeIf { it.isNotBlank() }
         )
     }
