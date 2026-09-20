@@ -556,3 +556,9 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - A target retaining the same identity cannot keep stale planner rank, score, stability, or queue timestamp from an earlier frame.
 - A changed target identity is explicitly dropped and replaced by the latest candidate.
 - Regression tests cover same-identity metadata replacement and target-identity change.
+
+### V0.6.5 safety correction — Failed verification is retry-eligible
+
+- Scheduler completed-target suppression is now applied only after `SUCCEEDED` post-action verification.
+- A `FAILED` verification no longer marks the target as completed, preventing a failed action from being treated as successful completion.
+- `UNKNOWN` remains non-retryable automatically and is handled by the existing recovery boundary.
