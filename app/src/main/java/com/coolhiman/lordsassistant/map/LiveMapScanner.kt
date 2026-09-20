@@ -155,6 +155,8 @@ class LiveMapScanner(context: Context) {
             cameraStable = camera.state == CameraState.STABLE,
             calibrationValid = calibrationValid,
             targetStable = targetStability.stable,
+            marchAssociationStatus = selectedFusionCandidate?.marchAssociation?.status
+                ?: com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
             popupState = popupState,
             interactionPointValid = actionButton != null,
             actionKind = actionButton?.kind
