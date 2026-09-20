@@ -200,10 +200,9 @@ class ScreenCaptureService : Service() {
                     val currentCandidates = scan.actionCandidates.map { candidate ->
                         ActionScheduleCandidate(
                             target = candidate.target,
-                            priority = when (candidate.target.kind) {
-                                com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> 2
-                                com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> 1
-                            },
+                            priority = 0,
+                            plannerRank = candidate.plannerRank,
+                            plannerScore = candidate.plannerScore,
                             stabilityFrames = candidate.stability.consecutiveFrames,
                             validationSafe = candidate.validation.safe &&
                                 candidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
