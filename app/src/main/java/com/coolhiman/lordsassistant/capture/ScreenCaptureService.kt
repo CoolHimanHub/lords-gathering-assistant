@@ -197,19 +197,20 @@ class ScreenCaptureService : Service() {
                     // the multi-target boundary. Other ranked map targets do not
                     // yet have a verified interaction point, so they must not be
                     // manufactured into actionable scheduler candidates.
-                    val currentCandidate = scan.selectedActionTarget?.let { target ->
+                    val currentCandidates = scan.actionCandidates.map { candidate ->
                         ActionScheduleCandidate(
-                            target = target,
-                            priority = 1,
-                            stabilityFrames = if (scan.targetStability.stable) 2 else 0,
-                            validationSafe = scan.validation.safe &&
-                                scan.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
+                            target = candidate.target,
+                            priority = when (candidate.target.kind) {
+                                com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> 2
+                                com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> 1
+                            },
+                            stabilityFrames = candidate.stability.consecutiveFrames,
+                            validationSafe = candidate.validation.safe &&
+                                candidate.validation.stage == com.coolhiman.lordsassistant.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
                             queuedAtMs = now
                         )
                     }
-                    actionSchedulerAdapter.update(
-                        listOfNotNull(currentCandidate)
-                    ).forEach { droppedTarget ->
+                    actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
                         actionAuditLog.appendIfChanged(
                             ActionAuditEvent(
                                 timestampMs = now,
@@ -220,16 +221,20 @@ class ScreenCaptureService : Service() {
                             )
                         )
                     }
-                    currentCandidate?.let { candidate ->
-                        actionAuditLog.appendIfChanged(
-                            ActionAuditEvent(
-                                timestampMs = now,
-                                type = ActionAuditEventType.CANDIDATE_QUEUED,
-                                target = candidate.target,
-                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                detail = "safe current-frame candidate"
+                    scan.actionCandidates.forEach { candidate ->
+                        if (candidate.validation.safe &&
+                            candidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
+                        ) {
+                            actionAuditLog.appendIfChanged(
+                                ActionAuditEvent(
+                                    timestampMs = now,
+                                    type = ActionAuditEventType.CANDIDATE_QUEUED,
+                                    target = candidate.target,
+                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                    detail = "independently validated current-frame candidate"
+                                )
                             )
-                        )
+                        }
                     }
                     if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
@@ -305,10 +310,18 @@ class ScreenCaptureService : Service() {
                                 val scheduled = if (decision.candidate != null) {
                                     actionSchedulerAdapter.claim(now, safetyState).candidate
                                 } else null
-                                if (previous != null && scheduled != null &&
-                                    previous.selectedActionTarget == scheduled.target &&
-                                    previous.validation.safe &&
-                                    previous.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
+                                val previousCandidate = scheduled?.let { selected ->
+                                    previous?.actionCandidates?.firstOrNull { it.target == selected.target }
+                                }
+                                val currentCandidate = scheduled?.let { selected ->
+                                    scan.actionCandidates.firstOrNull { it.target == selected.target }
+                                }
+                                if (previousCandidate != null &&
+                                    currentCandidate != null &&
+                                    previousCandidate.validation.safe &&
+                                    previousCandidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT &&
+                                    currentCandidate.validation.safe &&
+                                    currentCandidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
                                 ) {
                                     actionAuditLog.append(ActionAuditEvent(
                                         timestampMs = now,
@@ -320,7 +333,7 @@ class ScreenCaptureService : Service() {
                                         automaticActionsEnabled = true,
                                         selected = scheduled.target,
                                         validation = previous.validation,
-                                        beforeObservation = previous.selectedObservation,
+                                        beforeObservation = previousCandidate.observation,
                                         popupBefore = previous.popupState,
                                         baselineMarchSignals = previous.marchSignals,
                                         nowMs = now
@@ -340,9 +353,9 @@ class ScreenCaptureService : Service() {
                                         )
                                     )
                                     actionOrchestrator.revalidate(
-                                        latestObservation = scan.selectedObservation,
-                                        latestValidation = scan.validation,
-                                        latestAction = scan.actionButton
+                                        latestObservation = currentCandidate.observation,
+                                        latestValidation = currentCandidate.validation,
+                                        latestAction = currentCandidate.actionButton
                                     )
                                     if (actionOrchestrator.lifecycleSnapshot.state != ActionLifecycleState.REVALIDATED) {
                                         actionAuditLog.appendIfChanged(
@@ -387,10 +400,10 @@ class ScreenCaptureService : Service() {
                                             ))
                                             actionOrchestrator.dispatch(now) {
                                             LmAccessibilityService.instance?.tapRevalidated(
-                                                selected = previous.selectedActionTarget,
-                                                latestObservation = scan.selectedObservation,
-                                                latestValidation = scan.validation,
-                                                latestAction = scan.actionButton
+                                                selected = currentCandidate.target,
+                                                latestObservation = currentCandidate.observation,
+                                                latestValidation = currentCandidate.validation,
+                                                latestAction = currentCandidate.actionButton
                                             ) == true
                                             }.also { result ->
                                                 actionAuditLog.append(ActionAuditEvent(
