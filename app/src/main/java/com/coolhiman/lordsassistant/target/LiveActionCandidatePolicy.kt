@@ -12,7 +12,7 @@ object LiveActionCandidatePolicy {
     fun isSchedulerEligible(candidate: com.coolhiman.lordsassistant.map.LiveActionCandidate): Boolean {
         return candidate.validation.safe &&
             candidate.validation.stage == TargetValidationStage.SAFE_TO_INTERACT &&
-            candidate.plannerRank != Int.MAX_VALUE &&
+            candidate.plannerRank >= 0 &&
             candidate.plannerScore.isFinite()
     }
 }
