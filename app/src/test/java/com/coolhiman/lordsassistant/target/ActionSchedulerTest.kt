@@ -147,4 +147,51 @@ class ActionSchedulerTest {
         assertTrue(scheduler.peek(10_000L, safety).candidate != null)
     }
 
+    @Test
+    fun refreshRemovesTargetsThatDisappearedFromLatestScan() {
+        val scheduler = ActionScheduler()
+        val first = candidate(priority = 10, stabilityFrames = 3, safe = true)
+        val second = candidate(priority = 5, stabilityFrames = 3, safe = true)
+
+        scheduler.refresh(listOf(first, second))
+        assertEquals(2, scheduler.queuedCount())
+
+        scheduler.refresh(listOf(second))
+
+        val decision = scheduler.peek(10_000L)
+        assertEquals(second.target, decision.candidate?.target)
+        assertEquals(1, scheduler.queuedCount())
+    }
+
+    @Test
+    fun refreshDoesNotKeepPreviouslySafeTargetWhenCurrentFrameBecomesUnsafe() {
+        val scheduler = ActionScheduler()
+        val first = candidate(priority = 10, stabilityFrames = 3, safe = true)
+
+        scheduler.refresh(listOf(first))
+        scheduler.refresh(
+            listOf(
+                first.copy(validationSafe = false)
+            )
+        )
+
+        assertEquals(0, scheduler.queuedCount())
+        assertEquals(ActionScheduleBlockReason.EMPTY_QUEUE, scheduler.peek(10_000L).reason)
+    }
+
+    @Test
+    fun refreshDoesNotAdmitCurrentFrameUnstableTarget() {
+        val scheduler = ActionScheduler()
+        val first = candidate(priority = 10, stabilityFrames = 3, safe = true)
+
+        scheduler.refresh(listOf(first))
+        scheduler.refresh(
+            listOf(
+                first.copy(stabilityFrames = 1)
+            )
+        )
+
+        assertEquals(0, scheduler.queuedCount())
+    }
+
 }
