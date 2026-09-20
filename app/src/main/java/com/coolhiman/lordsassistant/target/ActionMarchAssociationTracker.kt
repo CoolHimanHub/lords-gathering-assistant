@@ -19,12 +19,13 @@ import kotlin.math.hypot
  * gestures and does not enable automatic actions.
  */
 class ActionMarchAssociationTracker(
-    private val startRadiusPx: Float = 180f,
+    private val startRadiusPx: Float = 120f,
     private val baselineMatchRadiusPx: Float = 55f,
     private val continuationRadiusPx: Float = 70f,
     private val minDisplacementPx: Float = 5f,
     private val minTrajectoryCosine: Float = 0.55f,
     private val minDepartureCosine: Float = 0.35f,
+    private val minRadialDeparturePx: Float = 3f,
     private val confirmationFrames: Int = 2,
     private val maxGapMs: Long = 1_500L
 ) {
@@ -108,7 +109,13 @@ class ActionMarchAssociationTracker(
             if (fromActionLength > 0.001f) {
                 val departureCosine = (fromActionX * dx + fromActionY * dy) /
                     (fromActionLength * displacement).coerceAtLeast(0.001f)
-                if (departureCosine < minDepartureCosine) {
+                val previousRadius = fromActionLength
+                val nextRadius = hypot(
+                    (candidate.x - session.actionPoint.x).toDouble(),
+                    (candidate.y - session.actionPoint.y).toDouble()
+                ).toFloat()
+                val radialDeparture = nextRadius - previousRadius
+                if (departureCosine < minDepartureCosine || radialDeparture < minRadialDeparturePx) {
                     return Update(
                         session.copy(
                             lastSignal = candidate,
