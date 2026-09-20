@@ -295,4 +295,14 @@ Current safety pipeline:
 
 capture → detect → fuse → temporal state → camera state → target stability → target selection → popup/action validation → march-association validation → pre-action revalidation → guarded dispatch → multi-frame post-action verification → evidence provenance
 
-The latest main branch has a passing Android CI build. Automatic Gather/Hunt actions remain disabled by default and all gesture dispatch remains behind explicit user opt-in plus the complete safety chain.
+### V0.4.34 — Guarded recovery policy
+
+- Centralized automatic action recovery policy in the lifecycle layer.
+- `IDLE`, `SUCCEEDED`, and `FAILED` may begin a fresh automatic attempt after the normal validation chain.
+- `REQUESTED`, `REVALIDATED`, and `WAITING_FOR_RESULT` remain in-flight and cannot start another attempt.
+- `UNKNOWN` is explicitly non-retryable because the previous gesture outcome is uncertain; automatic retry could duplicate a successful action.
+- Live diagnostics now expose whether automatic recovery is currently allowed or blocked.
+- Added regression coverage for all lifecycle recovery states.
+- Automatic Gather/Hunt actions remain disabled by default and all gesture dispatch remains behind explicit user opt-in plus the complete safety chain.
+
+The latest safety-hardening changes should be treated as the V0.4.34 development baseline pending CI verification.
