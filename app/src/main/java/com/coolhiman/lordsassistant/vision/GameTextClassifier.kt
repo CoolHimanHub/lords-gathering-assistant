@@ -41,10 +41,10 @@ object GameTextClassifier {
             "occupied" in lower || "gathering" in lower || "occupier" in lower -> true
             else -> null
         }
-        val incoming = listOf(
+        val incoming = if (listOf(
             "marching", "incoming", "destination", "troops have reached",
             "started gathering", "started hunting", "arriving"
-        ).any { it in lower }
+        ).any { it in lower }) true else null
         return TextClassification(
             kind = if (monster != null) TargetKind.MONSTER else if (resource != null) TargetKind.RESOURCE else null,
             resource = resource, level = level, quantity = quantity,
