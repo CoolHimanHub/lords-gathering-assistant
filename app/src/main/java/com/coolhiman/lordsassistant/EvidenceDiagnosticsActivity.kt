@@ -14,23 +14,35 @@ import com.coolhiman.lordsassistant.target.ActionLifecycleState
 import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsFormatter
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
+import com.coolhiman.lordsassistant.target.ActionAuditLogStore
 
 class EvidenceDiagnosticsActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var text: TextView
+    private lateinit var auditText: TextView
+    private lateinit var auditLog: ActionAuditLogStore
     private val refresh = object : Runnable {
         override fun run() {
             if (::text.isInitialized) text.text = ActionDiagnosticsFormatter.format(ActionDiagnosticsStore.latest)
+            if (::auditText.isInitialized) auditText.text = "ACTION AUDIT — latest events\n\n" + auditLog.formatLatest(20).ifBlank { "No audited action events yet." }
             handler.postDelayed(this, 500L)
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        auditLog = ActionAuditLogStore(this)
         text = TextView(this).apply {
             setTextColor(Color.WHITE)
             textSize = 14f
             setPadding(28, 28, 28, 28)
             setBackgroundColor(Color.rgb(16, 18, 22))
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        auditText = TextView(this).apply {
+            setTextColor(Color.LTGRAY)
+            textSize = 12f
+            setPadding(28, 12, 28, 12)
+            setBackgroundColor(Color.rgb(12, 14, 18))
             typeface = android.graphics.Typeface.MONOSPACE
         }
         val recoveryButton = Button(this).apply {
@@ -52,7 +64,14 @@ class EvidenceDiagnosticsActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(recoveryButton)
-            addView(ScrollView(this@EvidenceDiagnosticsActivity).apply { addView(text) }, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(ScrollView(this@EvidenceDiagnosticsActivity).apply {
+                val content = LinearLayout(this@EvidenceDiagnosticsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(text)
+                    addView(auditText)
+                }
+                addView(content)
+            }, LinearLayout.LayoutParams(-1, 0, 1f))
         }
         setContentView(root)
     }
