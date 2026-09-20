@@ -10,13 +10,13 @@ package com.coolhiman.lordsassistant.target
 data class ActionScheduleCandidate(
     val target: ActionTargetSnapshot,
     val priority: Int,
-    /** Zero-based order from TargetPlanner; lower is more preferred. */
-    val plannerRank: Int,
-    /** Planner's native score, retained as a tie-breaker inside the same rank. */
-    val plannerScore: Double,
     val stabilityFrames: Int,
     val validationSafe: Boolean,
-    val queuedAtMs: Long
+    val queuedAtMs: Long,
+    /** Zero-based order from TargetPlanner; lower is more preferred. */
+    val plannerRank: Int = Int.MAX_VALUE,
+    /** Planner's native score, retained as a tie-breaker inside the same rank. */
+    val plannerScore: Double = Double.NEGATIVE_INFINITY
 )
 
 data class ActionScheduleDecision(
