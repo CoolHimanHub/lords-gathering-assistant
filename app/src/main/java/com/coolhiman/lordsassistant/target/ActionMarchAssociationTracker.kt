@@ -24,6 +24,7 @@ class ActionMarchAssociationTracker(
     private val continuationRadiusPx: Float = 70f,
     private val minDisplacementPx: Float = 5f,
     private val minTrajectoryCosine: Float = 0.55f,
+    private val minDepartureCosine: Float = 0.35f,
     private val confirmationFrames: Int = 2,
     private val maxGapMs: Long = 1_500L
 ) {
@@ -98,6 +99,28 @@ class ActionMarchAssociationTracker(
                 ),
                 false
             )
+        }
+
+        if (session.lastDisplacementX == null && session.lastDisplacementY == null) {
+            val fromActionX = previous.x - session.actionPoint.x
+            val fromActionY = previous.y - session.actionPoint.y
+            val fromActionLength = hypot(fromActionX.toDouble(), fromActionY.toDouble()).toFloat()
+            if (fromActionLength > 0.001f) {
+                val departureCosine = (fromActionX * dx + fromActionY * dy) /
+                    (fromActionLength * displacement).coerceAtLeast(0.001f)
+                if (departureCosine < minDepartureCosine) {
+                    return Update(
+                        session.copy(
+                            lastSignal = candidate,
+                            lastDisplacementX = null,
+                            lastDisplacementY = null,
+                            confirmedFrames = 0,
+                            lastSeenMs = nowMs
+                        ),
+                        false
+                    )
+                }
+            }
         }
 
         val priorDx = session.lastDisplacementX
