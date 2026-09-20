@@ -510,3 +510,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Identical repeated scheduler-block events are deduplicated to prevent frame-rate log flooding.
 - Added instrumentation coverage for audit-event deduplication.
 - The audit trail remains diagnostic-only and cannot authorize or bypass an action.
+
+### V0.6.2 — Complete lifecycle audit coverage
+
+- Added persistent audit events for revalidation success/failure, attempt-ID persistence failure, UNKNOWN entry, and verification timeout.
+- Live capture now records the actual request outcome instead of assuming every scheduler selection became a valid action request.
+- Revalidation failures are explicitly recorded before the action can reach dispatch.
+- UNKNOWN and verification-timeout outcomes are recorded without changing the existing non-retryable recovery policy.
+- Added persistence coverage for the new lifecycle failure event types.
+- Automatic actions remain governed by the existing fail-closed safety chain.
