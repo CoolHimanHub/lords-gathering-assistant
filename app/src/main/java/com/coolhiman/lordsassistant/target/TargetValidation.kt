@@ -14,7 +14,7 @@ enum class TargetBlockReason {
     NO_TARGET, TARGET_CHANGED, CAMERA_UNSTABLE, CALIBRATION_INVALID, STATE_UNKNOWN,
     OCCUPIED, INCOMING_TROOPS, KIND_UNKNOWN, LEVEL_UNKNOWN, POPUP_MISSING,
     POPUP_MISMATCH, POPUP_KIND_MISMATCH, POPUP_RESOURCE_MISMATCH,
-    POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID
+    POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID, ACTION_MISMATCH
 }
 
 data class TargetValidationResult(
@@ -34,7 +34,8 @@ class TargetValidationEngine {
         expectedResource: com.coolhiman.lordsassistant.model.ResourceType? =
             observation?.label?.let { runCatching { com.coolhiman.lordsassistant.model.ResourceType.valueOf(it) }.getOrNull() },
         expectedLevel: Int? = observation?.level,
-        interactionPointValid: Boolean = observation?.screenPoint != null
+        interactionPointValid: Boolean = observation?.screenPoint != null,
+        actionKind: ActionKind? = null
     ): TargetValidationResult {
         if (observation == null) return TargetValidationResult(false, TargetValidationStage.DETECTED, setOf(TargetBlockReason.NO_TARGET))
         val reasons = linkedSetOf<TargetBlockReason>()
@@ -76,6 +77,12 @@ class TargetValidationEngine {
             }
         }
         if (!interactionPointValid) reasons += TargetBlockReason.INTERACTION_POINT_INVALID
+        val actionValid = when (observation.kind) {
+            TargetKind.RESOURCE -> actionKind == ActionKind.GATHER
+            TargetKind.MONSTER -> actionKind == ActionKind.HUNT || actionKind == ActionKind.ATTACK
+            null -> false
+        }
+        if (!actionValid) reasons += TargetBlockReason.ACTION_MISMATCH
 
         val stage = when {
             reasons.contains(TargetBlockReason.CAMERA_UNSTABLE) || reasons.contains(TargetBlockReason.CALIBRATION_INVALID) -> TargetValidationStage.IDENTIFIED
