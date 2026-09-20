@@ -486,3 +486,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - The scheduler cannot manufacture actionable coordinates for merely ranked map targets; an interaction point must already come from the existing scanner/action-button validation path.
 - A scheduled target must still match the previous scan before entering the existing pre-action revalidation and guarded dispatch pipeline.
 - Queue reconciliation remains frame-driven, so a target change causes the prior candidate to stop being actionable.
+
+### V0.6.0 — Persistent action audit/event log
+
+- Added a bounded persistent action audit log retaining the latest 500 action-provenance events.
+- Audit records can capture timestamp, event type, attempt ID, recovery epoch, target identity, and diagnostic detail.
+- Live capture records scheduler selection, action request, dispatch barrier, dispatch result, verification result, deliberate recovery, and restart quarantine events.
+- The audit log is diagnostic only: logging never authorizes dispatch and logging failures do not open the gesture path.
+- Target provenance is serialized and restored so audit history remains useful across service/process restarts.
+- Added instrumentation tests for provenance round-trip and bounded retention.
+- Automatic Gather/Hunt actions remain disabled by default.
