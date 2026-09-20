@@ -32,6 +32,9 @@ class ActionOrchestrator(
     var session: Session? = null
         private set
 
+    val lifecycleSnapshot: ActionLifecycleSnapshot
+        get() = lifecycle.snapshot
+
     private var completedTarget: ActionTargetSnapshot? = null
     private var postActionStartedAtMs: Long? = null
     private var postEvidenceSignature: Set<PostActionEvidence>? = null
