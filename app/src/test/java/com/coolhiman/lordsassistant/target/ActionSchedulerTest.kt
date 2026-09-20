@@ -173,6 +173,44 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun refreshReplacesStaleMetadataForSameTargetIdentity() {
+        val scheduler = ActionScheduler()
+        val old = ActionScheduleCandidate(
+            target = target(1), priority = 0, stabilityFrames = 4,
+            validationSafe = true, queuedAtMs = 1_000L,
+            plannerRank = 0, plannerScore = 100.0
+        )
+        val latest = old.copy(
+            stabilityFrames = 2,
+            queuedAtMs = 2_000L,
+            plannerRank = 4,
+            plannerScore = 10.0
+        )
+
+        scheduler.refresh(listOf(old))
+        scheduler.refresh(listOf(latest))
+
+        val selected = scheduler.peek(5_000L).candidate
+        assertEquals(latest.queuedAtMs, selected?.queuedAtMs)
+        assertEquals(latest.plannerRank, selected?.plannerRank)
+        assertEquals(latest.plannerScore, selected?.plannerScore, 0.0)
+        assertEquals(latest.stabilityFrames, selected?.stabilityFrames)
+    }
+
+    @Test
+    fun refreshDropsTargetWhenLatestFrameChangesItsIdentity() {
+        val scheduler = ActionScheduler()
+        val old = candidate(priority = 10, stabilityFrames = 3, safe = true)
+        val changed = old.copy(target = target(2))
+
+        scheduler.refresh(listOf(old))
+        val dropped = scheduler.refresh(listOf(changed))
+
+        assertEquals(listOf(old.target), dropped)
+        assertEquals(changed.target, scheduler.peek(10_000L).candidate?.target)
+    }
+
+    @Test
     fun completedTargetIsNotRequeuedImmediately() {
         val scheduler = ActionScheduler()
         val completed = ActionScheduleCandidate(
