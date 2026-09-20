@@ -25,6 +25,10 @@ import com.coolhiman.lordsassistant.target.ActionExecutionJournal
 import com.coolhiman.lordsassistant.target.ActionRecoveryEpochStore
 import com.coolhiman.lordsassistant.target.ActionAttemptIdStore
 import com.coolhiman.lordsassistant.target.ActionDispatchProvenance
+import com.coolhiman.lordsassistant.target.ActionScheduler
+import com.coolhiman.lordsassistant.target.LiveActionSchedulerAdapter
+import com.coolhiman.lordsassistant.target.ActionScheduleCandidate
+import com.coolhiman.lordsassistant.target.ActionSchedulerSafetyState
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -40,6 +44,7 @@ class ScreenCaptureService : Service() {
     private lateinit var analyzer: FrameAnalyzer
     private lateinit var liveScanner: LiveMapScanner
     private lateinit var actionOrchestrator: ActionOrchestrator
+    private lateinit var actionSchedulerAdapter: LiveActionSchedulerAdapter
     private lateinit var actionJournal: ActionExecutionJournal
     private lateinit var recoveryEpochStore: ActionRecoveryEpochStore
     private lateinit var actionAttemptIdStore: ActionAttemptIdStore
@@ -64,6 +69,7 @@ class ScreenCaptureService : Service() {
         recoveryEpochStore = ActionRecoveryEpochStore(this)
         actionAttemptIdStore = ActionAttemptIdStore(this)
         actionJournal = ActionExecutionJournal(this)
+        actionSchedulerAdapter = LiveActionSchedulerAdapter(ActionScheduler())
 
         // Reconcile all durable provenance sources before creating the live
         // orchestrator. A stale journal epoch must never be allowed to seed a
@@ -161,6 +167,24 @@ class ScreenCaptureService : Service() {
                         append("\n").append(scan.processingMs).append("ms")
                     }
                     val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
+
+                    // Feed only the already validated current-frame target into
+                    // the multi-target boundary. Other ranked map targets do not
+                    // yet have a verified interaction point, so they must not be
+                    // manufactured into actionable scheduler candidates.
+                    val currentCandidate = scan.selectedActionTarget?.let { target ->
+                        ActionScheduleCandidate(
+                            target = target,
+                            priority = 1,
+                            stabilityFrames = if (scan.targetStability.stable) 2 else 0,
+                            validationSafe = scan.validation.safe &&
+                                scan.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
+                            queuedAtMs = now
+                        )
+                    }
+                    actionSchedulerAdapter.update(
+                        listOfNotNull(currentCandidate)
+                    )
                     if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
@@ -203,13 +227,21 @@ class ScreenCaptureService : Service() {
                         when {
                             ActionRecoveryPolicy.mayStartAutomaticAttempt(actionOrchestrator.lifecycleSnapshot) -> {
                                 val previous = previousScan
-                                if (previous?.selectedActionTarget != null &&
+                                val safetyState = ActionSchedulerSafetyState(
+                                    lifecycle = actionOrchestrator.lifecycleSnapshot,
+                                    automaticActionsEnabled = prefs.automaticActions,
+                                    restartQuarantine = restartQuarantine,
+                                    recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy
+                                )
+                                val scheduled = actionSchedulerAdapter.claim(now, safetyState).candidate
+                                if (previous != null && scheduled != null &&
+                                    previous.selectedActionTarget == scheduled.target &&
                                     previous.validation.safe &&
                                     previous.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
                                 ) {
                                     actionOrchestrator.request(
                                         automaticActionsEnabled = true,
-                                        selected = previous.selectedActionTarget,
+                                        selected = scheduled.target,
                                         validation = previous.validation,
                                         beforeObservation = previous.selectedObservation,
                                         popupBefore = previous.popupState,
