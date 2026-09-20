@@ -144,6 +144,17 @@ class ActionLifecycleControllerTest {
     }
 
     @Test
+    fun restartRecoveryRestoresNonRetryableUnknownState() {
+        val controller = ActionLifecycleController()
+
+        val result = controller.restoreUnknown()
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.state)
+        assertEquals(ActionLifecycleFailure.VERIFICATION_TIMEOUT, result.failure)
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(result.state))
+    }
+
+    @Test
     fun recoveryPolicyAllowsOnlySafeTerminalRecoveryStates() {
         assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.IDLE))
         assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(ActionLifecycleState.SUCCEEDED))
