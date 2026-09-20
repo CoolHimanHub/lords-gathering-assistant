@@ -135,9 +135,25 @@ class ActionOrchestratorTest {
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
         assertTrue(result.session?.ownMarchConfirmed == true)
         assertEquals(1L, result.session?.attemptId)
+        assertEquals(0L, result.session?.recoveryEpoch)
+        assertEquals(0L, orchestrator.lastPostActionEvidence?.recoveryEpoch)
         assertEquals(1L, orchestrator.lastPostActionEvidence?.attemptId)
     }
 
+
+    @Test
+    fun restartRecoveryStartsNewEpochBeforeFreshAttempt() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.restoreUnknown(7L)
+        assertEquals(1L, orchestrator.currentRecoveryEpoch)
+        assertEquals(ActionLifecycleState.UNKNOWN, orchestrator.lifecycleSnapshot.state)
+
+        orchestrator.reset()
+        val result = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 70_000L)
+        assertEquals(2L, orchestrator.currentRecoveryEpoch)
+        assertEquals(2L, result.session?.recoveryEpoch)
+        assertEquals(8L, result.session?.attemptId)
+    }
 
     @Test
     fun newAttemptDoesNotReusePreviousMarchEvidence() {
@@ -156,6 +172,7 @@ class ActionOrchestratorTest {
         assertEquals(1L, orchestrator.lastPostActionEvidence?.attemptId)
 
         orchestrator.reset()
+        assertEquals(1L, orchestrator.currentRecoveryEpoch)
         val second = orchestrator.request(
             true, selected, safeValidation, observation, popup,
             baselineMarchSignals = listOf(oldSecond),
@@ -163,6 +180,7 @@ class ActionOrchestratorTest {
         )
         assertEquals(ActionLifecycleState.REQUESTED, second.lifecycle.state)
         assertEquals(2L, second.session?.attemptId)
+        assertEquals(1L, second.session?.recoveryEpoch)
         assertEquals(null, orchestrator.lastPostActionEvidence)
 
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
@@ -178,6 +196,7 @@ class ActionOrchestratorTest {
 
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
         assertEquals(2L, orchestrator.lastPostActionEvidence?.attemptId)
+        assertEquals(1L, orchestrator.lastPostActionEvidence?.recoveryEpoch)
     }
 
     @Test
