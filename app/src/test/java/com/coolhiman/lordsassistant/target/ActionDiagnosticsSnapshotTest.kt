@@ -71,5 +71,6 @@ class ActionDiagnosticsSnapshotTest {
         assertTrue(text.contains("Target stability: 0 frames"))
         assertTrue(text.contains("Action attempt: none"))
         assertTrue(text.contains("Recovery epoch: 0"))
+        assertTrue(text.contains("Recovery epoch persistence: healthy"))
     }
 }
