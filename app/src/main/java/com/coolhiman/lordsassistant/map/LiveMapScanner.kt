@@ -123,10 +123,11 @@ class LiveMapScanner(context: Context) {
         // camera state; no new coordinate is trusted yet.
         var result = analyze()
         var observations = result.fused.map(ObservationMapper::map)
-        var stable = tracker.update(observations)
-        var camera = cameraStateTracker.update(stable)
 
-        val anchors = cameraAnchorTracker.update(stable)
+        // The anchor tracker deliberately operates before temporal target
+        // stabilization: it is only estimating camera geometry from repeated
+        // semantic identities and never authorizes a target.
+        val anchors = cameraAnchorTracker.update(observations)
         val fittedCameraModel = calibrationStore.fit(kingdom)?.let { calibration ->
             CameraInvariantWorldModel(calibration).fit(anchors)
         }
@@ -136,12 +137,13 @@ class LiveMapScanner(context: Context) {
         if (fittedCameraModel?.isUsable() == true) {
             result = analyze(fittedCameraModel)
             observations = result.fused.map(ObservationMapper::map)
-            stable = tracker.update(observations)
-            camera = cameraStateTracker.update(stable)
-            // Replace the provisional anchors with the corrected coordinates
-            // from the camera-aware pass for the next frame.
-            cameraAnchorTracker.update(stable)
         }
+
+        // Temporal stabilization and camera-state assessment happen exactly
+        // once for the final coordinate pass, so one bitmap cannot advance
+        // stability or fabricate a stable camera state.
+        val stable = tracker.update(observations)
+        val camera = cameraStateTracker.update(stable)
         val stateAware = if (camera.state == CameraState.STABLE) stable else stable.map {
             it.copy(evidence = it.evidence + com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE)
         }
