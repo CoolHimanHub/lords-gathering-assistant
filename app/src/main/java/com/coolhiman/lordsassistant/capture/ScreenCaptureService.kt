@@ -106,6 +106,7 @@ class ScreenCaptureService : Service() {
                         }
                         append("\nCamera: ").append(scan.cameraState.name)
                         append("  Validation: ").append(scan.validation.stage.name)
+                        append("\nAction: ").append(scan.actionButton?.kind?.name ?: "NOT DETECTED")
                         if (scan.validation.reasons.isNotEmpty()) {
                             append("\nBlocked: ").append(scan.validation.reasons.joinToString(", ") { reason ->
                                 reason.name.replace('_', ' ')
