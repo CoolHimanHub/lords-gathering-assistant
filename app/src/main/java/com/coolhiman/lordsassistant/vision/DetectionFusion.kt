@@ -16,7 +16,7 @@ data class FusionCandidate(
 
 class DetectionFusion(
     private val maxTextDistancePx: Float = 180f,
-    private val maxMarchDistancePx: Float = 110f
+    private val maxMarchDistancePx: Float = 75f
 ) {
     fun fuse(
         frame: DetectionFrame,
@@ -37,11 +37,21 @@ class DetectionFusion(
                 level = tile.level
             )
 
-            val march = marchSignals.minByOrNull {
+            val nearbyMarches = marchSignals.mapNotNull { signal ->
+                val distance = hypot((signal.x - tile.centerX).toDouble(), (signal.y - tile.centerY).toDouble()).toFloat()
+                if (distance <= maxMarchDistancePx) signal to distance else null
+            }.sortedBy { it.second }
+            val march = nearbyMarches.firstOrNull()?.first
+            val marchDistance = nearbyMarches.firstOrNull()?.second
+            val clearlyAssociatedMarch = march != null && (nearbyMarches.size == 1 ||
+                marchDistance!! <= nearbyMarches[1].second * 0.72f)
+            val associatedMarch = if (clearlyAssociatedMarch) march else null
+
+            /* val march = marchSignals.minByOrNull {
                 hypot((it.x - tile.centerX).toDouble(), (it.y - tile.centerY).toDouble())
             }?.takeIf {
                 hypot((it.x - tile.centerX).toDouble(), (it.y - tile.centerY).toDouble()) <= maxMarchDistancePx
-            }
+            } */
 
             val coordinate = coordinateResolver(tile.centerX, tile.centerY)
             val popupMatches = popupState?.isPopup == true &&
@@ -61,7 +71,7 @@ class DetectionFusion(
             val incoming = if (popupMatches && popupState?.incomingTroops != null) {
                 popupState.incomingTroops
             } else {
-                classification.incomingTroops ?: march?.let { true }
+                classification.incomingTroops ?: associatedMarch?.let { true }
             }
             val occupied = if (popupMatches && popupState?.occupied != null) {
                 popupState.occupied
@@ -72,7 +82,7 @@ class DetectionFusion(
             val evidence = listOf(
                 tile.confidence,
                 if (text != null) 0.90 else 0.0,
-                if (march != null) march.confidence.toDouble() else 0.0,
+                if (associatedMarch != null) associatedMarch.confidence.toDouble() else 0.0,
                 if (popupMatches) 0.98 else 0.0
             ).filter { it > 0.0 }
             val confidence = evidence.average().coerceIn(0.0, 1.0)
