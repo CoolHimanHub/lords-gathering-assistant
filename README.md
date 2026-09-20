@@ -397,6 +397,16 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added regression coverage proving allocator failure stops before session creation and dispatch.
 - Automatic Gather/Hunt actions remain disabled by default.
 
+### V0.4.46 — Durable action provenance boundary
+
+- Added an explicit immutable pre-dispatch provenance record binding the action attempt ID, recovery epoch, and dispatch timestamp.
+- The durable in-flight journal now persists the recovery epoch alongside the attempt ID before any guarded Accessibility gesture.
+- Live dispatch requires the provenance record to still match the active action session before the journal barrier can open the gesture path.
+- A stale attempt or recovery epoch therefore cannot cross a manual recovery/restart boundary into a new dispatch.
+- Legacy journal entries remain restart-quarantined and cannot satisfy the current-session provenance match.
+- Added regression coverage for attempt mismatch, recovery-epoch mismatch, and missing session provenance.
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ### V0.4.44 — Durable action attempt identity
 
 - Action attempt IDs are now persisted independently of the in-flight action journal.
