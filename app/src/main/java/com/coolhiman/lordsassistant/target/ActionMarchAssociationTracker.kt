@@ -27,7 +27,8 @@ class ActionMarchAssociationTracker(
     private val minDepartureCosine: Float = 0.35f,
     private val minRadialDeparturePx: Float = 3f,
     private val confirmationFrames: Int = 2,
-    private val maxGapMs: Long = 1_500L
+    private val maxGapMs: Long = 1_500L,
+    private val trajectoryMatchRadiusPx: Float = 45f
 ) {
     data class Session(
         val actionPoint: ScreenPoint,
@@ -72,10 +73,18 @@ class ActionMarchAssociationTracker(
                 .filter { current -> session.baseline.none { distance(it = current, signal = it) <= baselineMatchRadiusPx } }
                 .maxByOrNull { it.confidence }
         } else {
+            val previous = session.lastSignal
+            val predictedX = previous.x + (session.lastDisplacementX ?: 0f)
+            val predictedY = previous.y + (session.lastDisplacementY ?: 0f)
+            val predicted = ScreenPoint(predictedX, predictedY)
             signals
                 .asSequence()
-                .filter { distance(it, session.lastSignal) <= continuationRadiusPx }
-                .maxByOrNull { it.confidence }
+                .filter { distance(it, previous) <= continuationRadiusPx }
+                .filter { distance(it, predicted) <= trajectoryMatchRadiusPx }
+                .minWithOrNull(
+                    compareBy<MarchSignal> { distance(it, predicted) }
+                        .thenByDescending { it.confidence }
+                )
         }
 
         if (candidate == null) return Update(session, false)
