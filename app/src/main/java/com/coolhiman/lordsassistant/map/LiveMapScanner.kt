@@ -159,20 +159,20 @@ class LiveMapScanner(context: Context) {
             targetKind = null
         )
 
-        val candidateTargets = stateAware
-            .filter { it.coordinate != null && it.kind != null && it.level != null }
-            .mapNotNull { observation ->
-                val button = detectedActionButtons
-                    .filter { actionButton ->
+        val candidateTargets = detectedActionButtons
+            .flatMap { button ->
+                val matching = stateAware.filter { observation ->
+                    observation.coordinate != null && observation.kind != null && observation.level != null &&
                         when (observation.kind) {
-                            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> actionButton.kind == ActionKind.GATHER
-                            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> actionButton.kind == ActionKind.HUNT || actionButton.kind == ActionKind.ATTACK
+                            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
+                            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
                             null -> false
-                        }
-                    }
-                    .minByOrNull { button -> distance(button.point, observation.screenPoint) }
-                    ?.takeIf { button -> distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX }
-                    ?: return@mapNotNull null
+                        } &&
+                        distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX
+                }
+                if (matching.size != 1) emptyList() else matching.map { it to button }
+            }
+            .mapNotNull { (observation, button) ->
 
                 val key = "${observation.coordinate}:${observation.kind}:${observation.level}"
                 val stabilityTracker = targetStabilityTrackers.getOrPut(key) { TargetStabilityTracker() }
