@@ -17,8 +17,10 @@ class TargetPlanner(
         originX: Int,
         originY: Int,
         observations: List<MapObservation>,
-        preferences: UserPreferences
+        preferences: UserPreferences,
+        cameraStable: Boolean = true
     ): TargetPlan {
+        if (!cameraStable) return TargetPlan(observations, emptyList())
         val eligible = observations.filter { o ->
             o.coordinate != null &&
                 o.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE &&
