@@ -397,6 +397,16 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added regression coverage proving allocator failure stops before session creation and dispatch.
 - Automatic Gather/Hunt actions remain disabled by default.
 
+
+### V0.4.50 — Fail-closed recovery epoch overflow
+
+- Recovery epoch advancement now detects Long.MAX_VALUE instead of wrapping the provenance boundary back into a previously usable identity.
+- Restart quarantine and deliberate UNKNOWN recovery fail closed when no fresh recovery epoch can be allocated.
+- Recovery epoch exhaustion is represented explicitly in the lifecycle and is not eligible for automatic retry.
+- The capture service keeps quarantine/journal state intact when a recovery boundary cannot be established.
+- Added regression coverage for reset and restart-recovery overflow at the exact Long.MAX_VALUE boundary.
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ### V0.4.49 — Fail-closed action identity overflow
 
 - Durable action-attempt allocation now detects Long.MAX_VALUE instead of allowing numeric overflow to wrap the identity into a negative value.
