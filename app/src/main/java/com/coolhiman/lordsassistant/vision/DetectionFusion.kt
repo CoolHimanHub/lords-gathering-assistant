@@ -5,13 +5,23 @@ import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import kotlin.math.hypot
 
+enum class MarchAssociationStatus { NO_MARCH, CLEAR_MARCH, AMBIGUOUS_MARCH }
+
+data class MarchAssociationDiagnostics(
+    val status: MarchAssociationStatus,
+    val nearestDistancePx: Float? = null,
+    val secondNearestDistancePx: Float? = null,
+    val marginRatio: Float? = null
+)
+
 data class FusionCandidate(
     val tile: DetectedTile,
     val classification: TextClassification,
     val coordinate: WorldCoordinate?,
     val occupied: Boolean?,
     val incomingTroops: Boolean?,
-    val confidence: Double
+    val confidence: Double,
+    val marchAssociation: MarchAssociationDiagnostics = MarchAssociationDiagnostics(MarchAssociationStatus.NO_MARCH)
 )
 
 class DetectionFusion(
@@ -41,17 +51,23 @@ class DetectionFusion(
                 val distance = hypot((signal.x - tile.centerX).toDouble(), (signal.y - tile.centerY).toDouble()).toFloat()
                 if (distance <= maxMarchDistancePx) signal to distance else null
             }.sortedBy { it.second }
-            val march = nearbyMarches.firstOrNull()?.first
-            val marchDistance = nearbyMarches.firstOrNull()?.second
-            val clearlyAssociatedMarch = march != null && (nearbyMarches.size == 1 ||
-                marchDistance!! <= nearbyMarches[1].second * 0.72f)
-            val associatedMarch = if (clearlyAssociatedMarch) march else null
-
-            /* val march = marchSignals.minByOrNull {
-                hypot((it.x - tile.centerX).toDouble(), (it.y - tile.centerY).toDouble())
-            }?.takeIf {
-                hypot((it.x - tile.centerX).toDouble(), (it.y - tile.centerY).toDouble()) <= maxMarchDistancePx
-            } */
+            val nearestDistance = nearbyMarches.firstOrNull()?.second
+            val secondNearestDistance = nearbyMarches.getOrNull(1)?.second
+            val marginRatio = if (nearestDistance != null && secondNearestDistance != null && secondNearestDistance > 0f) {
+                nearestDistance / secondNearestDistance
+            } else null
+            val clearlyAssociatedMarch = nearestDistance != null && (nearbyMarches.size == 1 ||
+                nearestDistance <= secondNearestDistance!! * 0.72f)
+            val associatedMarch = if (clearlyAssociatedMarch) nearbyMarches.firstOrNull()?.first else null
+            val marchAssociation = when {
+                nearbyMarches.isEmpty() -> MarchAssociationDiagnostics(MarchAssociationStatus.NO_MARCH)
+                clearlyAssociatedMarch -> MarchAssociationDiagnostics(
+                    MarchAssociationStatus.CLEAR_MARCH, nearestDistance, secondNearestDistance, marginRatio
+                )
+                else -> MarchAssociationDiagnostics(
+                    MarchAssociationStatus.AMBIGUOUS_MARCH, nearestDistance, secondNearestDistance, marginRatio
+                )
+            }
 
             val coordinate = coordinateResolver(tile.centerX, tile.centerY)
             val popupMatches = popupState?.isPopup == true &&
@@ -87,7 +103,7 @@ class DetectionFusion(
             ).filter { it > 0.0 }
             val confidence = evidence.average().coerceIn(0.0, 1.0)
 
-            FusionCandidate(tile, classification, coordinate, occupied, incoming, confidence)
+            FusionCandidate(tile, classification, coordinate, occupied, incoming, confidence, marchAssociation)
         }
     }
 
