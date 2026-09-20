@@ -6,6 +6,7 @@ import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TemporalObservationTrackerTest {
@@ -30,9 +31,13 @@ class TemporalObservationTrackerTest {
     }
 
     @Test
-    fun strongObservationCanPassImmediately() {
+    fun highConfidenceUnknownDoesNotBecomeOccupied() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
-        assertEquals(1, tracker.update(listOf(observation(0.95f)), 1000L).size)
+        val unknown = observation(0.95f).copy(occupied = null, incomingTroops = null)
+        assertEquals(0, tracker.update(listOf(unknown), 1000L).size)
+        val stable = tracker.update(listOf(unknown), 1100L).single()
+        assertNull(stable.occupied)
+        assertNull(stable.incomingTroops)
     }
     @Test
     fun occupiedNodeNeedsRepeatedFreeEvidenceBeforeClearing() {
