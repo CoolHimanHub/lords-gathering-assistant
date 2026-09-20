@@ -10,13 +10,15 @@ data class CameraAssessment(
     val state: CameraState,
     val sharedTargets: Int,
     val medianShiftPx: Float,
-    val spreadPx: Float
+    val spreadPx: Float,
+    val scaleChangePercent: Float = 0f
 )
 
 class CameraStateTracker(
     private val minSharedTargets: Int = 3,
     private val panShiftPx: Float = 70f,
-    private val unstableSpreadPx: Float = 90f
+    private val unstableSpreadPx: Float = 90f,
+    private val unstableScaleChangePercent: Float = 8f
 ) {
     private var previous = emptyMap<String, Pair<Float, Float>>()
 
@@ -43,12 +45,44 @@ class CameraStateTracker(
         val deviations = sorted.map { abs(it - median) }.sorted()
         val spread = deviations[deviations.size / 2]
 
+        val scaleChangePercent = estimateScaleChange(current)
         val state = when {
             spread >= unstableSpreadPx -> CameraState.UNSTABLE
+            scaleChangePercent >= unstableScaleChangePercent -> CameraState.UNSTABLE
             median >= panShiftPx -> CameraState.PANNING
             else -> CameraState.STABLE
         }
-        return CameraAssessment(state, shifts.size, median, spread)
+        return CameraAssessment(state, shifts.size, median, spread, scaleChangePercent)
+    }
+
+
+    private fun estimateScaleChange(current: Map<String, Pair<Float, Float>>): Float {
+        val shared = current.keys.intersect(previous.keys).toList()
+        if (shared.size < minSharedTargets) return 0f
+
+        val ratios = mutableListOf<Float>()
+        for (i in 0 until shared.size) {
+            for (j in i + 1 until shared.size) {
+                val a = shared[i]
+                val b = shared[j]
+                val oldA = previous[a]!!
+                val oldB = previous[b]!!
+                val newA = current[a]!!
+                val newB = current[b]!!
+                val oldDistance = sqrt(
+                    (oldA.first - oldB.first) * (oldA.first - oldB.first) +
+                    (oldA.second - oldB.second) * (oldA.second - oldB.second)
+                )
+                if (oldDistance < 5f) continue
+                val newDistance = sqrt(
+                    (newA.first - newB.first) * (newA.first - newB.first) +
+                    (newA.second - newB.second) * (newA.second - newB.second)
+                )
+                ratios += (newDistance / oldDistance - 1f) * 100f
+            }
+        }
+        if (ratios.isEmpty()) return 0f
+        return kotlin.math.abs(ratios.sorted()[ratios.size / 2])
     }
 
     fun reset() { previous = emptyMap() }
