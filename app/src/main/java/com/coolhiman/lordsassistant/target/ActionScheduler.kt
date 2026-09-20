@@ -46,6 +46,29 @@ class ActionScheduler(
         }
     }
 
+    /**
+     * Reconciles the queue with the latest scan.
+     *
+     * Targets no longer present in the current safe candidate set are removed,
+     * preventing an old frame from becoming an actionable target later.
+     * Current candidates are then offered using the normal stability/safety
+     * admission rules.
+     */
+    fun refresh(current: Collection<ActionScheduleCandidate>) {
+        val safeTargets = current
+            .asSequence()
+            .filter { it.validationSafe && it.stabilityFrames >= minimumStabilityFrames }
+            .map { it.target }
+            .toSet()
+
+        candidates.keys
+            .filter { it !in safeTargets }
+            .toList()
+            .forEach(candidates::remove)
+
+        current.forEach(::offer)
+    }
+
     fun remove(target: ActionTargetSnapshot) {
         candidates.remove(target)
     }
