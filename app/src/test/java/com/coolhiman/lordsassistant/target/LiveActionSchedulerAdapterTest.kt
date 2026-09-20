@@ -1,7 +1,10 @@
 package com.coolhiman.lordsassistant.target
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
+import com.coolhiman.lordsassistant.model.ScreenPoint
+import com.coolhiman.lordsassistant.model.TargetKind
+import com.coolhiman.lordsassistant.model.WorldCoordinate
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
 class LiveActionSchedulerAdapterTest {
 
@@ -20,11 +23,11 @@ class LiveActionSchedulerAdapterTest {
 
     private fun target(id: Int) =
         ActionTargetSnapshot(
-            coordinate = WorldCoordinate(1, id, id),
-            kind = ResourceKind.FOOD,
-            level = 1,
+            coordinate = WorldCoordinate(id, 167, 511),
+            kind = TargetKind.RESOURCE,
+            level = 3,
             actionKind = ActionKind.GATHER,
-            interactionPoint = ScreenPoint(100f + id, 200f + id)
+            point = ScreenPoint(900f + id, 600f)
         )
 
     @Test
