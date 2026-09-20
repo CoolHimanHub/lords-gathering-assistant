@@ -1,17 +1,10 @@
 package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.vision.MarchSignal
 import com.coolhiman.lordsassistant.vision.PopupState
 
-/**
- * Coordinates the complete guarded action lifecycle without owning the
- * AccessibilityService. Automatic execution remains opt-in at the caller.
- *
- * Flow:
- * request -> fresh revalidation -> dispatch -> post-action observation ->
- * march/state verification -> lifecycle result.
- */
 class ActionOrchestrator(
     private val lifecycle: ActionLifecycleController = ActionLifecycleController(),
     private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker()
@@ -23,22 +16,18 @@ class ActionOrchestrator(
         val marchSession: ActionMarchAssociationTracker.Session,
         val ownMarchConfirmed: Boolean = false
     )
-
-    data class Result(
-        val lifecycle: ActionLifecycleSnapshot,
-        val session: Session?
-    )
+    data class Result(val lifecycle: ActionLifecycleSnapshot, val session: Session?)
 
     var session: Session? = null
         private set
-
-    val lifecycleSnapshot: ActionLifecycleSnapshot
-        get() = lifecycle.snapshot
+    val lifecycleSnapshot: ActionLifecycleSnapshot get() = lifecycle.snapshot
+    var lastPostActionEvidence: PostActionEvidenceRecord? = null
+        private set
 
     private var completedTarget: ActionTargetSnapshot? = null
     private var postActionStartedAtMs: Long? = null
     private var postEvidenceSignature: Set<PostActionEvidence>? = null
-    private var postEvidenceFrames: Int = 0
+    private var postEvidenceFrames = 0
 
     companion object {
         const val POST_ACTION_TIMEOUT_MS = 4_000L
@@ -55,145 +44,63 @@ class ActionOrchestrator(
         nowMs: Long
     ): Result {
         if (lifecycle.snapshot.state == ActionLifecycleState.SUCCEEDED &&
-            selected != null && selected == completedTarget
-        ) {
-            return Result(lifecycle.snapshot, session)
-        }
+            selected != null && selected == completedTarget) return Result(lifecycle.snapshot, session)
 
+        lastPostActionEvidence = null
         session = selected?.let {
-            Session(
-                selected = it,
-                beforeObservation = beforeObservation,
-                popupBefore = popupBefore,
-                marchSession = marchTracker.begin(it.point, baselineMarchSignals)
-            )
+            Session(it, beforeObservation, popupBefore, marchTracker.begin(it.point, baselineMarchSignals))
         }
-
-        return Result(
-            lifecycle = lifecycle.request(
-                automaticActionsEnabled = automaticActionsEnabled,
-                selected = selected,
-                validation = validation,
-                nowMs = nowMs
-            ),
-            session = session
-        )
+        return Result(lifecycle.request(automaticActionsEnabled, selected, validation, nowMs), session)
     }
 
-    fun revalidate(
-        latestObservation: MapObservation?,
-        latestValidation: TargetValidationResult,
-        latestAction: ActionButton?
-    ): Result {
+    fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
         if (current == null || selected == null || selected != current.selected) {
-            return Result(
-                lifecycle = lifecycle.revalidated(
-                    TargetValidationResult(
-                        safe = false,
-                        stage = TargetValidationStage.DETECTED,
-                        reasons = setOf(TargetBlockReason.TARGET_CHANGED)
-                    )
-                ),
-                session = current
-            )
+            return Result(lifecycle.revalidated(TargetValidationResult(false, TargetValidationStage.DETECTED, setOf(TargetBlockReason.TARGET_CHANGED))), current)
         }
-
-        val validation = PreActionRevalidator.revalidate(
-            selected = selected,
-            latestObservation = latestObservation,
-            latestValidation = latestValidation,
-            latestAction = latestAction
-        )
-        return Result(
-            lifecycle = lifecycle.revalidated(validation),
-            session = current
-        )
+        return Result(lifecycle.revalidated(PreActionRevalidator.revalidate(selected, latestObservation, latestValidation, latestAction)), current)
     }
 
-    /**
-     * Dispatch is supplied by the caller so this class remains testable and
-     * cannot silently acquire or invoke Accessibility gestures.
-     */
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected != current.selected) {
-            return Result(
-                lifecycle = lifecycle.dispatched(nowMs) { false },
-                session = current
-            )
-        }
-
-        val accepted = dispatch()
-        val next = lifecycle.dispatched(nowMs, accepted)
+        if (current == null || selected == null || selected != current.selected) return Result(lifecycle.dispatched(nowMs) { false }, current)
+        val next = lifecycle.dispatched(nowMs, dispatch())
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
-        return Result(
-            lifecycle = next,
-            session = current
-        )
+        return Result(next, current)
     }
 
     fun observeMarch(signals: List<MarchSignal>, nowMs: Long): Result {
         val current = session ?: return Result(lifecycle.snapshot, null)
         val selected = lifecycle.snapshot.selected
-        if (selected == null ||
-            selected != current.selected ||
-            lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT
-        ) {
-            return Result(lifecycle.snapshot, current)
-        }
+        if (selected == null || selected != current.selected || lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) return Result(lifecycle.snapshot, current)
         if (current.ownMarchConfirmed) return Result(lifecycle.snapshot, current)
-
-        val update = marchTracker.update(
-            session = current.marchSession,
-            signals = signals,
-            nowMs = nowMs
-        )
-        session = current.copy(
-            marchSession = update.session,
-            ownMarchConfirmed = update.ownMarchConfirmed
-        )
+        val update = marchTracker.update(current.marchSession, signals, nowMs)
+        session = current.copy(marchSession = update.session, ownMarchConfirmed = update.ownMarchConfirmed)
         return Result(lifecycle.snapshot, session)
     }
 
-    fun verifyPostAction(
-        afterObservation: MapObservation?,
-        popupAfter: PopupState?,
-        nowMs: Long = System.currentTimeMillis()
-    ): Result {
+    fun verifyPostAction(afterObservation: MapObservation?, popupAfter: PopupState?, nowMs: Long = System.currentTimeMillis()): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected != current.selected) {
-            return Result(lifecycle.snapshot, current)
-        }
-        if (lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) {
-            return Result(lifecycle.snapshot, current)
-        }
+        if (current == null || selected == null || selected != current.selected || lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) return Result(lifecycle.snapshot, current)
 
-        val evidence = PostActionStateVerifier.collectEvidence(
-            selected = selected,
-            before = current.beforeObservation,
-            after = afterObservation,
-            popupBefore = current.popupBefore,
-            popupAfter = popupAfter
-        ).toMutableSet()
-
-        val cameraStable = afterObservation?.evidence?.contains(
-            com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE
-        ) != true
-        if (current.ownMarchConfirmed &&
-            cameraStable &&
-            PostActionStateVerifier.isSameTarget(afterObservation, selected)
-        ) {
+        val evidence = PostActionStateVerifier.collectEvidence(selected, current.beforeObservation, afterObservation, current.popupBefore, popupAfter).toMutableSet()
+        val cameraStable = afterObservation?.evidence?.contains(ObservationEvidence.CAMERA_UNSTABLE) != true
+        val sources = linkedSetOf<PostActionEvidenceSource>()
+        if (PostActionEvidence.POPUP_DISAPPEARED in evidence) sources += PostActionEvidenceSource.POPUP_STATE
+        if (PostActionEvidence.TARGET_REMOVED in evidence || PostActionEvidence.TARGET_OCCUPIED in evidence) sources += PostActionEvidenceSource.TARGET_STATE
+        if (current.ownMarchConfirmed && cameraStable && PostActionStateVerifier.isSameTarget(afterObservation, selected)) {
             evidence += PostActionEvidence.OWN_MARCH_CONFIRMED
+            sources += PostActionEvidenceSource.MARCH_ASSOCIATION
         }
 
         val predicted = ActionPostVerifier.verify(evidence)
         if (predicted == ActionLifecycleState.UNKNOWN) {
             postEvidenceSignature = null
             postEvidenceFrames = 0
+            lastPostActionEvidence = null
             val startedAt = postActionStartedAtMs
             if (startedAt != null && nowMs - startedAt >= POST_ACTION_TIMEOUT_MS) {
                 postActionStartedAtMs = null
@@ -202,16 +109,15 @@ class ActionOrchestrator(
             return Result(lifecycle.snapshot, session)
         }
 
-        if (postEvidenceSignature == evidence) {
-            postEvidenceFrames += 1
-        } else {
-            postEvidenceSignature = evidence.toSet()
-            postEvidenceFrames = 1
-        }
+        postEvidenceFrames = if (postEvidenceSignature == evidence) postEvidenceFrames + 1 else 1
+        postEvidenceSignature = evidence.toSet()
+        lastPostActionEvidence = PostActionEvidenceRecord(
+            evidence.toSet(), sources.toSet(), selected,
+            afterObservation?.coordinate, afterObservation?.kind, afterObservation?.level,
+            cameraStable, postEvidenceFrames, nowMs
+        )
 
-        if (postEvidenceFrames < POST_ACTION_CONFIRMATION_FRAMES) {
-            return Result(lifecycle.snapshot, session)
-        }
+        if (postEvidenceFrames < POST_ACTION_CONFIRMATION_FRAMES) return Result(lifecycle.snapshot, session)
 
         val verified = lifecycle.verify(evidence)
         if (verified.state == ActionLifecycleState.SUCCEEDED) {
@@ -224,14 +130,10 @@ class ActionOrchestrator(
             postEvidenceSignature = null
             postEvidenceFrames = 0
         }
-        return Result(
-            lifecycle = verified,
-            session = current
-        )
+        return Result(verified, current)
     }
 
-    fun timeout(): Result =
-        Result(lifecycle.timeout(), session)
+    fun timeout(): Result = Result(lifecycle.timeout(), session)
 
     fun reset(): Result {
         lifecycle.reset()
@@ -240,6 +142,7 @@ class ActionOrchestrator(
         postActionStartedAtMs = null
         postEvidenceSignature = null
         postEvidenceFrames = 0
+        lastPostActionEvidence = null
         return Result(lifecycle.snapshot, null)
     }
 }
