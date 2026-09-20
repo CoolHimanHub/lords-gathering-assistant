@@ -25,6 +25,24 @@ enum class ActionLifecycleFailure {
     VERIFICATION_TIMEOUT
 }
 
+/**
+ * Automatic recovery policy.
+ *
+ * UNKNOWN is intentionally non-retryable because the previous gesture may
+ * have succeeded without enough evidence to prove the outcome.
+ */
+object ActionRecoveryPolicy {
+    fun mayStartAutomaticAttempt(state: ActionLifecycleState): Boolean = when (state) {
+        ActionLifecycleState.IDLE,
+        ActionLifecycleState.SUCCEEDED,
+        ActionLifecycleState.FAILED -> true
+        ActionLifecycleState.REQUESTED,
+        ActionLifecycleState.REVALIDATED,
+        ActionLifecycleState.WAITING_FOR_RESULT,
+        ActionLifecycleState.UNKNOWN -> false
+    }
+}
+
 data class ActionLifecycleSnapshot(
     val state: ActionLifecycleState,
     val selected: ActionTargetSnapshot? = null,
