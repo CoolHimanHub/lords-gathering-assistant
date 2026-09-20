@@ -15,6 +15,8 @@ import android.util.DisplayMetrics
 import com.coolhiman.lordsassistant.map.LiveMapScanner
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
+import com.coolhiman.lordsassistant.target.ActionDiagnosticsSnapshot
+import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
 import com.coolhiman.lordsassistant.target.ActionLifecycleState
 import com.coolhiman.lordsassistant.target.ActionOrchestrator
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
@@ -170,6 +172,13 @@ class ScreenCaptureService : Service() {
                         actionOrchestrator.reset()
                     }
 
+                    ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
+                        scan = scan,
+                        lifecycle = actionOrchestrator.lifecycleSnapshot,
+                        evidence = actionOrchestrator.lastPostActionEvidence,
+                        timestampMs = now
+                    )
+
                     OverlayService.instance?.showStatus(
                         status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name
                     )
@@ -214,6 +223,7 @@ class ScreenCaptureService : Service() {
         projection?.stop()
         liveScanner.close()
         analyzer.close()
+        ActionDiagnosticsStore.latest = null
         super.onDestroy()
     }
 
