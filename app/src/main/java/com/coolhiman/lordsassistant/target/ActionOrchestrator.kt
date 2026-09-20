@@ -141,7 +141,13 @@ class ActionOrchestrator(
             popupAfter = popupAfter
         ).toMutableSet()
 
-        if (current.ownMarchConfirmed) {
+        val cameraStable = afterObservation?.evidence?.contains(
+            com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE
+        ) != true
+        if (current.ownMarchConfirmed &&
+            cameraStable &&
+            PostActionStateVerifier.isSameTarget(afterObservation, selected)
+        ) {
             evidence += PostActionEvidence.OWN_MARCH_CONFIRMED
         }
 
