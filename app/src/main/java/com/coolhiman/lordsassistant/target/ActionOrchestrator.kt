@@ -8,7 +8,8 @@ import com.coolhiman.lordsassistant.vision.PopupState
 class ActionOrchestrator(
     initialRecoveryEpoch: Long = 0L,
     private val lifecycle: ActionLifecycleController = ActionLifecycleController(),
-    private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker()
+    private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker(),
+    private val attemptIdAllocator: ((Long) -> Long)? = null
 ) {
     data class Session(
         val attemptId: Long,
@@ -54,7 +55,8 @@ class ActionOrchestrator(
             selected != null && selected == completedTarget) return Result(lifecycle.snapshot, session)
 
         lastPostActionEvidence = null
-        val attemptId = ++nextAttemptId
+        val attemptId = attemptIdAllocator?.invoke(nextAttemptId) ?: (nextAttemptId + 1L)
+        nextAttemptId = maxOf(nextAttemptId, attemptId)
         session = selected?.let {
             Session(
                 attemptId = attemptId,
