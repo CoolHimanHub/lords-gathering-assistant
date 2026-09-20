@@ -305,4 +305,12 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - Added regression coverage for all lifecycle recovery states.
 - Automatic Gather/Hunt actions remain disabled by default and all gesture dispatch remains behind explicit user opt-in plus the complete safety chain.
 
-The latest safety-hardening changes should be treated as the V0.4.34 development baseline pending CI verification.
+### V0.4.35 — Deliberate UNKNOWN recovery
+
+- Added a diagnostics-screen recovery control for an action lifecycle stuck in `UNKNOWN`.
+- Recovery is accepted only when the active lifecycle is `UNKNOWN` and automatic actions are disabled.
+- The diagnostics UI only raises a process-local request; the capture service performs the guarded reset.
+- The request is one-shot and does not bypass target validation, Accessibility gating, or automatic-action policy.
+- This prevents an uncertain action from being automatically retried while providing a deliberate operator recovery path.
+- Added regression coverage for the one-shot recovery request bridge.
+- Automatic Gather/Hunt actions remain disabled by default.
