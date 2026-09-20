@@ -1,7 +1,6 @@
 package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.MapObservation
-import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.vision.MarchSignal
 import com.coolhiman.lordsassistant.vision.PopupState
 
@@ -18,6 +17,7 @@ class ActionOrchestrator(
     private val marchTracker: ActionMarchAssociationTracker = ActionMarchAssociationTracker()
 ) {
     data class Session(
+        val selected: ActionTargetSnapshot,
         val beforeObservation: MapObservation?,
         val popupBefore: PopupState?,
         val marchSession: ActionMarchAssociationTracker.Session,
@@ -59,13 +59,16 @@ class ActionOrchestrator(
         ) {
             return Result(lifecycle.snapshot, session)
         }
+
         session = selected?.let {
             Session(
+                selected = it,
                 beforeObservation = beforeObservation,
                 popupBefore = popupBefore,
                 marchSession = marchTracker.begin(it.point, baselineMarchSignals)
             )
         }
+
         return Result(
             lifecycle = lifecycle.request(
                 automaticActionsEnabled = automaticActionsEnabled,
@@ -82,7 +85,21 @@ class ActionOrchestrator(
         latestValidation: TargetValidationResult,
         latestAction: ActionButton?
     ): Result {
+        val current = session
         val selected = lifecycle.snapshot.selected
+        if (current == null || selected == null || selected != current.selected) {
+            return Result(
+                lifecycle = lifecycle.revalidated(
+                    TargetValidationResult(
+                        safe = false,
+                        stage = TargetValidationStage.DETECTED,
+                        reasons = setOf(TargetBlockReason.TARGET_CHANGED)
+                    )
+                ),
+                session = current
+            )
+        }
+
         val validation = PreActionRevalidator.revalidate(
             selected = selected,
             latestObservation = latestObservation,
@@ -91,7 +108,7 @@ class ActionOrchestrator(
         )
         return Result(
             lifecycle = lifecycle.revalidated(validation),
-            session = session
+            session = current
         )
     }
 
@@ -100,17 +117,33 @@ class ActionOrchestrator(
      * cannot silently acquire or invoke Accessibility gestures.
      */
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
+        val current = session
+        val selected = lifecycle.snapshot.selected
+        if (current == null || selected == null || selected != current.selected) {
+            return Result(
+                lifecycle = lifecycle.dispatched(nowMs) { false },
+                session = current
+            )
+        }
+
         val accepted = dispatch()
         val next = lifecycle.dispatched(nowMs, accepted)
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
         return Result(
             lifecycle = next,
-            session = session
+            session = current
         )
     }
 
     fun observeMarch(signals: List<MarchSignal>, nowMs: Long): Result {
         val current = session ?: return Result(lifecycle.snapshot, null)
+        val selected = lifecycle.snapshot.selected
+        if (selected == null ||
+            selected != current.selected ||
+            lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT
+        ) {
+            return Result(lifecycle.snapshot, current)
+        }
         if (current.ownMarchConfirmed) return Result(lifecycle.snapshot, current)
 
         val update = marchTracker.update(
@@ -132,7 +165,10 @@ class ActionOrchestrator(
     ): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null) {
+        if (current == null || selected == null || selected != current.selected) {
+            return Result(lifecycle.snapshot, current)
+        }
+        if (lifecycle.snapshot.state != ActionLifecycleState.WAITING_FOR_RESULT) {
             return Result(lifecycle.snapshot, current)
         }
 
