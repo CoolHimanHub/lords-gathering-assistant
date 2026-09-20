@@ -168,6 +168,14 @@ class ActionLifecycleController(
         return snapshot
     }
 
+    fun restoreUnknown(): ActionLifecycleSnapshot {
+        snapshot = ActionLifecycleSnapshot(
+            state = ActionLifecycleState.UNKNOWN,
+            failure = ActionLifecycleFailure.VERIFICATION_TIMEOUT
+        )
+        return snapshot
+    }
+
     fun reset(): ActionLifecycleSnapshot {
         executionController.reset()
         snapshot = ActionLifecycleSnapshot(ActionLifecycleState.IDLE)
