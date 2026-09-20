@@ -65,7 +65,7 @@ class ActionOrchestrator(
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected != current.selected) return Result(lifecycle.dispatched(nowMs) { false }, current)
+        if (current == null || selected == null || selected != current.selected) return Result(lifecycle.dispatched(nowMs, false), current)
         val next = lifecycle.dispatched(nowMs, dispatch())
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
         return Result(next, current)
