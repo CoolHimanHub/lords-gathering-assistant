@@ -38,7 +38,8 @@ data class LiveMapScanResult(
     val actionButton: ActionButton? = null,
     val selectedActionTarget: ActionTargetSnapshot? = null,
     val selectedObservation: MapObservation? = null,
-    val marchSignals: List<com.coolhiman.lordsassistant.vision.MarchSignal> = emptyList()
+    val marchSignals: List<com.coolhiman.lordsassistant.vision.MarchSignal> = emptyList(),
+    val popupState: PopupState? = null
 )
 
 class LiveMapScanner(context: Context) {
@@ -164,7 +165,8 @@ class LiveMapScanner(context: Context) {
             actionButton = actionButton,
             selectedActionTarget = selectedActionTarget,
             selectedObservation = candidateObservation,
-            marchSignals = marchSignals
+            marchSignals = marchSignals,
+            popupState = popupState
         )
     }
 
