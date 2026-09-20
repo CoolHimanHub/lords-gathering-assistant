@@ -18,6 +18,7 @@ class ActionExecutionJournal(context: Context) {
     data class Entry(
         val attemptId: Long,
         val recoveryEpoch: Long,
+        val recoveryEpochPersisted: Boolean,
         val startedAtMs: Long
     )
 
@@ -39,6 +40,7 @@ class ActionExecutionJournal(context: Context) {
             Entry(
                 attemptId = prefs.getLong(KEY_ATTEMPT_ID, 0L),
                 recoveryEpoch = prefs.getLong(KEY_RECOVERY_EPOCH, 0L),
+                recoveryEpochPersisted = prefs.contains(KEY_RECOVERY_EPOCH),
                 startedAtMs = prefs.getLong(KEY_STARTED_AT, 0L)
             )
         } else null
