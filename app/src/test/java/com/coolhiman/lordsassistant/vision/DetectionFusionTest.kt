@@ -68,4 +68,23 @@ class DetectionFusionTest {
         assertNull(result.single().occupied)
         assertNull(result.single().incomingTroops)
     }
+    @Test
+    fun ambiguousNearbyMarchesDoNotForceIncomingState() {
+        val tile = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f,100f,140f,140f), 0.9
+        )
+        val result = DetectionFusion(maxMarchDistancePx = 80f).fuse(
+            DetectionFrame(listOf(tile), 1),
+            emptyList(),
+            listOf(
+                MarchSignal(155f, 120f, 50.0, 0.95f),
+                MarchSignal(100f, 170f, 50.0, 0.90f)
+            )
+        ) { _, _ -> WorldCoordinate(1, 200, 300) }
+
+        assertNull(result.single().occupied)
+        assertNull(result.single().incomingTroops)
+    }
+
 }
+
