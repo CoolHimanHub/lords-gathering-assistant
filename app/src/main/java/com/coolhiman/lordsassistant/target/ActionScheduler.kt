@@ -63,15 +63,16 @@ class ActionScheduler(
      */
     fun refresh(current: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> {
         val previousTargets = candidates.values.map { it.target }.toSet()
-        val latestSafe = linkedMapOf<ActionTargetSnapshot, ActionScheduleCandidate>()
+        val latestSafe = linkedMapOf<ActionTargetIdentity, ActionScheduleCandidate>()
 
         current.forEach { candidate ->
             if (!candidate.validationSafe || candidate.stabilityFrames < minimumStabilityFrames) return@forEach
             if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return@forEach
 
-            val existing = latestSafe[candidate.target]
+            val identity = candidate.target.identity()
+            val existing = latestSafe[identity]
             if (existing == null || compare(candidate, existing) < 0) {
-                latestSafe[candidate.target] = candidate
+                latestSafe[identity] = candidate
             }
         }
 
@@ -81,7 +82,7 @@ class ActionScheduler(
         candidates.clear()
         candidates.putAll(latestSafe)
 
-        return previousTargets.filter { it !in latestSafe.keys }
+        return previousTargets.filter { it.identity() !in latestSafe.keys }
     }
 
     fun remove(target: ActionTargetSnapshot) {
