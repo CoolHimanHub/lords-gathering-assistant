@@ -125,9 +125,7 @@ class ScreenCaptureService : Service() {
                     if (prefs.automaticActions) {
                         when {
                             active == ActionLifecycleState.IDLE ||
-                                active == ActionLifecycleState.SUCCEEDED ||
-                                active == ActionLifecycleState.FAILED ||
-                                active == ActionLifecycleState.UNKNOWN -> {
+                                active == ActionLifecycleState.SUCCEEDED -> {
                                 val previous = previousScan
                                 if (previous?.selectedActionTarget != null &&
                                     previous.validation.safe &&
@@ -163,10 +161,13 @@ class ScreenCaptureService : Service() {
                                 actionOrchestrator.observeMarch(scan.marchSignals, now)
                                 actionOrchestrator.verifyPostAction(
                                     afterObservation = scan.selectedObservation,
-                                    popupAfter = scan.popupState
+                                    popupAfter = scan.popupState,
+                                    nowMs = now
                                 )
                             }
                         }
+                    } else if (active != ActionLifecycleState.IDLE) {
+                        actionOrchestrator.reset()
                     }
 
                     OverlayService.instance?.showStatus(status)
