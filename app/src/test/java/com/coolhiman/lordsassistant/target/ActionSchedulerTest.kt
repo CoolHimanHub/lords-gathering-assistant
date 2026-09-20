@@ -20,9 +20,10 @@ class ActionSchedulerTest {
     private fun candidate(
         priority: Int,
         stabilityFrames: Int,
-        safe: Boolean
+        safe: Boolean,
+        targetX: Int = 99
     ) = ActionScheduleCandidate(
-        target = target(99),
+        target = target(targetX),
         priority = priority,
         stabilityFrames = stabilityFrames,
         validationSafe = safe,
@@ -253,9 +254,25 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun claimedTargetFailureDoesNotDiscardOtherQueuedTarget() {
+        val scheduler = ActionScheduler()
+        val failed = candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1)
+        val remaining = candidate(priority = 5, stabilityFrames = 3, safe = true, targetX = 2)
+
+        scheduler.refresh(listOf(failed, remaining))
+        val claimed = scheduler.claim(10_000L)
+        assertEquals(failed.target, claimed.candidate?.target)
+
+        // The caller's revalidation/dispatch failure belongs only to the
+        // claimed attempt; the independently validated target remains queued.
+        assertEquals(1, scheduler.queuedCount())
+        assertEquals(remaining.target, scheduler.peek(10_000L).candidate?.target)
+    }
+
+    @Test
     fun safetyStateBlocksSelectionEvenWithSafeCandidate() {
         val scheduler = ActionScheduler()
-        scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true))
+        scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1))
 
         val safety = ActionSchedulerSafetyState(
             lifecycle = ActionLifecycleSnapshot(
@@ -295,8 +312,8 @@ class ActionSchedulerTest {
     @Test
     fun refreshRemovesTargetsThatDisappearedFromLatestScan() {
         val scheduler = ActionScheduler()
-        val first = candidate(priority = 10, stabilityFrames = 3, safe = true)
-        val second = candidate(priority = 5, stabilityFrames = 3, safe = true)
+        val first = candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1)
+        val second = candidate(priority = 5, stabilityFrames = 3, safe = true, targetX = 2)
 
         scheduler.refresh(listOf(first, second))
         assertEquals(2, scheduler.queuedCount())
@@ -311,7 +328,7 @@ class ActionSchedulerTest {
     @Test
     fun refreshDoesNotKeepPreviouslySafeTargetWhenCurrentFrameBecomesUnsafe() {
         val scheduler = ActionScheduler()
-        val first = candidate(priority = 10, stabilityFrames = 3, safe = true)
+        val first = candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1)
 
         scheduler.refresh(listOf(first))
         scheduler.refresh(
