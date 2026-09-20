@@ -45,6 +45,45 @@ class ActionAuditLogStoreTest {
 
     @Test
     @Test
+    @Test
+    fun lifecycleFailureTypesArePersistable() {
+        val context = androidx.test.core.app.ApplicationProvider
+            .getApplicationContext<android.content.Context>()
+        val store = ActionAuditLogStore(context)
+        store.clear()
+
+        listOf(
+            ActionAuditEventType.REVALIDATION_FAILED,
+            ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED,
+            ActionAuditEventType.UNKNOWN_ENTERED,
+            ActionAuditEventType.VERIFICATION_TIMEOUT
+        ).forEachIndexed { index, type ->
+            assertEquals(
+                true,
+                store.append(
+                    ActionAuditEvent(
+                        timestampMs = index.toLong(),
+                        type = type,
+                        detail = type.name
+                    )
+                )
+            )
+        }
+
+        assertEquals(
+            listOf(
+                ActionAuditEventType.REVALIDATION_FAILED,
+                ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED,
+                ActionAuditEventType.UNKNOWN_ENTERED,
+                ActionAuditEventType.VERIFICATION_TIMEOUT
+            ),
+            store.readAll().map { it.type }
+        )
+
+        store.clear()
+    }
+
+    @Test
     fun appendIfChangedDoesNotSpamIdenticalEvents() {
         val context = androidx.test.core.app.ApplicationProvider
             .getApplicationContext<android.content.Context>()
