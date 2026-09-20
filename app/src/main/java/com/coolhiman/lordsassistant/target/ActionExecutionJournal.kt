@@ -5,22 +5,21 @@ import android.content.Context
 /**
  * Durable barrier for an action whose gesture may already have reached the game.
  *
- * The marker is written before dispatch so process/service death cannot turn an
- * unknown in-flight gesture into an automatic retry. It is cleared only after
- * a definitive dispatch failure or verified/manual recovery.
+ * The marker is committed synchronously before dispatch so process/service death
+ * cannot turn an unknown in-flight gesture into an automatic retry. It is cleared
+ * only after a definitive dispatch failure or verified/manual recovery.
  */
 class ActionExecutionJournal(context: Context) {
     private val prefs = context.getSharedPreferences("lm_action_journal", Context.MODE_PRIVATE)
 
     data class Entry(val attemptId: Long, val startedAtMs: Long)
 
-    fun markInFlight(attemptId: Long, startedAtMs: Long) {
+    fun markInFlight(attemptId: Long, startedAtMs: Long): Boolean =
         prefs.edit()
             .putBoolean(KEY_IN_FLIGHT, true)
             .putLong(KEY_ATTEMPT_ID, attemptId)
             .putLong(KEY_STARTED_AT, startedAtMs)
-            .apply()
-    }
+            .commit()
 
     fun readInFlight(): Entry? =
         if (prefs.getBoolean(KEY_IN_FLIGHT, false)) {
