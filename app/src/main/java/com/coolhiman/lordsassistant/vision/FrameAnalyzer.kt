@@ -23,7 +23,7 @@ class FrameAnalyzer {
             .addOnSuccessListener { result ->
                 val text = OcrParser.normalize(result.text)
                 val regions = result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
-                    line.boundingBox?.let { TextRegion(RectF(it), GameTextClassifier.classify(line.text)) }
+                    line.boundingBox?.let { TextRegion(RectF(it), GameTextClassifier.classify(line.text), OcrParser.normalize(line.text)) }
                 }
                 callback(
                     FrameAnalysis(
