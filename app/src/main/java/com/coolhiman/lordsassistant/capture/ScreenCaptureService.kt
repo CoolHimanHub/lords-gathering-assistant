@@ -139,6 +139,7 @@ class ScreenCaptureService : Service() {
                         actionOrchestrator.reset()
                         actionJournal.clear()
                         restartQuarantine = false
+                        previousScan = null
                         ActionDiagnosticsStore.latest?.let { latest ->
                             ActionDiagnosticsStore.latest = latest.copy(
                                 lifecycle = actionOrchestrator.lifecycleSnapshot,
@@ -172,16 +173,20 @@ class ScreenCaptureService : Service() {
                                     )
                                     if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
                                         val attemptId = actionOrchestrator.session?.attemptId
-                                        if (attemptId != null) actionJournal.markInFlight(attemptId, now)
-                                        actionOrchestrator.dispatch(now) {
+                                        if (attemptId != null && actionJournal.markInFlight(attemptId, now)) {
+                                            actionOrchestrator.dispatch(now) {
                                             LmAccessibilityService.instance?.tapRevalidated(
                                                 selected = previous.selectedActionTarget,
                                                 latestObservation = scan.selectedObservation,
                                                 latestValidation = scan.validation,
                                                 latestAction = scan.actionButton
                                             ) == true
-                                        }.also { result ->
-                                            if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
+                                            }.also { result ->
+                                                if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
+                                            }
+                                        } else if (attemptId != null) {
+                                            actionOrchestrator.reset()
+                                            actionJournal.clear()
                                         }
                                     }
                                 }
