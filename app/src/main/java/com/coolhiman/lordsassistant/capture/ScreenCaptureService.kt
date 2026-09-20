@@ -193,10 +193,10 @@ class ScreenCaptureService : Service() {
                     }
                     val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
 
-                    // Feed only the already validated current-frame target into
-                    // the multi-target boundary. Other ranked map targets do not
-                    // yet have a verified interaction point, so they must not be
-                    // manufactured into actionable scheduler candidates.
+                    // Feed only independently validated current-frame candidates
+                    // with a real detected action-button point into the scheduler.
+                    // Ranked map-memory targets without a verified interaction
+                    // control are never manufactured into actionable candidates.
                     val currentCandidates = scan.actionCandidates.map { candidate ->
                         ActionScheduleCandidate(
                             target = candidate.target,
@@ -206,7 +206,7 @@ class ScreenCaptureService : Service() {
                             },
                             stabilityFrames = candidate.stability.consecutiveFrames,
                             validationSafe = candidate.validation.safe &&
-                                candidate.validation.stage == com.coolhiman.lordsassistant.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
+                                candidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT,
                             queuedAtMs = now
                         )
                     }
