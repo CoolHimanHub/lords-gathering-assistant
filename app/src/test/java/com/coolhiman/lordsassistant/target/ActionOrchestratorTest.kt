@@ -145,7 +145,8 @@ class ActionOrchestratorTest {
         orchestrator.dispatch(40_001L) { true }
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 40_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 40_200L)
-        orchestrator.verifyPostAction(observation, popup)
+        orchestrator.verifyPostAction(observation, popup, 40_300L)
+        orchestrator.verifyPostAction(observation, popup, 40_400L)
 
         var dispatched = false
         val result = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_500L)
