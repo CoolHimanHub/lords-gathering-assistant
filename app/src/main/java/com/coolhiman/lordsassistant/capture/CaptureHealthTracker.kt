@@ -116,3 +116,52 @@ class CaptureHealthTracker {
         processingTotalMs = 0L
     }
 }
+
+
+/**
+ * Detects a live-capture stall without ever relaxing action safety.
+ *
+ * A frame arrival clears the stalled condition. Once the session is active,
+ * exceeding the timeout produces one edge-triggered stall signal so the
+ * capture service can fail closed and stop the session.
+ */
+class CaptureWatchdog(
+    private val stallTimeoutMs: Long = 3000L
+) {
+    init {
+        require(stallTimeoutMs > 0L)
+    }
+
+    private var active = false
+    private var lastFrameAtMs: Long? = null
+    private var stalled = false
+
+    fun start(nowMs: Long) {
+        active = true
+        lastFrameAtMs = nowMs
+        stalled = false
+    }
+
+    fun frameArrived(nowMs: Long) {
+        if (!active) return
+        lastFrameAtMs = nowMs
+        stalled = false
+    }
+
+    fun check(nowMs: Long): Boolean {
+        if (!active || stalled) return false
+        val last = lastFrameAtMs ?: return false
+        if (nowMs < last || nowMs - last < stallTimeoutMs) return false
+        stalled = true
+        return true
+    }
+
+    fun stop() {
+        active = false
+        lastFrameAtMs = null
+        stalled = false
+    }
+
+    fun isActive(): Boolean = active
+    fun isStalled(): Boolean = stalled
+}
