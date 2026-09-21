@@ -20,7 +20,7 @@ import kotlin.math.hypot
  */
 class ActionMarchAssociationTracker(
     private val startRadiusPx: Float = 120f,
-    private val baselineMatchRadiusPx: Float = 55f,
+    private val baselineMatchRadiusPx: Float = 8f,
     private val continuationRadiusPx: Float = 70f,
     private val minDisplacementPx: Float = 5f,
     private val minTrajectoryCosine: Float = 0.55f,
