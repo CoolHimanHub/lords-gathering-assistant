@@ -195,15 +195,12 @@ class ActionScheduler(
     ): Int {
         // Higher priority first, then stronger stability, then older queue
         // entry. No target is considered "safe" merely because it ranks high.
-        return compareValuesBy(
-            left,
-            right,
-            { -it.priority },
-            { it.plannerRank },
-            { -it.plannerScore },
-            { -it.stabilityFrames },
-            { it.queuedAtMs }
-        )
+        return compareBy<ActionScheduleCandidate> { -it.priority }
+            .thenBy { it.plannerRank }
+            .thenBy { -it.plannerScore }
+            .thenBy { -it.stabilityFrames }
+            .thenBy { it.queuedAtMs }
+            .compare(left, right)
     }
 
     companion object {
