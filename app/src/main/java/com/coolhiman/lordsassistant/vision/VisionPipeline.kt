@@ -21,7 +21,11 @@ class VisionPipeline(
     ): VisionPipelineResult {
         val detection = tileDetector.detect(bitmap, templates)
         val fused = fusion.fuse(
-            detection, textRegions, marchSignals, coordinateResolver, popupState
+            frame = detection,
+            textRegions = textRegions,
+            marchSignals = marchSignals,
+            popupState = popupState,
+            coordinateResolver = coordinateResolver
         )
         return VisionPipelineResult(detection, fused)
     }
