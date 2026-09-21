@@ -419,4 +419,26 @@ class ActionSchedulerTest {
         assertEquals(0, scheduler.queuedCount())
     }
 
+    @Test
+    fun resetForCaptureSessionClearsSessionScopedSchedulerState() {
+        val scheduler = ActionScheduler()
+        val oldTarget = candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1)
+        scheduler.refresh(listOf(oldTarget))
+        scheduler.markTargetCompleted(oldTarget.target, 1_000L)
+        scheduler.markDispatchStarted(1_000L)
+
+        scheduler.resetForCaptureSession()
+
+        assertEquals(0, scheduler.queuedCount())
+        assertEquals(false, scheduler.isInFlight())
+
+        // A new capture session may immediately evaluate a freshly observed
+        // target; neither the old cooldown nor completed-target suppression
+        // can leak across the session boundary.
+        val fresh = oldTarget.copy(queuedAtMs = 2_000L)
+        scheduler.offer(fresh)
+        assertEquals(fresh.target, scheduler.peek(2_000L).candidate?.target)
+    }
+
+
 }
