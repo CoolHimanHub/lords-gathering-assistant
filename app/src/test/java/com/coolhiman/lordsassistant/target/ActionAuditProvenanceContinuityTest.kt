@@ -92,8 +92,7 @@ class ActionAuditProvenanceContinuityTest {
     }
 
     @Test
-    fun aNewRecoveryEpochIsDistinguishableEvenWhenCaptureSessionRemainsTheSame() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+    fun aNewRecoveryEpochIsDistinguishableEvenWhenCaptureSessionRemainsTheSame() {        val context = RuntimeEnvironment.getApplication()
         val store = ActionAuditLogStore(context)
         store.clear()
 
