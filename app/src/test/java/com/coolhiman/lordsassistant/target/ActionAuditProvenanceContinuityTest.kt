@@ -8,6 +8,8 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * V0.10 provenance continuity coverage.
@@ -16,6 +18,7 @@ import org.junit.Test
  * the identity needed to reconstruct which attempt, recovery epoch, and live
  * capture session produced it.
  */
+@RunWith(RobolectricTestRunner::class)
 class ActionAuditProvenanceContinuityTest {
 
     private val target = ActionTargetSnapshot(
