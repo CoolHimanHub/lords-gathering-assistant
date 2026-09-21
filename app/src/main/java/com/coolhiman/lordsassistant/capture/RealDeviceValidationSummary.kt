@@ -46,7 +46,20 @@ data class RealDeviceValidationSummary(
                 .flatMap { snapshot -> snapshot.candidateRejectionCounts.entries }
                 .groupingBy { it.key }
                 .fold(0) { total, entry -> total + entry.value }
+            val totalSessionRejections = history.sumOf { it.candidateRejectionCounts.values.sum() }
+            val totalAcceptedFrames = history.sumOf { it.acceptedFrames }
+            val rejectionDensity = if (totalAcceptedFrames > 0L) {
+                totalSessionRejections * 100.0 / totalAcceptedFrames
+            } else {
+                0.0
+            }
+            val averageDropRate = history.map { it.dropRatePercent }.average()
+            val totalStalls = history.sumOf { it.stallCount }
+            val totalViewportChanges = history.sumOf { it.viewportChangeCount }
             appendLine("Session-attributed rejections: " + if (sessionRejections.isEmpty()) "none" else sessionRejections.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
+            appendLine("Trend: %.2f%% rejections per 100 accepted frames • avg drop %.1f%% • stalls=%d • viewport changes=%d".format(
+                rejectionDensity, averageDropRate, totalStalls, totalViewportChanges
+            ))
         }
         appendLine()
         appendLine("Latest/all-session candidate rejections: $totalRejections")
