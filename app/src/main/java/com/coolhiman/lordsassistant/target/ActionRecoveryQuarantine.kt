@@ -45,10 +45,14 @@ class ActionRecoveryQuarantine {
     fun releaseAfterDeliberateRecovery(
         lifecycleIdle: Boolean,
         recoveryEpochPersisted: Boolean,
-        journalCleared: Boolean
+        journalCleared: Boolean,
+        currentCaptureSessionId: Long? = null
     ): Boolean {
         if (!state.active) return false
         if (!lifecycleIdle || !recoveryEpochPersisted || !journalCleared) return false
+        if (state.recoveredCaptureSessionId != null &&
+            (currentCaptureSessionId == null || currentCaptureSessionId == state.recoveredCaptureSessionId)
+        ) return false
 
         state = ActionRecoveryQuarantineSnapshot()
         return true
