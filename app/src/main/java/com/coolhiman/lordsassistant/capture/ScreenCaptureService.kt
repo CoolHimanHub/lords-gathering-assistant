@@ -176,6 +176,8 @@ class ScreenCaptureService : Service() {
             override fun onStop() {
                 if (captureSessionActive) {
                     captureSessionActive = false
+                    handler.removeCallbacks(captureWatchdogRunnable)
+                    captureWatchdog.stop()
                     captureHealth.stop()
                     viewportGuard.reset()
                     stopSelf()
