@@ -1001,3 +1001,11 @@ V0.10 guarded dispatch integration coverage:
 - Restart quarantine blocks scheduler selection while preserving the queued candidate for safe recovery handling.
 - This remains test-only safety coverage; it does not enable gestures or claim real-device validation.
 - Automatic Gather/Hunt remains OFF by default.
+
+### V0.10 post-dispatch verification & recovery coverage
+
+- Added JVM coverage for the post-dispatch lifecycle boundary: conservative target-state change can complete an action as `SUCCEEDED`, while explicit action rejection becomes `FAILED`.
+- Verification timeout becomes `UNKNOWN` and carries `VERIFICATION_TIMEOUT`; an `UNKNOWN` action cannot silently start another automatic attempt.
+- Recovery reset returns the lifecycle to `IDLE` while advancing the recovery epoch, preserving attempt/session provenance separation.
+- A failed dispatch cannot enter post-action verification or create a success state.
+- This is test-only lifecycle coverage; no real Accessibility gesture is performed and automatic Gather/Hunt remains OFF by default.
