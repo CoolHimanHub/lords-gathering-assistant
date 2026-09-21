@@ -209,6 +209,7 @@ class ScreenCaptureService : Service() {
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
                 if (captureSessionActive) {
+                    captureSessionActive = false
                     stopCaptureResources(CaptureStopReason.PROJECTION_STOPPED)
                     stopSelf()
                 }
