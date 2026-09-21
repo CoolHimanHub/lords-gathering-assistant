@@ -38,7 +38,9 @@ data class LiveActionCandidate(
     /** Zero-based position in the planner's existing ranked order. */
     val plannerRank: Int,
     /** Native planner score when this target is ranked; otherwise -INF. */
-    val plannerScore: Double
+    val plannerScore: Double,
+    /** Camera continuity must be established in a prior/current frame comparison. */
+    val cameraContinuityValid: Boolean
 )
 
 data class LiveMapScanResult(
@@ -252,7 +254,8 @@ class LiveMapScanner(context: Context) {
                     validation = actionValidation,
                     stability = stability,
                     plannerRank = plannerRankAndScore.first,
-                    plannerScore = plannerRankAndScore.second
+                    plannerScore = plannerRankAndScore.second,
+                    cameraContinuityValid = camera.continuityForActions
                 )
             }
 
