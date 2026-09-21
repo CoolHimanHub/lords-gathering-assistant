@@ -238,14 +238,19 @@ class ScreenCaptureService : Service() {
             }
 
             if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
-                // The first frame at a new capture size is intentionally dropped.
-                // Re-baseline the guard so the following frame can establish a
-                // fresh screen-space session instead of rejecting forever.
-                viewportGuard.reset()
+                // ImageReader/VirtualDisplay dimensions are fixed for this
+                // session. A dimension change therefore indicates rotation or
+                // another display-geometry transition; do not re-baseline onto
+                // an old reader and risk applying stale screen/world geometry.
                 captureHealth.viewportReset()
                 captureHealth.frameDropped()
+                OverlayService.instance?.showStatus(
+                    "DISPLAY CHANGED • scanner stopped safely; restart scanner"
+                )
                 if (!bitmap.isRecycled) bitmap.recycle()
                 busy.set(false)
+                stopCaptureResources()
+                stopSelf()
                 return@setOnImageAvailableListener
             }
 
