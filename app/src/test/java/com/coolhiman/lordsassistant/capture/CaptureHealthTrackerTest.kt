@@ -33,6 +33,8 @@ class CaptureHealthTrackerTest {
         assertEquals(600L, snapshot.maxFrameGapMs)
         assertEquals(60L, snapshot.lastProcessingMs)
         assertEquals(60L, snapshot.maxProcessingMs)
+        assertEquals(1100L, snapshot.sessionDurationMs)
+        assertEquals(2.727272727272727, snapshot.framesPerSecond)
         assertEquals(50.0, snapshot.averageProcessingMs)
         assertEquals(33.333333333333336, snapshot.dropRatePercent)
     }
@@ -62,6 +64,8 @@ class CaptureHealthTrackerTest {
         assertEquals(0L, snapshot.totalFrames)
         assertEquals(0L, snapshot.droppedFrames)
         assertEquals(null, snapshot.lastFrameAtMs)
+        assertEquals(0L, snapshot.sessionDurationMs)
+        assertEquals(0.0, snapshot.framesPerSecond)
     }
 
     @Test
