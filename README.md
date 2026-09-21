@@ -732,3 +732,23 @@ Regression coverage verifies ranked candidates, unranked candidates, non-finite 
 - These metrics are diagnostic only and do not relax camera continuity, validation, scheduler, or action-execution safety gates.
 - Added deterministic regression coverage for FPS/session-duration calculation and reset behavior.
 - App version is now 0.8.3.
+
+
+## V0.8.4 — Runtime session diagnostics & memory-pressure safety
+
+V0.8.4 extends live-device hardening without changing the action safety boundary.
+
+- Capture sessions now have a deterministic runtime session ID and restart counter.
+- Runtime diagnostics record capture stalls, viewport changes, stop reasons, and the latest failure reason.
+- Memory pressure is evaluated before image acquisition using deterministic NORMAL / WARNING / CRITICAL thresholds.
+- WARNING pressure safely drops the current frame rather than increasing allocation pressure.
+- CRITICAL pressure fails closed, stops the capture session, and leaves automatic action execution unavailable.
+- Existing capture watchdog and viewport fail-closed behavior remain intact.
+- Capture health acceptedFrames now means a frame survived acquisition, stale-frame, memory-pressure, and viewport checks and was actually admitted to analysis.
+- Runtime session ID, restart count, and memory-pressure level are exposed in the live overlay.
+- Added deterministic unit coverage for session/restart diagnostics and memory-pressure boundaries.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.8.4 (versionCode 84).
+
+Next validation target: sustained real-device capture, rotation/viewport transitions, memory-pressure behavior, and long-session telemetry under the actual game workload.
