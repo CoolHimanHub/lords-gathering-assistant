@@ -73,5 +73,9 @@ class CaptureSessionDiagnosticsStoreTest {
         assertEquals(CaptureStopReason.CAPTURE_STALLED, restored.runtime.lastStopReason)
         assertEquals(CaptureQuality.DEGRADED, restored.quality)
         assertEquals(100.0, restored.averageOcrMs, 0.001)
+
+        val firstId = store.allocateNextSessionId()
+        val secondId = store.allocateNextSessionId()
+        assertEquals(firstId + 1L, secondId)
     }
 }
