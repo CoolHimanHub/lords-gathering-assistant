@@ -40,6 +40,7 @@ data class ActionDiagnosticsSnapshot(
             journalAttemptId: Long? = null,
             journalRecoveryEpoch: Long? = null,
             journalRecoveryEpochPersisted: Boolean = false,
+            journalCaptureSessionId: Long? = null,
             reconciledInitialEpoch: Long = 0L,
             restartQuarantine: Boolean = false,
             timestampMs: Long = System.currentTimeMillis()
@@ -82,6 +83,7 @@ object ActionDiagnosticsFormatter {
             appendLine("Journal attempt: ${snapshot.journalAttemptId?.toString() ?: "none"}")
             appendLine("Journal epoch: ${snapshot.journalRecoveryEpoch?.toString() ?: "none"}")
             appendLine("Journal epoch provenance: ${if (snapshot.journalRecoveryEpochPersisted) "present" else "LEGACY / missing"}")
+            appendLine("Journal capture session: ${snapshot.journalCaptureSessionId?.toString() ?: "legacy / unknown"}")
             appendLine("Reconciled startup epoch: ${snapshot.reconciledInitialEpoch}")
             appendLine("Restart quarantine: ${if (snapshot.restartQuarantine) "ACTIVE" else "clear"}")
             if (snapshot.restartQuarantine) {
