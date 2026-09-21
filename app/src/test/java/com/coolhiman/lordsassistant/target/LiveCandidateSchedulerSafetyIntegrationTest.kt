@@ -90,7 +90,10 @@ class LiveCandidateSchedulerSafetyIntegrationTest {
         plannerScore = 100.0
     )
 
-    private fun target(\n        coordinate: WorldCoordinate = WorldCoordinate(355, 167, 511),\n        point: ScreenPoint = ScreenPoint(500f, 400f)\n    ) =
+    private fun target(
+        coordinate: WorldCoordinate = WorldCoordinate(355, 167, 511),
+        point: ScreenPoint = ScreenPoint(500f, 400f)
+    ) =
         ActionTargetSnapshot(
             coordinate = coordinate,
             kind = TargetKind.RESOURCE,
