@@ -92,6 +92,15 @@ class LiveMapScanner(context: Context) {
     ): LiveMapScanResult {
         val started = System.currentTimeMillis()
         if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
+            // A viewport discontinuity invalidates screen-space continuity.
+            // Quarantine all frame-to-frame camera/temporal state so the next
+            // accepted frame cannot inherit stale anchor positions.
+            cameraAnchorTracker.reset()
+            cameraStateTracker.reset()
+            tracker.reset()
+            targetStabilityTracker.reset()
+            targetStabilityTrackers.clear()
+
             val snapshot = mapMemory.snapshot()
             return LiveMapScanResult(
                 observations = snapshot,
