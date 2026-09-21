@@ -48,7 +48,9 @@ class DetectionFusion(
             )
 
             val nearbyMarches = marchSignals.mapNotNull { signal ->
-                val distance = hypot((signal.x - tile.centerX).toDouble(), (signal.y - tile.centerY).toDouble()).toFloat()
+                val tileCenterX = (tile.bounds.left + tile.bounds.right) / 2f
+                val tileCenterY = (tile.bounds.top + tile.bounds.bottom) / 2f
+                val distance = hypot((signal.x - tileCenterX).toDouble(), (signal.y - tileCenterY).toDouble()).toFloat()
                 if (distance <= maxMarchDistancePx) signal to distance else null
             }.sortedBy { it.second }
             val nearestDistance = nearbyMarches.firstOrNull()?.second
