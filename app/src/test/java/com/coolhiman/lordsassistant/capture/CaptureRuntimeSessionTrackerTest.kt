@@ -10,8 +10,8 @@ class CaptureRuntimeSessionTrackerTest {
     fun tracksSessionsRestartsAndFailureReasons() {
         val tracker = CaptureRuntimeSessionTracker()
 
-        tracker.start()
-        assertEquals(1L, tracker.snapshot().sessionId)
+        tracker.start(41L)
+        assertEquals(41L, tracker.snapshot().sessionId)
         assertEquals(0L, tracker.snapshot().restartCount)
         assertTrue(tracker.snapshot().active)
 
@@ -24,9 +24,9 @@ class CaptureRuntimeSessionTrackerTest {
         tracker.stop(CaptureStopReason.CAPTURE_STALLED)
         assertEquals(CaptureStopReason.CAPTURE_STALLED, tracker.snapshot().lastStopReason)
 
-        tracker.start()
+        tracker.start(42L)
         val snapshot = tracker.snapshot()
-        assertEquals(2L, snapshot.sessionId)
+        assertEquals(42L, snapshot.sessionId)
         assertEquals(2L, snapshot.startCount)
         assertEquals(1L, snapshot.restartCount)
         assertEquals(1L, snapshot.stallCount)
@@ -39,7 +39,7 @@ class CaptureRuntimeSessionTrackerTest {
     @Test
     fun resetClearsRuntimeDiagnostics() {
         val tracker = CaptureRuntimeSessionTracker()
-        tracker.start()
+        tracker.start(7L)
         tracker.recordFailure("reader setup failed")
         tracker.stop(CaptureStopReason.CAPTURE_SETUP_FAILED)
         tracker.reset()
