@@ -111,7 +111,7 @@ class ActionRestartRecoveryIntegrationTest {
 
         assertEquals(ActionLifecycleState.UNKNOWN, quarantine.lifecycle.state)
         assertEquals(durableEpoch + 1L, restarted.currentRecoveryEpoch)
-        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(quarantine))
+        assertTrue(!ActionRecoveryPolicy.mayStartAutomaticAttempt(quarantine.lifecycle))
         assertTrue(
             !ActionSchedulerSafetyGate().maySelect(
                 ActionSchedulerSafetyState(
@@ -127,7 +127,7 @@ class ActionRestartRecoveryIntegrationTest {
         val recovered = restarted.reset()
         assertEquals(ActionLifecycleState.IDLE, recovered.lifecycle.state)
         assertEquals(durableEpoch + 2L, restarted.currentRecoveryEpoch)
-        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(recovered))
+        assertTrue(ActionRecoveryPolicy.mayStartAutomaticAttempt(recovered.lifecycle))
         assertTrue(
             ActionSchedulerSafetyGate().maySelect(
                 ActionSchedulerSafetyState(
