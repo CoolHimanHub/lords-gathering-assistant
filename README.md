@@ -1011,4 +1011,6 @@ V0.10 guarded dispatch integration coverage:
 - This is test-only lifecycle coverage; no real Accessibility gesture is performed and automatic Gather/Hunt remains OFF by default.
 
 - Added scheduler integration coverage for in-flight blocking, dispatch cooldown, bounded completed-target suppression, and preservation of an independent queued target.
+- Added the missing live scheduler dispatch lifecycle bridge: `ScreenCaptureService` now marks the scheduler in-flight when the durable dispatch barrier opens and clears that state when guarded dispatch returns, with the Accessibility callback fail-closed on exceptions.
+- Added regression coverage proving the live adapter preserves scheduler in-flight blocking and cooldown across that dispatch lifecycle.
 - Added failure/recovery audit coverage for dispatch failure, verification timeout, UNKNOWN entry, recovery reset, and capture-session-scoped rejection counts.
