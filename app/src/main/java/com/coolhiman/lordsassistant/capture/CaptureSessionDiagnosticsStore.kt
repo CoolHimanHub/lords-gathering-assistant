@@ -41,6 +41,7 @@ class CaptureSessionDiagnosticsStore(context: Context) {
     private fun toJson(snapshot: CaptureSessionDiagnosticsSnapshot) = JSONObject().apply {
         put("sessionId", snapshot.sessionId)
         put("active", snapshot.runtime.active)
+        put("sessionStarted", snapshot.capture.sessionStarted)
         put("startCount", snapshot.runtime.startCount)
         put("restartCount", snapshot.runtime.restartCount)
         put("stallCount", snapshot.runtime.stallCount)
@@ -85,7 +86,7 @@ class CaptureSessionDiagnosticsStore(context: Context) {
             lastFailureReason = json.optString("lastFailureReason").takeIf { it.isNotBlank() }
         )
         val capture = CaptureHealthSnapshot(
-            sessionStarted = json.optBoolean("active"),
+            sessionStarted = json.optBoolean("sessionStarted", json.optBoolean("active")),
             totalFrames = json.optLong("totalFrames"),
             acceptedFrames = json.optLong("acceptedFrames"),
             droppedFrames = json.optLong("droppedFrames"),
