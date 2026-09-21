@@ -74,6 +74,15 @@ class CaptureSessionDiagnosticsStoreTest {
         assertEquals(CaptureQuality.DEGRADED, restored.quality)
         assertEquals(100.0, restored.averageOcrMs, 0.001)
 
+        for (session in 7L..13L) {
+            store.archive(snapshot.copy(runtime = runtime.copy(sessionId = session)))
+        }
+        val history = store.readHistory()
+        assertEquals(5, history.size)
+        assertEquals(13L, history.first().sessionId)
+        assertEquals(9L, history.last().sessionId)
+        assertEquals(2, store.readHistory(2).size)
+
         val firstId = store.allocateNextSessionId()
         val secondId = store.allocateNextSessionId()
         assertEquals(firstId + 1L, secondId)
