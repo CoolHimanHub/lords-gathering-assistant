@@ -30,4 +30,12 @@ data class UserPreferences(
     val monsterLevels: Set<Int> = setOf(1, 2, 3, 4, 5),
     val automaticActions: Boolean = false,
     val overlayEnabled: Boolean = true
-)
+) {
+    constructor(
+        resourceTypes: Set<ResourceType>,
+        resourceLevels: IntRange,
+        monsterLevels: Set<Int> = setOf(1, 2, 3, 4, 5),
+        automaticActions: Boolean = false,
+        overlayEnabled: Boolean = true
+    ) : this(resourceTypes, resourceLevels.toSet(), monsterLevels, automaticActions, overlayEnabled)
+}
