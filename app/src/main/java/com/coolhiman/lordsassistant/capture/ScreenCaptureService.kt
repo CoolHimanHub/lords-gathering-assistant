@@ -169,7 +169,10 @@ class ScreenCaptureService : Service() {
                     type = ActionAuditEventType.RESTART_QUARANTINE,
                     attemptId = entry.attemptId,
                     recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                    detail = "Recovered in-flight action; automatic retry quarantined"
+                    detail = "Recovered in-flight action from capture session " +
+                        (entry.captureSessionId?.toString() ?: "legacy/unknown") +
+                        "; recovered epoch=" + entry.recoveryEpoch +
+                        "; automatic retry quarantined"
                 )
             )
         }
@@ -565,7 +568,8 @@ class ScreenCaptureService : Service() {
                                             ActionDispatchProvenance(
                                                 attemptId = it.attemptId,
                                                 recoveryEpoch = it.recoveryEpoch,
-                                                startedAtMs = now
+                                                startedAtMs = now,
+                                                captureSessionId = liveCaptureSessionId
                                             )
                                         }
                                         if (provenance != null &&
