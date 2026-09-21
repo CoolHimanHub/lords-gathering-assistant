@@ -19,7 +19,8 @@ class ActionExecutionJournal(context: Context) {
         val attemptId: Long,
         val recoveryEpoch: Long,
         val recoveryEpochPersisted: Boolean,
-        val startedAtMs: Long
+        val startedAtMs: Long,
+        val captureSessionId: Long?
     )
 
     fun markInFlight(provenance: ActionDispatchProvenance): Boolean =
@@ -28,6 +29,9 @@ class ActionExecutionJournal(context: Context) {
             .putLong(KEY_ATTEMPT_ID, provenance.attemptId)
             .putLong(KEY_RECOVERY_EPOCH, provenance.recoveryEpoch)
             .putLong(KEY_STARTED_AT, provenance.startedAtMs)
+            .apply {
+                provenance.captureSessionId?.let { putLong(KEY_CAPTURE_SESSION_ID, it) }
+            }
             .commit()
 
     /**
@@ -41,7 +45,10 @@ class ActionExecutionJournal(context: Context) {
                 attemptId = prefs.getLong(KEY_ATTEMPT_ID, 0L),
                 recoveryEpoch = prefs.getLong(KEY_RECOVERY_EPOCH, 0L),
                 recoveryEpochPersisted = prefs.contains(KEY_RECOVERY_EPOCH),
-                startedAtMs = prefs.getLong(KEY_STARTED_AT, 0L)
+                startedAtMs = prefs.getLong(KEY_STARTED_AT, 0L),
+                captureSessionId = prefs.takeIf { it.contains(KEY_CAPTURE_SESSION_ID) }
+                    ?.getLong(KEY_CAPTURE_SESSION_ID, 0L)
+                    ?.takeIf { it > 0L }
             )
         } else null
 
@@ -54,5 +61,6 @@ class ActionExecutionJournal(context: Context) {
         private const val KEY_ATTEMPT_ID = "attempt_id"
         private const val KEY_RECOVERY_EPOCH = "recovery_epoch"
         private const val KEY_STARTED_AT = "started_at"
+        private const val KEY_CAPTURE_SESSION_ID = "capture_session_id"
     }
 }
