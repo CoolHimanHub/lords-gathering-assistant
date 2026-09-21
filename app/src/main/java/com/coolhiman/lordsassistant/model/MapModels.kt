@@ -5,9 +5,9 @@ data class ScreenPoint(val x: Float, val y: Float)
 data class MapObservation(
     val coordinate: WorldCoordinate?,
     val screenPoint: ScreenPoint?,
-    val label: String?,
-    val level: Int?,
-    val quantity: Long?,
+    val label: String? = null,
+    val level: Int? = null,
+    val quantity: Long? = null,
     val occupied: Boolean?,
     val incomingTroops: Boolean?,
     val kind: TargetKind?,
