@@ -121,7 +121,17 @@ class ActionOrchestrator(
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
-        if (current == null || selected == null || selected.identity() != current.selected.identity()) return Result(lifecycle.dispatched(nowMs, false), current)
+        if (current == null || selected == null || selected.identity() != current.selected.identity()) {
+            return Result(lifecycle.dispatched(nowMs, false), current)
+        }
+
+        // Never invoke the real gesture callback unless the lifecycle has
+        // already reached REVALIDATED. This keeps a failed/stale revalidation
+        // from causing a side effect merely because a caller invoked dispatch().
+        if (lifecycle.snapshot.state != ActionLifecycleState.REVALIDATED) {
+            return Result(lifecycle.dispatched(nowMs, false), current)
+        }
+
         val next = lifecycle.dispatched(nowMs, dispatch())
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
         return Result(next, current)
