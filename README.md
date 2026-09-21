@@ -602,6 +602,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.5 — Viewport discontinuity quarantine
+
+- Invalid viewport frames now reset camera-anchor, camera-state, temporal-observation, and target-stability continuity.
+- Prevents stale screen-space state from being associated with a later frame after resolution/orientation or capture discontinuity.
+- Added camera reset regression coverage.
+- App version is now 0.7.5.
+
 ## V0.7.4 — Ambiguous camera-anchor fail-closed hardening
 
 - Repeated semantic anchors now reject near-tied nearest-neighbor matches instead of guessing an identity.
