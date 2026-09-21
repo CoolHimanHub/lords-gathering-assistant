@@ -61,6 +61,8 @@ class ScreenCaptureService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
+    private val captureHealth = CaptureHealthTracker()
+    private var captureSessionActive = false
 
     private fun persistRecoveryEpoch(): Boolean {
         recoveryEpochPersistenceHealthy = recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
@@ -75,6 +77,17 @@ class ScreenCaptureService : Service() {
             )
         }
         return recoveryEpochPersistenceHealthy
+    }
+
+    private fun stopCaptureResources() {
+        reader?.setOnImageAvailableListener(null, null)
+        reader?.close()
+        reader = null
+        projection?.stop()
+        projection = null
+        viewportGuard.reset()
+        captureHealth.stop()
+        captureSessionActive = false
     }
 
     override fun onCreate() {
@@ -118,6 +131,8 @@ class ScreenCaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createChannel()
+        stopCaptureResources()
+        captureHealth.reset()
         startForeground(42, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
 
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
@@ -126,6 +141,22 @@ class ScreenCaptureService : Service() {
 
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projection = manager.getMediaProjection(resultCode, data)
+        if (projection == null) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        captureSessionActive = true
+        captureHealth.start(System.currentTimeMillis())
+        projection?.registerCallback(object : MediaProjection.Callback() {
+            override fun onStop() {
+                if (captureSessionActive) {
+                    captureSessionActive = false
+                    captureHealth.stop()
+                    viewportGuard.reset()
+                    stopSelf()
+                }
+            }
+        }, handler)
 
         val metrics = DisplayMetrics()
         val wm = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
@@ -138,11 +169,14 @@ class ScreenCaptureService : Service() {
 
         reader?.setOnImageAvailableListener({ source ->
             val now = System.currentTimeMillis()
+            captureHealth.frameArrived(now)
             if (now - lastScanMs < 500L || !busy.compareAndSet(false, true)) {
                 source.acquireLatestImage()?.close()
+                captureHealth.frameDropped()
                 return@setOnImageAvailableListener
             }
             lastScanMs = now
+            captureHealth.frameAccepted()
 
             val image = source.acquireLatestImage()
             if (image == null) {
@@ -153,6 +187,12 @@ class ScreenCaptureService : Service() {
             val bitmap = ImageBitmapConverter.toBitmap(image)
             image.close()
             if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
+                // The first frame at a new capture size is intentionally dropped.
+                // Re-baseline the guard so the following frame can establish a
+                // fresh screen-space session instead of rejecting forever.
+                viewportGuard.reset()
+                captureHealth.viewportReset()
+                captureHealth.frameDropped()
                 if (!bitmap.isRecycled) bitmap.recycle()
                 busy.set(false)
                 return@setOnImageAvailableListener
@@ -504,9 +544,13 @@ class ScreenCaptureService : Service() {
                         timestampMs = now
                     )
 
+                    val health = captureHealth.snapshot()
                     OverlayService.instance?.showStatus(
-                        status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name
+                        status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
+                            "\nCapture: " + health.averageProcessingMs.toLong() + "ms avg / " +
+                            health.dropRatePercent.toInt() + "% dropped"
                     )
+                    captureHealth.processingFinished(System.currentTimeMillis() - now)
                     OverlayService.instance?.showTargets(scan.plan.ranked)
                     previousScan = scan
                 } finally {
@@ -543,9 +587,7 @@ class ScreenCaptureService : Service() {
         .build()
 
     override fun onDestroy() {
-        reader?.setOnImageAvailableListener(null, null)
-        reader?.close()
-        projection?.stop()
+        stopCaptureResources()
         liveScanner.close()
         analyzer.close()
         ActionDiagnosticsStore.latest = null
