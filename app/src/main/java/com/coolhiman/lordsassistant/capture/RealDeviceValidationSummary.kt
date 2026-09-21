@@ -42,9 +42,14 @@ data class RealDeviceValidationSummary(
             appendLine("Average FPS: %.2f".format(averageFps))
             appendLine("Quality: " + qualityCounts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
             appendLine("Stop reasons: " + if (stopCounts.isEmpty()) "none" else stopCounts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
+            val sessionRejections = history
+                .flatMap { snapshot -> snapshot.candidateRejectionCounts.entries }
+                .groupingBy { it.key }
+                .fold(0) { total, entry -> total + entry.value }
+            appendLine("Session-attributed rejections: " + if (sessionRejections.isEmpty()) "none" else sessionRejections.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
         }
         appendLine()
-        appendLine("Candidate rejections: $totalRejections")
+        appendLine("Latest/all-session candidate rejections: $totalRejections")
         if (rejectionCounts.isEmpty()) {
             appendLine("No persisted CANDIDATE_REJECTED events.")
         } else {
