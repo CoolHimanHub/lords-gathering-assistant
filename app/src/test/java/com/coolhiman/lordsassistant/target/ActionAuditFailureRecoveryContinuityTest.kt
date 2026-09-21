@@ -103,8 +103,7 @@ class ActionAuditFailureRecoveryContinuityTest {
     }
 
     @Test
-    fun rejectionCountsRemainScopedToCaptureSession() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+    fun rejectionCountsRemainScopedToCaptureSession() {        val context = RuntimeEnvironment.getApplication()
         val store = ActionAuditLogStore(context)
         store.clear()
 
