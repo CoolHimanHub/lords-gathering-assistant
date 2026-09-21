@@ -95,8 +95,6 @@ class LiveActionCandidatePolicyTest {
             )
         )
     }
-}
-
 
     @Test
     fun missingCameraContinuityCannotCrossSchedulerBoundary() {
@@ -106,3 +104,5 @@ class LiveActionCandidatePolicyTest {
             )
         )
     }
+
+}
