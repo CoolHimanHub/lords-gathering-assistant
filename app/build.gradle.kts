@@ -9,8 +9,8 @@ android {
         applicationId = "com.coolhiman.lordsassistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 81
-        versionName = "0.8.1"
+        versionCode = 82
+        versionName = "0.8.2"
     }
     buildTypes {
         release {
