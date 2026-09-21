@@ -38,6 +38,18 @@ class CaptureHealthTrackerTest {
     }
 
     @Test
+    fun recordsStaleFramesSeparately() {
+        val tracker = CaptureHealthTracker()
+        tracker.start(100L)
+        tracker.frameArrived(100L)
+        tracker.frameDropped(stale = true)
+
+        val snapshot = tracker.snapshot()
+        assertEquals(1L, snapshot.droppedFrames)
+        assertEquals(1L, snapshot.staleFrames)
+    }
+
+    @Test
     fun resetClearsSessionState() {
         val tracker = CaptureHealthTracker()
         tracker.start(10L)
