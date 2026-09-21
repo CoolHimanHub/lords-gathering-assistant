@@ -110,7 +110,26 @@ class ScreenCaptureService : Service() {
         handler.removeCallbacks(captureWatchdogRunnable)
         captureWatchdog.stop()
         captureHealth.stop()
-        if (captureRuntime.snapshot().active) captureRuntime.stop(reason)
+        val wasActive = captureRuntime.snapshot().active
+        if (wasActive) {
+            captureRuntime.stop(reason)
+            val memory = memoryPressurePolicy.evaluate(
+                usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                maxBytes = Runtime.getRuntime().maxMemory()
+            )
+            val finalDiagnostics = CaptureSessionDiagnostics.snapshot(
+                capture = captureHealth.snapshot(),
+                runtime = captureRuntime.snapshot(),
+                latency = processingLatency.snapshot(),
+                quality = captureQualityPolicy.assess(
+                    captureHealth.snapshot(),
+                    processingLatency.snapshot(),
+                    memory
+                )
+            )
+            captureDiagnosticsStore.save(finalDiagnostics)
+            captureDiagnosticsStore.archive(finalDiagnostics)
+        }
         captureSessionActive = false
     }
 
