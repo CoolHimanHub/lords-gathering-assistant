@@ -108,7 +108,7 @@ class ActionScheduler(
      * re-offer the target after the cooldown window expires.
      */
     fun markTargetCompleted(target: ActionTargetSnapshot, nowMs: Long) {
-        candidates.remove(target)
+        candidates.remove(target.identity())
         completedUntilMs[target.identity()] = nowMs + COMPLETED_TARGET_SUPPRESSION_MS
         completedUntilMs.entries.removeIf { it.value <= nowMs }
     }
@@ -164,7 +164,7 @@ class ActionScheduler(
     ): ActionScheduleDecision {
         val decision = peek(nowMs, safetyState)
         val candidate = decision.candidate ?: return decision
-        candidates.remove(candidate.target)
+        candidates.remove(candidate.target.identity())
         return decision
     }
 
