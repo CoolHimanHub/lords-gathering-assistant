@@ -11,7 +11,9 @@ data class CameraAssessment(
     val sharedTargets: Int,
     val medianShiftPx: Float,
     val spreadPx: Float,
-    val scaleChangePercent: Float = 0f
+    val scaleChangePercent: Float = 0f,
+    /** True only after an established frame-to-frame continuity comparison. */
+    val continuityForActions: Boolean = false
 )
 
 class CameraStateTracker(
@@ -51,7 +53,8 @@ class CameraStateTracker(
                 state = if (hadPreviousFrame) CameraState.UNSTABLE else CameraState.STABLE,
                 sharedTargets = shifts.size,
                 medianShiftPx = 0f,
-                spreadPx = 0f
+                spreadPx = 0f,
+                continuityForActions = false
             )
         }
 
@@ -66,7 +69,14 @@ class CameraStateTracker(
             median >= panShiftPx -> CameraState.PANNING
             else -> CameraState.STABLE
         }
-        return CameraAssessment(state, shifts.size, median, spread, scaleChangePercent)
+        return CameraAssessment(
+            state = state,
+            sharedTargets = shifts.size,
+            medianShiftPx = median,
+            spreadPx = spread,
+            scaleChangePercent = scaleChangePercent,
+            continuityForActions = state == CameraState.STABLE && shifts.size >= minSharedTargets
+        )
     }
 
 
