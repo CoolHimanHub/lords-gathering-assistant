@@ -117,15 +117,17 @@ class ScreenCaptureService : Service() {
                 usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
                 maxBytes = Runtime.getRuntime().maxMemory()
             )
+            val finalRuntime = captureRuntime.snapshot()
             val finalDiagnostics = CaptureSessionDiagnostics.snapshot(
                 capture = captureHealth.snapshot(),
-                runtime = captureRuntime.snapshot(),
+                runtime = finalRuntime,
                 latency = processingLatency.snapshot(),
                 quality = captureQualityPolicy.assess(
                     captureHealth.snapshot(),
                     processingLatency.snapshot(),
                     memory
-                )
+                ),
+                candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(finalRuntime.sessionId)
             )
             captureDiagnosticsStore.save(finalDiagnostics)
             captureDiagnosticsStore.archive(finalDiagnostics)
@@ -207,12 +209,7 @@ class ScreenCaptureService : Service() {
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
                 if (captureSessionActive) {
-                    captureSessionActive = false
-                    handler.removeCallbacks(captureWatchdogRunnable)
-                    captureWatchdog.stop()
-                    captureHealth.stop()
-                    viewportGuard.reset()
-                    if (captureRuntime.snapshot().active) captureRuntime.stop(CaptureStopReason.PROJECTION_STOPPED)
+                    stopCaptureResources(CaptureStopReason.PROJECTION_STOPPED)
                     stopSelf()
                 }
             }
@@ -378,6 +375,7 @@ class ScreenCaptureService : Service() {
                             ActionAuditEvent(
                                 timestampMs = now,
                                 type = ActionAuditEventType.CANDIDATE_DROPPED,
+                                captureSessionId = captureRuntime.snapshot().sessionId,
                                 target = droppedTarget,
                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                 detail = "removed by latest-scan reconciliation"
@@ -391,6 +389,7 @@ class ScreenCaptureService : Service() {
                                 ActionAuditEvent(
                                     timestampMs = now,
                                     type = ActionAuditEventType.CANDIDATE_QUEUED,
+                                    captureSessionId = captureRuntime.snapshot().sessionId,
                                     target = candidate.target,
                                     recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                     detail = "independently validated current-frame candidate"
@@ -401,6 +400,7 @@ class ScreenCaptureService : Service() {
                                 ActionAuditEvent(
                                     timestampMs = now,
                                     type = ActionAuditEventType.CANDIDATE_REJECTED,
+                                    captureSessionId = captureRuntime.snapshot().sessionId,
                                     target = candidate.target,
                                     recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                     detail = rejection.name
@@ -691,7 +691,8 @@ class ScreenCaptureService : Service() {
                             captureHealth.snapshot(),
                             processingLatency.snapshot(),
                             memory
-                        )
+                        ),
+                        candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
                     )
                     captureDiagnosticsStore.save(diagnostics)
                     OverlayService.instance?.showStatus(
