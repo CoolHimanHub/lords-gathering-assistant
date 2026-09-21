@@ -982,6 +982,13 @@ V0.10 extracts the scanner-to-scheduler eligibility boundary into a deterministi
 
 This phase does not claim real-device validation; that remains a separate device/game testing step.
 
+V0.10 guarded dispatch integration coverage:
+- Added JVM coverage from a scheduler-claimed live candidate through ActionOrchestrator revalidation to the guarded dispatch callback boundary.
+- Fresh target mutation fails before the callback is invoked.
+- Automatic Gather/Hunt disabled state still prevents the dispatch boundary from opening.
+- The callback remains a test-only side-effect boundary; no real gesture is performed by these tests.
+
+
 
 ### V0.10 safety-integration coverage
 
