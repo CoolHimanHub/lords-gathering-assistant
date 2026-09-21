@@ -50,7 +50,7 @@ data class ActionDiagnosticsSnapshot(
             scan.validation.safe, scan.selectedActionTarget, scan.actionButton?.kind,
             scan.selectedMarchAssociation, scan.targetStability, lifecycle, actionAttemptId, recoveryEpoch,
             recoveryEpochPersistenceHealthy, journalAttemptId, journalRecoveryEpoch, journalRecoveryEpochPersisted,
-            reconciledInitialEpoch, restartQuarantine, evidence
+            journalCaptureSessionId, reconciledInitialEpoch, restartQuarantine, evidence
         )
     }
 }
