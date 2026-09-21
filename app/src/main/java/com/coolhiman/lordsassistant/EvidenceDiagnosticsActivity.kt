@@ -24,7 +24,10 @@ class EvidenceDiagnosticsActivity : Activity() {
     private val refresh = object : Runnable {
         override fun run() {
             if (::text.isInitialized) text.text = ActionDiagnosticsFormatter.format(ActionDiagnosticsStore.latest)
-            if (::auditText.isInitialized) auditText.text = "ACTION AUDIT — latest events\n\n" + auditLog.formatLatest(20).ifBlank { "No audited action events yet." }
+            if (::auditText.isInitialized) auditText.text =
+                "CANDIDATE REJECTIONS — aggregate\n" + auditLog.formatRejectionSummary() +
+                    "\n\nACTION AUDIT — latest events\n\n" +
+                    auditLog.formatLatest(20).ifBlank { "No audited action events yet." }
             handler.postDelayed(this, 500L)
         }
     }
