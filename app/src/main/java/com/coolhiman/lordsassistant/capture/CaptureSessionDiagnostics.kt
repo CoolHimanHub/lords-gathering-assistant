@@ -1,0 +1,43 @@
+package com.coolhiman.lordsassistant.capture
+
+/**
+ * Read-only roll-up of the diagnostics already produced by the live capture
+ * pipeline. This class owns no safety decisions and never changes scheduler
+ * eligibility or action execution.
+ */
+data class CaptureSessionDiagnosticsSnapshot(
+    val capture: CaptureHealthSnapshot,
+    val runtime: CaptureRuntimeSnapshot,
+    val latency: ProcessingLatencySnapshot,
+    val quality: CaptureQuality
+) {
+    val frames: Long get() = capture.totalFrames
+    val acceptedFrames: Long get() = capture.acceptedFrames
+    val droppedFrames: Long get() = capture.droppedFrames
+    val staleFrames: Long get() = capture.staleFrames
+    val fps: Double get() = capture.framesPerSecond
+    val dropRatePercent: Double get() = capture.dropRatePercent
+    val averageProcessingMs: Double get() = capture.averageProcessingMs
+    val averageOcrMs: Double get() = latency.averageOcrMs
+    val averageScannerMs: Double get() = latency.averageScannerMs
+    val maxProcessingMs: Long get() = latency.maxTotalMs
+    val sessionId: Long get() = runtime.sessionId
+    val restartCount: Long get() = runtime.restartCount
+    val stallCount: Long get() = runtime.stallCount
+    val viewportChangeCount: Long get() = runtime.viewportChangeCount
+    val memorySafeForDiagnostics: Boolean get() = quality != CaptureQuality.UNSAFE
+}
+
+object CaptureSessionDiagnostics {
+    fun snapshot(
+        capture: CaptureHealthSnapshot,
+        runtime: CaptureRuntimeSnapshot,
+        latency: ProcessingLatencySnapshot,
+        quality: CaptureQuality
+    ): CaptureSessionDiagnosticsSnapshot = CaptureSessionDiagnosticsSnapshot(
+        capture = capture,
+        runtime = runtime,
+        latency = latency,
+        quality = quality
+    )
+}
