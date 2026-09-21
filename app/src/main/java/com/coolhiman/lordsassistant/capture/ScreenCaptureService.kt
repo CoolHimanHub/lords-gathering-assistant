@@ -26,6 +26,7 @@ import com.coolhiman.lordsassistant.target.ActionExecutionJournal
 import com.coolhiman.lordsassistant.target.ActionRecoveryEpochStore
 import com.coolhiman.lordsassistant.target.ActionAttemptIdStore
 import com.coolhiman.lordsassistant.target.ActionDispatchProvenance
+import com.coolhiman.lordsassistant.target.ActionRecoveryQuarantine
 import com.coolhiman.lordsassistant.target.ActionScheduler
 import com.coolhiman.lordsassistant.target.LiveActionSchedulerAdapter
 import com.coolhiman.lordsassistant.target.ActionScheduleCandidate
@@ -48,7 +49,7 @@ class ScreenCaptureService : Service() {
     private lateinit var actionAuditLog: ActionAuditLogStore
     private lateinit var recoveryEpochStore: ActionRecoveryEpochStore
     private lateinit var actionAttemptIdStore: ActionAttemptIdStore
-    private var restartQuarantine = false
+    private val recoveryQuarantine = ActionRecoveryQuarantine()
     private var recoveryEpochPersistenceHealthy = true
     private var reconciledInitialEpoch = 0L
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
@@ -162,7 +163,11 @@ class ScreenCaptureService : Service() {
         inFlightEntry?.let { entry ->
             actionOrchestrator.restoreUnknown(entry.attemptId)
             persistRecoveryEpoch()
-            restartQuarantine = true
+            recoveryQuarantine.restore(
+                attemptId = entry.attemptId,
+                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                captureSessionId = entry.captureSessionId
+            )
             actionAuditLog.append(
                 ActionAuditEvent(
                     timestampMs = System.currentTimeMillis(),
@@ -432,15 +437,18 @@ class ScreenCaptureService : Service() {
                                 }
                             )
                         )
-                        if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
+                        val journalCleared = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
                             actionJournal.clear()
-                            restartQuarantine = false
-                            previousScan = null
                         } else {
-                            // Keep the service quarantined if the fresh recovery boundary
-                            // cannot be durably persisted. Automatic execution must not
-                            // resume with ambiguous epoch provenance.
-                            restartQuarantine = true
+                            false
+                        }
+                        val quarantineReleased = recoveryQuarantine.releaseAfterDeliberateRecovery(
+                            lifecycleIdle = recoveryResult.lifecycle.state == ActionLifecycleState.IDLE,
+                            recoveryEpochPersisted = recoveryPersisted,
+                            journalCleared = journalCleared
+                        )
+                        if (quarantineReleased) {
+                            previousScan = null
                         }
                         ActionDiagnosticsStore.latest?.let { latest ->
                             ActionDiagnosticsStore.latest = latest.copy(
@@ -452,7 +460,7 @@ class ScreenCaptureService : Service() {
                                 journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
                                 journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
                                 reconciledInitialEpoch = reconciledInitialEpoch,
-                                restartQuarantine = restartQuarantine,
+                                restartQuarantine = recoveryQuarantine.active,
                                 timestampMs = now
                             )
                         }
@@ -465,7 +473,7 @@ class ScreenCaptureService : Service() {
                         }
                     }
                     val active = actionOrchestrator.lifecycleSnapshot.state
-                    if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !restartQuarantine) {
+                    if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !recoveryQuarantine.active) {
                         when {
                             ActionRecoveryPolicy.mayStartAutomaticAttempt(actionOrchestrator.lifecycleSnapshot) -> {
                                 val previous = previousScan
@@ -626,7 +634,7 @@ class ScreenCaptureService : Service() {
                                             actionOrchestrator.reset()
                                             persistRecoveryEpoch()
                                             actionJournal.clear()
-                                            restartQuarantine = !recoveryEpochPersistenceHealthy
+                                            // Durable epoch health remains the execution gate.
                                         }
                                     }
                                 }
@@ -675,14 +683,12 @@ class ScreenCaptureService : Service() {
                                 }
                             }
                         }
-                    } else if (active != ActionLifecycleState.IDLE && !restartQuarantine) {
+                    } else if (active != ActionLifecycleState.IDLE && !recoveryQuarantine.active) {
                         val resetResult = actionOrchestrator.reset()
-                        persistRecoveryEpoch()
-                        if (resetResult.lifecycle.state == ActionLifecycleState.IDLE && recoveryEpochPersistenceHealthy) {
+                        val persisted = persistRecoveryEpoch()
+                        if (resetResult.lifecycle.state == ActionLifecycleState.IDLE && persisted) {
                             actionJournal.clear()
                         }
-                        restartQuarantine = resetResult.lifecycle.state != ActionLifecycleState.IDLE ||
-                            !recoveryEpochPersistenceHealthy
                     }
 
                     ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
