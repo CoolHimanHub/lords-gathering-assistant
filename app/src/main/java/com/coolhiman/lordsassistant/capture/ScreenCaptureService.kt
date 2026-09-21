@@ -58,6 +58,8 @@ class ScreenCaptureService : Service() {
     private val viewportGuard = ViewportGuard()
     private val captureHealth = CaptureHealthTracker()
     private val captureWatchdog = CaptureWatchdog()
+    private val captureRuntime = CaptureRuntimeSessionTracker()
+    private val memoryPressurePolicy = MemoryPressurePolicy()
     private var captureSessionActive = false
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
@@ -94,7 +96,7 @@ class ScreenCaptureService : Service() {
         return recoveryEpochPersistenceHealthy
     }
 
-    private fun stopCaptureResources() {
+    private fun stopCaptureResources(reason: CaptureStopReason = CaptureStopReason.USER_STOP) {
         reader?.setOnImageAvailableListener(null, null)
         reader?.close()
         reader = null
@@ -104,6 +106,7 @@ class ScreenCaptureService : Service() {
         handler.removeCallbacks(captureWatchdogRunnable)
         captureWatchdog.stop()
         captureHealth.stop()
+        if (captureRuntime.snapshot().active) captureRuntime.stop(reason)
         captureSessionActive = false
     }
 
@@ -155,7 +158,7 @@ class ScreenCaptureService : Service() {
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
             ?: Activity.RESULT_CANCELED
         val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA) ?: run {
-            stopCaptureResources()
+            stopCaptureResources(CaptureStopReason.CAPTURE_SETUP_FAILED)
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -163,10 +166,13 @@ class ScreenCaptureService : Service() {
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projection = manager.getMediaProjection(resultCode, data)
         if (projection == null) {
+            captureRuntime.recordFailure("MediaProjection unavailable")
+            stopCaptureResources(CaptureStopReason.CAPTURE_SETUP_FAILED)
             stopSelf(startId)
             return START_NOT_STICKY
         }
         captureSessionActive = true
+        captureRuntime.start()
         val captureStartedAt = System.currentTimeMillis()
         captureHealth.start(captureStartedAt)
         captureWatchdog.start(captureStartedAt)
@@ -180,6 +186,7 @@ class ScreenCaptureService : Service() {
                     captureWatchdog.stop()
                     captureHealth.stop()
                     viewportGuard.reset()
+                    if (captureRuntime.snapshot().active) captureRuntime.stop(CaptureStopReason.PROJECTION_STOPPED)
                     stopSelf()
                 }
             }
@@ -204,7 +211,25 @@ class ScreenCaptureService : Service() {
                 return@setOnImageAvailableListener
             }
             lastScanMs = now
-            captureHealth.frameAccepted()
+            val memoryBeforeImage = memoryPressurePolicy.evaluate(
+                usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                maxBytes = Runtime.getRuntime().maxMemory()
+            )
+            if (memoryBeforeImage.level == MemoryPressureLevel.CRITICAL) {
+                captureRuntime.recordFailure("Critical memory pressure")
+                captureHealth.frameDropped()
+                OverlayService.instance?.showStatus("MEMORY PRESSURE • scanner stopped safely")
+                busy.set(false)
+                stopCaptureResources(CaptureStopReason.CAPTURE_ERROR)
+                stopSelf()
+                return@setOnImageAvailableListener
+            }
+            if (memoryBeforeImage.level == MemoryPressureLevel.WARNING) {
+                captureHealth.frameDropped()
+                OverlayService.instance?.showStatus("MEMORY PRESSURE • frame dropped safely")
+                busy.set(false)
+                return@setOnImageAvailableListener
+            }
 
             val image = try {
                 source.acquireLatestImage()
@@ -243,16 +268,19 @@ class ScreenCaptureService : Service() {
                 // another display-geometry transition; do not re-baseline onto
                 // an old reader and risk applying stale screen/world geometry.
                 captureHealth.viewportReset()
+                captureRuntime.recordViewportChange()
                 captureHealth.frameDropped()
                 OverlayService.instance?.showStatus(
                     "DISPLAY CHANGED • scanner stopped safely; restart scanner"
                 )
                 if (!bitmap.isRecycled) bitmap.recycle()
                 busy.set(false)
-                stopCaptureResources()
+                stopCaptureResources(CaptureStopReason.VIEWPORT_CHANGED)
                 stopSelf()
                 return@setOnImageAvailableListener
             }
+
+            captureHealth.frameAccepted()
 
             analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
                 try {
@@ -601,11 +629,18 @@ class ScreenCaptureService : Service() {
                     )
 
                     val health = captureHealth.snapshot()
+                    val runtime = captureRuntime.snapshot()
+                    val memory = memoryPressurePolicy.evaluate(
+                        usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                        maxBytes = Runtime.getRuntime().maxMemory()
+                    )
                     OverlayService.instance?.showStatus(
                         status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
                             "\nCapture: " + health.averageProcessingMs.toLong() + "ms avg / " +
                             health.dropRatePercent.toInt() + "% dropped / " +
-                            health.staleFrames + " stale"
+                            health.staleFrames + " stale" +
+                            "\nSession: #" + runtime.sessionId + " / restarts " + runtime.restartCount +
+                            " / memory " + memory.level.name
                     )
                     captureHealth.processingFinished(System.currentTimeMillis() - now)
                     OverlayService.instance?.showTargets(scan.plan.ranked)
@@ -629,7 +664,8 @@ class ScreenCaptureService : Service() {
             null
             )
         } catch (_: Throwable) {
-            stopCaptureResources()
+            captureRuntime.recordFailure("VirtualDisplay creation failed")
+            stopCaptureResources(CaptureStopReason.CAPTURE_SETUP_FAILED)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -650,7 +686,7 @@ class ScreenCaptureService : Service() {
         .build()
 
     override fun onDestroy() {
-        stopCaptureResources()
+        stopCaptureResources(CaptureStopReason.SERVICE_DESTROYED)
         liveScanner.close()
         analyzer.close()
         ActionDiagnosticsStore.latest = null
