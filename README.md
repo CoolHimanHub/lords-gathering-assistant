@@ -1009,3 +1009,5 @@ V0.10 guarded dispatch integration coverage:
 - Recovery reset returns the lifecycle to `IDLE` while advancing the recovery epoch, preserving attempt/session provenance separation.
 - A failed dispatch cannot enter post-action verification or create a success state.
 - This is test-only lifecycle coverage; no real Accessibility gesture is performed and automatic Gather/Hunt remains OFF by default.
+
+- Added scheduler integration coverage for in-flight blocking, dispatch cooldown, bounded completed-target suppression, and preservation of an independent queued target.
