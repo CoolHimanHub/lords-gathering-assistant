@@ -12,6 +12,7 @@ data class CaptureHealthSnapshot(
     val totalFrames: Long,
     val acceptedFrames: Long,
     val droppedFrames: Long,
+    val staleFrames: Long,
     val processedFrames: Long,
     val viewportResets: Long,
     val lastFrameGapMs: Long?,
@@ -30,6 +31,7 @@ class CaptureHealthTracker {
     private var totalFrames = 0L
     private var acceptedFrames = 0L
     private var droppedFrames = 0L
+    private var staleFrames = 0L
     private var processedFrames = 0L
     private var viewportResets = 0L
     private var lastFrameAtMs: Long? = null
@@ -65,8 +67,9 @@ class CaptureHealthTracker {
         acceptedFrames++
     }
 
-    fun frameDropped() {
+    fun frameDropped(stale: Boolean = false) {
         droppedFrames++
+        if (stale) staleFrames++
     }
 
     fun processingFinished(processingMs: Long) {
@@ -86,6 +89,7 @@ class CaptureHealthTracker {
         totalFrames = totalFrames,
         acceptedFrames = acceptedFrames,
         droppedFrames = droppedFrames,
+        staleFrames = staleFrames,
         processedFrames = processedFrames,
         viewportResets = viewportResets,
         lastFrameGapMs = lastFrameGapMs,
@@ -101,6 +105,7 @@ class CaptureHealthTracker {
         totalFrames = 0L
         acceptedFrames = 0L
         droppedFrames = 0L
+        staleFrames = 0L
         processedFrames = 0L
         viewportResets = 0L
         lastFrameAtMs = null
