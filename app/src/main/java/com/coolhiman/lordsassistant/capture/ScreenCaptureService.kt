@@ -165,7 +165,7 @@ class ScreenCaptureService : Service() {
             persistRecoveryEpoch()
             recoveryQuarantine.restore(
                 attemptId = entry.attemptId,
-                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                recoveryEpoch = entry.recoveryEpoch,
                 captureSessionId = entry.captureSessionId
             )
             actionAuditLog.append(
@@ -465,10 +465,11 @@ class ScreenCaptureService : Service() {
                             )
                         }
                     }
-                    if (!recoveryEpochPersistenceHealthy && actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.IDLE) {
-                        if (persistRecoveryEpoch()) {
-                            actionJournal.clear()
-                            restartQuarantine = false
+                    if (!recoveryEpochPersistenceHealthy &&
+                        actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.IDLE &&
+                        !recoveryQuarantine.active
+                    ) {
+                        if (persistRecoveryEpoch() && actionJournal.clear()) {
                             previousScan = null
                         }
                     }
@@ -480,7 +481,7 @@ class ScreenCaptureService : Service() {
                                 val safetyState = ActionSchedulerSafetyState(
                                     lifecycle = actionOrchestrator.lifecycleSnapshot,
                                     automaticActionsEnabled = prefs.automaticActions,
-                                    restartQuarantine = restartQuarantine,
+                                    restartQuarantine = recoveryQuarantine.active,
                                     recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy
                                 )
                                 val decision = actionSchedulerAdapter.select(now, safetyState)
