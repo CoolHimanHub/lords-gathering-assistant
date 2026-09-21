@@ -25,6 +25,7 @@ data class ActionDiagnosticsSnapshot(
     val journalAttemptId: Long? = null,
     val journalRecoveryEpoch: Long? = null,
     val journalRecoveryEpochPersisted: Boolean = false,
+    val journalCaptureSessionId: Long? = null,
     val reconciledInitialEpoch: Long = 0L,
     val restartQuarantine: Boolean = false,
     val evidence: PostActionEvidenceRecord?
