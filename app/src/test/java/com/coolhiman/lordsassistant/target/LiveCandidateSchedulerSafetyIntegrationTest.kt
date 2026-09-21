@@ -39,6 +39,29 @@ class LiveCandidateSchedulerSafetyIntegrationTest {
         assertEquals(target(), ready.candidate?.target)
     }
 
+
+    @Test
+    fun liveAdapterMirrorsDispatchLifecycleToScheduler() {
+        val scheduler = ActionScheduler()
+        val adapter = LiveActionSchedulerAdapter(scheduler)
+        val candidate = schedule(target())
+
+        adapter.update(listOf(candidate))
+        adapter.markDispatchStarted(30_000L)
+
+        val blocked = adapter.select(30_001L, safeState())
+        assertNull(blocked.candidate)
+        assertEquals(ActionScheduleBlockReason.ACTION_IN_FLIGHT, blocked.reason)
+
+        adapter.markActionFinished()
+
+        val cooldown = adapter.select(30_100L, safeState())
+        assertNull(cooldown.candidate)
+        assertEquals(ActionScheduleBlockReason.COOLDOWN_ACTIVE, cooldown.reason)
+
+        assertEquals(target(), adapter.select(31_500L, safeState()).candidate?.target)
+    }
+
     @Test
     fun completedTargetSuppressionDoesNotSuppressIndependentTarget() {
         val scheduler = ActionScheduler()
