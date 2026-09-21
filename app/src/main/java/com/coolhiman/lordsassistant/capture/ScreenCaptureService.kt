@@ -177,7 +177,9 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
         captureSessionActive = true
-        captureRuntime.start()
+        val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
+        captureRuntime.start(durableSessionId)
+
         val captureStartedAt = System.currentTimeMillis()
         captureHealth.start(captureStartedAt)
         captureWatchdog.start(captureStartedAt)
