@@ -38,11 +38,6 @@ import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ScreenCaptureService : Service() {
-    companion object {
-        const val EXTRA_RESULT_CODE = "result_code"
-        const val EXTRA_DATA = "data"
-    }
-
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
     private lateinit var analyzer: FrameAnalyzer
@@ -63,6 +58,12 @@ class ScreenCaptureService : Service() {
     private val viewportGuard = ViewportGuard()
     private val captureHealth = CaptureHealthTracker()
     private var captureSessionActive = false
+
+    companion object {
+        const val EXTRA_RESULT_CODE = "result_code"
+        const val EXTRA_DATA = "data"
+        private const val MAX_FRAME_AGE_MS = 1500L
+    }
 
     private fun persistRecoveryEpoch(): Boolean {
         recoveryEpochPersistenceHealthy = recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
@@ -137,7 +138,11 @@ class ScreenCaptureService : Service() {
 
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
             ?: Activity.RESULT_CANCELED
-        val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA) ?: return START_NOT_STICKY
+        val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA) ?: run {
+            stopCaptureResources()
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
 
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projection = manager.getMediaProjection(resultCode, data)
@@ -178,14 +183,38 @@ class ScreenCaptureService : Service() {
             lastScanMs = now
             captureHealth.frameAccepted()
 
-            val image = source.acquireLatestImage()
+            val image = try {
+                source.acquireLatestImage()
+            } catch (_: Throwable) {
+                null
+            }
             if (image == null) {
+                captureHealth.frameDropped()
                 busy.set(false)
                 return@setOnImageAvailableListener
             }
 
-            val bitmap = ImageBitmapConverter.toBitmap(image)
-            image.close()
+            if (image.timestamp > 0L) {
+                val ageNs = System.nanoTime() - image.timestamp
+                if (ageNs > MAX_FRAME_AGE_MS * 1_000_000L) {
+                    image.close()
+                    captureHealth.frameDropped(stale = true)
+                    busy.set(false)
+                    return@setOnImageAvailableListener
+                }
+            }
+
+            val bitmap = try {
+                ImageBitmapConverter.toBitmap(image)
+            } catch (_: Throwable) {
+                image.close()
+                captureHealth.frameDropped()
+                busy.set(false)
+                return@setOnImageAvailableListener
+            } finally {
+                image.close()
+            }
+
             if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
                 // The first frame at a new capture size is intentionally dropped.
                 // Re-baseline the guard so the following frame can establish a
@@ -548,7 +577,8 @@ class ScreenCaptureService : Service() {
                     OverlayService.instance?.showStatus(
                         status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
                             "\nCapture: " + health.averageProcessingMs.toLong() + "ms avg / " +
-                            health.dropRatePercent.toInt() + "% dropped"
+                            health.dropRatePercent.toInt() + "% dropped / " +
+                            health.staleFrames + " stale"
                     )
                     captureHealth.processingFinished(System.currentTimeMillis() - now)
                     OverlayService.instance?.showTargets(scan.plan.ranked)
@@ -560,7 +590,8 @@ class ScreenCaptureService : Service() {
             }
         }, handler)
 
-        projection?.createVirtualDisplay(
+        try {
+            projection?.createVirtualDisplay(
             "LMCompanion",
             metrics.widthPixels,
             metrics.heightPixels,
@@ -569,7 +600,12 @@ class ScreenCaptureService : Service() {
             reader!!.surface,
             null,
             null
-        )
+            )
+        } catch (_: Throwable) {
+            stopCaptureResources()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         return START_STICKY
     }
 
