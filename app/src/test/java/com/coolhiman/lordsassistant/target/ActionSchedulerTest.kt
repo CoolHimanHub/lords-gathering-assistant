@@ -194,7 +194,7 @@ class ActionSchedulerTest {
         val selected = scheduler.peek(5_000L).candidate
         assertEquals(latest.queuedAtMs, selected?.queuedAtMs)
         assertEquals(latest.plannerRank, selected?.plannerRank)
-        assertEquals(latest.plannerScore, selected?.plannerScore, 0.0)
+        assertEquals(latest.plannerScore, selected?.plannerScore ?: Double.NaN, 0.0)
         assertEquals(latest.stabilityFrames, selected?.stabilityFrames)
     }
 
