@@ -37,6 +37,20 @@ class CameraStateTrackerTest {
         assertEquals(CameraState.UNSTABLE, result.state)
     }
     @Test
+    fun resetBreaksCrossViewportContinuity() {
+        val tracker = CameraStateTracker()
+        tracker.update(listOf(obs(100f, 100f, 1), obs(200f, 200f, 2), obs(300f, 300f, 3)))
+        tracker.reset()
+
+        val result = tracker.update(
+            listOf(obs(400f, 100f, 1), obs(500f, 200f, 2), obs(600f, 300f, 3))
+        )
+
+        assertEquals(CameraState.STABLE, result.state)
+        assertEquals(0, result.sharedTargets)
+    }
+
+    @Test
     fun consistentZoomIsUnstable() {
         val tracker = CameraStateTracker()
         tracker.update(listOf(obs(100f, 100f, 1), obs(200f, 100f, 2), obs(100f, 200f, 3)))
