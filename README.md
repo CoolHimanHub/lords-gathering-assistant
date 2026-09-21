@@ -922,3 +922,17 @@ V0.9.7 extends durable real-device validation from a single latest snapshot to a
 App version: 0.9.7 (versionCode 97).
 
 Next validation target: expose the bounded session history in Evidence Diagnostics and correlate completed-session quality, stop/failure reasons, and candidate-rejection distributions across repeated device runs.
+
+## V0.9.8 — Cross-session validation correlation
+
+V0.9.8 extends sustained real-device diagnostics from individual completed sessions to deterministic cross-session correlation.
+
+- Evidence Diagnostics now correlates the bounded completed-session history.
+- Reports completed-session count, average FPS, capture-quality distribution, and stop-reason distribution.
+- The correlation is read-only and observational; it cannot authorize, schedule, retry, recover, or dispatch actions.
+- Added JVM regression coverage for multi-session quality and stop-reason correlation.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.8 (versionCode 98).
+
+Next validation target: use repeated real-device sessions to identify persistent capture-quality, viewport, stall, and detector-validation patterns before considering any further automation expansion.
