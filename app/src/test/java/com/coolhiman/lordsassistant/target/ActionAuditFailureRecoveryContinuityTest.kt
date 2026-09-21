@@ -8,6 +8,8 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * V0.10 failure/recovery audit coverage.
@@ -16,6 +18,7 @@ import org.junit.Test
  * from the persisted audit trail with attempt, epoch, session and target
  * provenance intact.
  */
+@RunWith(RobolectricTestRunner::class)
 class ActionAuditFailureRecoveryContinuityTest {
 
     private val target = ActionTargetSnapshot(
