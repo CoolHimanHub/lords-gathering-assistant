@@ -25,7 +25,7 @@ class CaptureSessionDiagnosticsStore(context: Context) {
         val snapshot = read() ?: return "No persisted capture-session diagnostics yet."
         return buildString {
             appendLine("REAL-DEVICE CAPTURE SESSION")
-            appendLine("Session: #${snapshot.sessionId}  • active=${snapshot.runtime.active}")
+            appendLine("Session: #${snapshot.sessionId}  • state=${snapshot.sessionState.name.lowercase()}")
             appendLine("Frames: ${snapshot.frames} total / ${snapshot.acceptedFrames} accepted / ${snapshot.droppedFrames} dropped / ${snapshot.staleFrames} stale")
             appendLine("FPS: %.2f  • drop rate: %.1f%%".format(snapshot.fps, snapshot.dropRatePercent))
             appendLine("Processing: %.0f ms avg / ${snapshot.maxProcessingMs} ms max".format(snapshot.averageProcessingMs))
