@@ -12,13 +12,15 @@ data class FrameAnalysis(
     val coordinate: WorldCoordinate?,
     val classification: TextClassification,
     val textRegions: List<TextRegion> = emptyList(),
-    val popup: PopupState? = null
+    val popup: PopupState? = null,
+    val ocrProcessingMs: Long = 0L
 )
 
 class FrameAnalyzer {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     fun analyze(bitmap: Bitmap, defaultKingdom: Int, callback: (FrameAnalysis) -> Unit) {
+        val startedAt = System.currentTimeMillis()
         recognizer.process(InputImage.fromBitmap(bitmap, 0))
             .addOnSuccessListener { result ->
                 val text = OcrParser.normalize(result.text)
@@ -31,12 +33,13 @@ class FrameAnalyzer {
                         coordinate = OcrParser.parseCoordinate(text, defaultKingdom),
                         classification = GameTextClassifier.classify(text),
                         textRegions = regions,
-                        popup = PopupStateParser.parse(text, defaultKingdom)
+                        popup = PopupStateParser.parse(text, defaultKingdom),
+                        ocrProcessingMs = System.currentTimeMillis() - startedAt
                     )
                 )
             }
             .addOnFailureListener {
-                callback(FrameAnalysis("", null, TextClassification(), emptyList(), null))
+                callback(FrameAnalysis("", null, TextClassification(), emptyList(), null, System.currentTimeMillis() - startedAt))
             }
     }
 
