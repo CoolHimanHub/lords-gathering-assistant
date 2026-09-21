@@ -14,7 +14,8 @@ import kotlin.math.hypot
  */
 class CameraAnchorTracker(
     private val maxAnchors: Int = 16,
-    private val maxAssociationDistancePx: Float = 180f
+    private val maxAssociationDistancePx: Float = 180f,
+    private val ambiguityMarginPx: Float = 12f
 ) {
     private data class PreviousAnchor(
         val world: com.coolhiman.lordsassistant.model.WorldCoordinate,
@@ -38,16 +39,25 @@ class CameraAnchorTracker(
             for (observation in values.sortedBy { it.screenPoint!!.x }) {
                 if (unmatched.isEmpty()) break
                 val screen = observation.screenPoint ?: continue
-                val nearest = unmatched.minByOrNull {
-                    hypot(
-                        (screen.x - it.screen.x).toDouble(),
-                        (screen.y - it.screen.y).toDouble()
-                    )
-                } ?: continue
-                val distance = hypot(
-                    (screen.x - nearest.screen.x).toDouble(),
-                    (screen.y - nearest.screen.y).toDouble()
-                ).toFloat()
+                val ranked = unmatched
+                    .map { anchor ->
+                        anchor to hypot(
+                            (screen.x - anchor.screen.x).toDouble(),
+                            (screen.y - anchor.screen.y).toDouble()
+                        ).toFloat()
+                    }
+                    .sortedBy { it.second }
+                val nearest = ranked.firstOrNull()?.first ?: continue
+                val distance = ranked.first().second
+                val secondDistance = ranked.getOrNull(1)?.second
+                // If two previous anchors are nearly equally plausible, do not
+                // guess. A bad identity association can produce a plausible
+                // but incorrect camera model and contaminate later frames.
+                if (secondDistance != null &&
+                    secondDistance - distance < ambiguityMarginPx
+                ) {
+                    continue
+                }
                 if (distance <= maxAssociationDistancePx) {
                     shared += CameraWorldAnchor(nearest.world, screen)
                     unmatched.remove(nearest)
