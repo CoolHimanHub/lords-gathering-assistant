@@ -26,7 +26,7 @@ class LiveCandidateSchedulerSafetyIntegrationTest {
 
         val inFlight = scheduler.peek(10_001L, safeState())
         assertNull(inFlight.candidate)
-        assertEquals(ActionScheduleBlockReason.SAFETY_BLOCKED, inFlight.reason)
+        assertEquals(ActionScheduleBlockReason.ACTION_IN_FLIGHT, inFlight.reason)
 
         scheduler.markActionFinished()
 
