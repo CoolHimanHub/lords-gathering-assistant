@@ -12,7 +12,10 @@ data class ActionButton(
     val bounds: RectF,
     val point: ScreenPoint,
     val confidence: Float
-)
+) {
+    constructor(kind: ActionKind, point: ScreenPoint, confidence: Float) :
+        this(kind, RectF(point.x - 12f, point.y - 12f, point.x + 12f, point.y + 12f), point, confidence)
+}
 
 object ActionButtonDetector {
     private val labels = mapOf(
