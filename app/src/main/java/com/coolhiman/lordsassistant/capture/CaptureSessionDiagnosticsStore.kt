@@ -1,6 +1,7 @@
 package com.coolhiman.lordsassistant.capture
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -21,7 +22,9 @@ class CaptureSessionDiagnosticsStore(context: Context) {
         history.add(0, snapshot)
         val bounded = history.take(MAX_HISTORY_ENTRIES)
         prefs.edit()
-            .putString(KEY_HISTORY, JSONObject().put("sessions", bounded.map { toJson(it) }).toString())
+            .putString(KEY_HISTORY, JSONObject().put("sessions", JSONArray().apply {
+                bounded.forEach { put(toJson(it)) }
+            }).toString())
             .commit()
     }
 
