@@ -337,6 +337,7 @@ class ActionOrchestratorTest {
     @Test
     fun completedTargetRemainsBlockedWhenInteractionPointMoves() {
         val moved = selected.copy(point = ScreenPoint(980f, 640f))
+        val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 41_000L)
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
         orchestrator.dispatch(41_001L) { true }
