@@ -34,7 +34,7 @@ data class RealDeviceValidationSummary(
         if (rejectionCounts.isEmpty()) {
             appendLine("No persisted CANDIDATE_REJECTED events.")
         } else {
-            rejectionCounts.entries.sortedByDescending { it.value }.thenBy { it.key }
+            rejectionCounts.entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
                 .forEach { (reason, count) -> appendLine("$reason = $count") }
         }
         appendLine()
