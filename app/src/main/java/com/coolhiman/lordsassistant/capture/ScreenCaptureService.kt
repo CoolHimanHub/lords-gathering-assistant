@@ -418,6 +418,7 @@ class ScreenCaptureService : Service() {
                             ActionAuditEvent(
                                 timestampMs = now,
                                 type = ActionAuditEventType.RECOVERY_RESET,
+                                            captureSessionId = liveCaptureSessionId,
                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                 detail = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
                                     "Deliberate UNKNOWN recovery completed"
@@ -458,6 +459,7 @@ class ScreenCaptureService : Service() {
                             previousScan = null
                         }
                     }
+                    val liveCaptureSessionId = captureRuntime.snapshot().sessionId
                     val active = actionOrchestrator.lifecycleSnapshot.state
                     if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !restartQuarantine) {
                         when {
@@ -475,6 +477,7 @@ class ScreenCaptureService : Service() {
                                         ActionAuditEvent(
                                             timestampMs = now,
                                             type = ActionAuditEventType.SCHEDULER_BLOCKED,
+                                            captureSessionId = liveCaptureSessionId,
                                             recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                             detail = decision.reason?.name ?: "NO_DECISION"
                                         )
@@ -500,6 +503,7 @@ class ScreenCaptureService : Service() {
                                     actionAuditLog.append(ActionAuditEvent(
                                         timestampMs = now,
                                         type = ActionAuditEventType.CANDIDATE_SELECTED,
+                                            captureSessionId = liveCaptureSessionId,
                                         target = scheduled.target,
                                         recoveryEpoch = actionOrchestrator.currentRecoveryEpoch
                                     ))
@@ -536,6 +540,7 @@ class ScreenCaptureService : Service() {
                                             ActionAuditEvent(
                                                 timestampMs = now,
                                                 type = ActionAuditEventType.REVALIDATION_FAILED,
+                                            captureSessionId = liveCaptureSessionId,
                                                 attemptId = actionOrchestrator.session?.attemptId,
                                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                                 target = scheduled.target,
@@ -548,6 +553,7 @@ class ScreenCaptureService : Service() {
                                             ActionAuditEvent(
                                                 timestampMs = now,
                                                 type = ActionAuditEventType.ACTION_REVALIDATED,
+                                            captureSessionId = liveCaptureSessionId,
                                                 attemptId = actionOrchestrator.session?.attemptId,
                                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                                 target = scheduled.target
@@ -568,6 +574,7 @@ class ScreenCaptureService : Service() {
                                             actionAuditLog.append(ActionAuditEvent(
                                                 timestampMs = now,
                                                 type = ActionAuditEventType.DISPATCH_BARRIER_OPENED,
+                                            captureSessionId = liveCaptureSessionId,
                                                 attemptId = provenance.attemptId,
                                                 recoveryEpoch = provenance.recoveryEpoch,
                                                 target = scheduled.target
@@ -602,6 +609,7 @@ class ScreenCaptureService : Service() {
                                                 ActionAuditEvent(
                                                     timestampMs = now,
                                                     type = ActionAuditEventType.DISPATCH_BARRIER_FAILED,
+                                            captureSessionId = liveCaptureSessionId,
                                                     attemptId = provenance.attemptId,
                                                     recoveryEpoch = provenance.recoveryEpoch,
                                                     target = scheduled.target,
