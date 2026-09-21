@@ -66,7 +66,7 @@ class LiveCandidateSchedulerSafetyIntegrationTest {
     fun completedTargetSuppressionDoesNotSuppressIndependentTarget() {
         val scheduler = ActionScheduler()
         val completed = target()
-        val independent = target(point = ScreenPoint(620f, 400f))
+        val independent = target(coordinate = WorldCoordinate(355, 168, 511), point = ScreenPoint(620f, 400f))
 
         scheduler.refresh(listOf(schedule(completed), schedule(independent)))
         scheduler.markTargetCompleted(completed, 20_000L)
@@ -90,9 +90,9 @@ class LiveCandidateSchedulerSafetyIntegrationTest {
         plannerScore = 100.0
     )
 
-    private fun target(point: ScreenPoint = ScreenPoint(500f, 400f)) =
+    private fun target(\n        coordinate: WorldCoordinate = WorldCoordinate(355, 167, 511),\n        point: ScreenPoint = ScreenPoint(500f, 400f)\n    ) =
         ActionTargetSnapshot(
-            coordinate = WorldCoordinate(355, 167, 511),
+            coordinate = coordinate,
             kind = TargetKind.RESOURCE,
             level = 3,
             actionKind = ActionKind.GATHER,
