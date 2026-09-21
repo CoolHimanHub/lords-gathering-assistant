@@ -9,8 +9,8 @@ import android.content.Context
  * cannot turn an unknown in-flight gesture into an automatic retry. It is cleared
  * only after a definitive dispatch failure or verified/manual recovery.
  *
- * The stored attempt ID and recovery epoch form the durable provenance boundary
- * for the guarded gesture.
+ * The stored attempt ID, recovery epoch, and originating capture session form
+ * the durable provenance boundary for the guarded gesture.
  */
 class ActionExecutionJournal(context: Context) {
     private val prefs = context.getSharedPreferences("lm_action_journal", Context.MODE_PRIVATE)
@@ -30,7 +30,11 @@ class ActionExecutionJournal(context: Context) {
             .putLong(KEY_RECOVERY_EPOCH, provenance.recoveryEpoch)
             .putLong(KEY_STARTED_AT, provenance.startedAtMs)
             .apply {
-                provenance.captureSessionId?.let { putLong(KEY_CAPTURE_SESSION_ID, it) }
+                if (provenance.captureSessionId != null) {
+                    putLong(KEY_CAPTURE_SESSION_ID, provenance.captureSessionId)
+                } else {
+                    remove(KEY_CAPTURE_SESSION_ID)
+                }
             }
             .commit()
 
