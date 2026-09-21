@@ -536,6 +536,7 @@ class ScreenCaptureService : Service() {
                                         beforeObservation = previousCandidate.observation,
                                         popupBefore = previousFrame?.popupState,
                                         baselineMarchSignals = previousFrame?.marchSignals.orEmpty(),
+                                        captureSessionId = liveCaptureSessionId,
                                         nowMs = now
                                     )
                                     actionAuditLog.append(
