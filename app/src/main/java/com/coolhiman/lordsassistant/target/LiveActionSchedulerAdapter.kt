@@ -26,6 +26,14 @@ class LiveActionSchedulerAdapter(
     ): ActionScheduleDecision =
         scheduler.claim(nowMs, safetyState)
 
+    fun markDispatchStarted(nowMs: Long) {
+        scheduler.markDispatchStarted(nowMs)
+    }
+
+    fun markActionFinished() {
+        scheduler.markActionFinished()
+    }
+
     fun markTargetCompleted(target: ActionTargetSnapshot, nowMs: Long) {
         scheduler.markTargetCompleted(target, nowMs)
     }
