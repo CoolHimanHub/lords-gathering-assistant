@@ -28,6 +28,35 @@ class TargetValidationEngine {
         observation: MapObservation?,
         cameraStable: Boolean,
         calibrationValid: Boolean,
+        popupState: PopupState?,
+        targetStable: Boolean = true,
+        marchAssociationStatus: com.coolhiman.lordsassistant.vision.MarchAssociationStatus = com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
+        expectedCoordinate: WorldCoordinate? = observation?.coordinate,
+        expectedKind: TargetKind? = observation?.kind,
+        expectedResource: com.coolhiman.lordsassistant.model.ResourceType? =
+            observation?.label?.let { runCatching { com.coolhiman.lordsassistant.model.ResourceType.valueOf(it) }.getOrNull() },
+        expectedLevel: Int? = observation?.level,
+        interactionPointValid: Boolean = observation?.screenPoint != null,
+        actionKind: ActionKind? = null
+    ): TargetValidationResult = validate(
+        observation = observation,
+        cameraStable = cameraStable,
+        calibrationValid = calibrationValid,
+        targetStable = targetStable,
+        marchAssociationStatus = marchAssociationStatus,
+        popupState = popupState,
+        expectedCoordinate = expectedCoordinate,
+        expectedKind = expectedKind,
+        expectedResource = expectedResource,
+        expectedLevel = expectedLevel,
+        interactionPointValid = interactionPointValid,
+        actionKind = actionKind
+    )
+
+    fun validate(
+        observation: MapObservation?,
+        cameraStable: Boolean,
+        calibrationValid: Boolean,
         targetStable: Boolean = true,
         marchAssociationStatus: com.coolhiman.lordsassistant.vision.MarchAssociationStatus = com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
         popupState: PopupState?,
