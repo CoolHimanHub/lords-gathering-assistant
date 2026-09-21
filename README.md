@@ -752,3 +752,17 @@ V0.8.4 extends live-device hardening without changing the action safety boundary
 App version: 0.8.4 (versionCode 84).
 
 Next validation target: sustained real-device capture, rotation/viewport transitions, memory-pressure behavior, and long-session telemetry under the actual game workload.
+
+
+## V0.8.5 — Real-device processing diagnostics
+
+V0.8.5 adds observability needed for sustained real-device/game validation without changing any action-safety boundary.
+
+- Frame processing telemetry now separates OCR latency from LiveMapScanner latency.
+- The tracker records last, maximum, and average OCR/scanner/total processing times.
+- The live overlay exposes average OCR and scanner latency alongside FPS, drops, stale frames, session identity, restart count, and memory pressure.
+- Added deterministic unit coverage for latency breakdown, averages, and negative-duration clamping.
+- Android version is now 0.8.5 (versionCode 85).
+- Automatic Gather/Hunt remains OFF by default; telemetry is diagnostic only.
+
+Real-device validation should now capture sustained-session latency, FPS, drops, stale frames, memory pressure, restart/rotation events, and detector behavior before enabling any automatic gameplay path.
