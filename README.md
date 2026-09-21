@@ -724,3 +724,11 @@ Regression coverage verifies ranked candidates, unranked candidates, non-finite 
 - Watchdog state is cleaned up on normal capture teardown and MediaProjection termination.
 - Added JVM regression tests for the exact timeout boundary, one-shot stall behavior, frame recovery, and stopped-session behavior.
 - App version is now 0.8.2.
+
+## V0.8.3 — Runtime capture observability
+
+- Capture telemetry now exposes session duration and calculated frames-per-second (FPS) for sustained device testing.
+- The live overlay now reports FPS, maximum inter-frame gap, processing latency, drop rate, and stale-frame count together.
+- These metrics are diagnostic only and do not relax camera continuity, validation, scheduler, or action-execution safety gates.
+- Added deterministic regression coverage for FPS/session-duration calculation and reset behavior.
+- App version is now 0.8.3.
