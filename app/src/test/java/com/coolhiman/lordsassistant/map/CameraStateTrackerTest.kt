@@ -37,6 +37,28 @@ class CameraStateTrackerTest {
         assertEquals(CameraState.UNSTABLE, result.state)
     }
     @Test
+    fun losingMinimumSharedTargetsAfterEstablishedFrameIsUnstable() {
+        val tracker = CameraStateTracker()
+        tracker.update(
+            listOf(
+                obs(100f, 100f, 1),
+                obs(200f, 200f, 2),
+                obs(300f, 300f, 3)
+            )
+        )
+
+        val result = tracker.update(
+            listOf(
+                obs(180f, 100f, 1),
+                obs(280f, 200f, 2)
+            )
+        )
+
+        assertEquals(CameraState.UNSTABLE, result.state)
+        assertEquals(2, result.sharedTargets)
+    }
+
+    @Test
     fun resetBreaksCrossViewportContinuity() {
         val tracker = CameraStateTracker()
         tracker.update(listOf(obs(100f, 100f, 1), obs(200f, 200f, 2), obs(300f, 300f, 3)))
