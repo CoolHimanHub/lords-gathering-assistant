@@ -15,15 +15,17 @@ import com.coolhiman.lordsassistant.target.ActionManualRecoveryStore
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsFormatter
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsStore
 import com.coolhiman.lordsassistant.target.ActionAuditLogStore
+import com.coolhiman.lordsassistant.capture.CaptureSessionDiagnosticsStore
 
 class EvidenceDiagnosticsActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var text: TextView
     private lateinit var auditText: TextView
     private lateinit var auditLog: ActionAuditLogStore
+    private lateinit var captureDiagnostics: CaptureSessionDiagnosticsStore
     private val refresh = object : Runnable {
         override fun run() {
-            if (::text.isInitialized) text.text = ActionDiagnosticsFormatter.format(ActionDiagnosticsStore.latest)
+            if (::text.isInitialized) text.text = ActionDiagnosticsFormatter.format(ActionDiagnosticsStore.latest) + "\n\n" + captureDiagnostics.formatLatest()
             if (::auditText.isInitialized) auditText.text =
                 "CANDIDATE REJECTIONS — aggregate\n" + auditLog.formatRejectionSummary() +
                     "\n\nACTION AUDIT — latest events\n\n" +
@@ -34,6 +36,7 @@ class EvidenceDiagnosticsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auditLog = ActionAuditLogStore(this)
+        captureDiagnostics = CaptureSessionDiagnosticsStore(this)
         text = TextView(this).apply {
             setTextColor(Color.WHITE)
             textSize = 14f
