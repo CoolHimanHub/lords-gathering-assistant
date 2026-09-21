@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
 /**
@@ -12,6 +14,7 @@ import org.robolectric.RuntimeEnvironment
  * The execution journal is a safety barrier: a clear must be durably visible
  * before a later process restart can be treated as having no in-flight action.
  */
+@RunWith(RobolectricTestRunner::class)
 class ActionExecutionJournalTest {
 
     @Test
