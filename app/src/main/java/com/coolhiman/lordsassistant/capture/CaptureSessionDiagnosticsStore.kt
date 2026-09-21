@@ -125,6 +125,9 @@ class CaptureSessionDiagnosticsStore(context: Context) {
         put("averageScannerMs", snapshot.latency.averageScannerMs)
         put("averageTotalMs", snapshot.latency.averageTotalMs)
         put("quality", snapshot.quality.name)
+        put("candidateRejectionCounts", JSONObject().apply {
+            snapshot.candidateRejectionCounts.toSortedMap().forEach { (reason, count) -> put(reason, count) }
+        })
     }
 
     private fun fromJson(json: JSONObject): CaptureSessionDiagnosticsSnapshot {
@@ -170,7 +173,12 @@ class CaptureSessionDiagnosticsStore(context: Context) {
             capture = capture,
             runtime = runtime,
             latency = latency,
-            quality = CaptureQuality.valueOf(json.optString("quality"))
+            quality = CaptureQuality.valueOf(json.optString("quality")),
+            candidateRejectionCounts = json.optJSONObject("candidateRejectionCounts")?.let { counts ->
+                buildMap {
+                    counts.keys().forEach { key -> put(key, counts.optInt(key)) }
+                }
+            } ?: emptyMap()
         )
     }
 
