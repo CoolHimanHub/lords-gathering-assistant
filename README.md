@@ -907,3 +907,18 @@ V0.9.6 begins hardening repeated real-device capture validation across service/p
 - Automatic Gather/Hunt remains OFF by default.
 
 Next integration target: wire ScreenCaptureService session start to the persisted allocator so repeated start → capture → stop → restart sessions receive durable, unique IDs across service recreation.
+
+## V0.9.7 — Bounded completed-session history
+
+V0.9.7 extends durable real-device validation from a single latest snapshot to a small completed-session history.
+
+- Completed capture sessions are archived when the capture service actually stops an active session.
+- The archive keeps the five newest session snapshots, newest first, so repeated start → capture → stop cycles can be compared without unbounded storage growth.
+- The latest snapshot remains available exactly as before; history is written only at session teardown rather than on every frame.
+- Added Robolectric coverage for ordering, five-entry bounding, and limited history reads.
+- This history is diagnostic only and cannot authorize, schedule, retry, or dispatch actions.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.7 (versionCode 97).
+
+Next validation target: expose the bounded session history in Evidence Diagnostics and correlate completed-session quality, stop/failure reasons, and candidate-rejection distributions across repeated device runs.
