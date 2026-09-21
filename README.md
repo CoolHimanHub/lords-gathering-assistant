@@ -794,3 +794,14 @@ V0.8.7 adds a deterministic interpretation layer for the capture telemetry alrea
 App version: 0.8.7 (versionCode 87).
 
 Next validation target: sustained real-device/game sessions using the quality classification alongside detector accuracy, restart recovery, rotation/display transitions, and action-safety evidence.
+## V0.8.8 — Candidate rejection diagnostics
+
+V0.8.8 adds deterministic reasons for candidates that remain outside the scheduler boundary. The runtime audit records camera-continuity failure, unsafe/not-ready validation, invalid planner rank, and non-finite planner score without changing eligibility rules. This improves real-device tuning and forensic diagnostics while preserving fail-closed action safety.
+
+- Added LiveActionCandidateRejectionReason and a single rejection-reason evaluator.
+- Added persistent CANDIDATE_REJECTED audit events.
+- Added regression coverage for key rejection paths.
+- Scheduler eligibility remains unchanged: rejection telemetry cannot authorize an action.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.8.8 (versionCode 88).
