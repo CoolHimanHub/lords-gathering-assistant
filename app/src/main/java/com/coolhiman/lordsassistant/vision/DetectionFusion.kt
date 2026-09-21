@@ -35,6 +35,19 @@ class DetectionFusion(
         coordinateResolver: (Float, Float) -> WorldCoordinate?,
         popupState: PopupState? = null
     ): List<FusionCandidate> {
+    fun fuse(
+        frame: DetectionFrame,
+        textRegions: List<TextRegion>,
+        marchSignals: List<MarchSignal>,
+        coordinateResolver: (Float, Float) -> WorldCoordinate?
+    ): List<FusionCandidate> = fuse(
+        frame = frame,
+        textRegions = textRegions,
+        marchSignals = marchSignals,
+        coordinateResolver = coordinateResolver,
+        popupState = null
+    )
+
         return frame.tiles.map { tile ->
             val text = textRegions.minByOrNull { distance(tile.bounds, it.bounds) }
                 ?.takeIf { distance(tile.bounds, it.bounds) <= maxTextDistancePx }
