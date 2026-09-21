@@ -779,3 +779,18 @@ V0.8.6 closes a runtime-diagnostics gap identified during the V0.8.5 real-device
 - Automatic Gather/Hunt remains OFF by default; this milestone only improves diagnostics and fail-closed capture teardown.
 
 App version: 0.8.6 (versionCode 86).
+
+## V0.8.7 — Capture-quality diagnostics
+
+V0.8.7 adds a deterministic interpretation layer for the capture telemetry already collected by the runtime.
+
+- Added `CaptureQualityPolicy` with `INSUFFICIENT_DATA`, `HEALTHY`, `DEGRADED`, and `UNSAFE` classifications.
+- Classification considers sustained frame rate, drop rate, maximum inter-frame gap, processing latency, and memory pressure.
+- The quality result is diagnostic only; it does not authorize actions and does not bypass camera continuity, validation, scheduler, or execution safety gates.
+- The live overlay now exposes the current capture-quality classification during active scanning.
+- Added deterministic JVM regression coverage for insufficient data, healthy capture, warning memory pressure, high drops, long gaps, and processing-latency boundaries.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.8.7 (versionCode 87).
+
+Next validation target: sustained real-device/game sessions using the quality classification alongside detector accuracy, restart recovery, rotation/display transitions, and action-safety evidence.
