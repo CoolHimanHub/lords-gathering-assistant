@@ -519,6 +519,7 @@ class ScreenCaptureService : Service() {
                                     actionAuditLog.append(
                                         ActionAuditEvent(
                                             timestampMs = now,
+                                            captureSessionId = liveCaptureSessionId,
                                             type = if (requestResult.lifecycle.failure == ActionLifecycleFailure.ATTEMPT_ID_PERSISTENCE_FAILED) {
                                                 ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED
                                             } else {
@@ -596,6 +597,7 @@ class ScreenCaptureService : Service() {
                                                 actionSchedulerAdapter.markActionFinished()
                                                 actionAuditLog.append(ActionAuditEvent(
                                                     timestampMs = now,
+                                                    captureSessionId = liveCaptureSessionId,
                                                     type = if (result.lifecycle.state == ActionLifecycleState.FAILED) ActionAuditEventType.DISPATCH_FAILED else ActionAuditEventType.DISPATCH_SUCCEEDED,
                                                     attemptId = provenance.attemptId,
                                                     recoveryEpoch = provenance.recoveryEpoch,
@@ -636,6 +638,7 @@ class ScreenCaptureService : Service() {
                                     actionAuditLog.appendIfChanged(
                                         ActionAuditEvent(
                                             timestampMs = now,
+                                            captureSessionId = liveCaptureSessionId,
                                             type = if (failure == ActionLifecycleFailure.VERIFICATION_TIMEOUT) {
                                                 ActionAuditEventType.VERIFICATION_TIMEOUT
                                             } else {
@@ -652,6 +655,7 @@ class ScreenCaptureService : Service() {
                                 ) {
                                     actionAuditLog.append(ActionAuditEvent(
                                         timestampMs = now,
+                                        captureSessionId = liveCaptureSessionId,
                                         type = if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED) ActionAuditEventType.VERIFICATION_SUCCEEDED else ActionAuditEventType.VERIFICATION_FAILED,
                                         attemptId = actionOrchestrator.session?.attemptId,
                                         recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
