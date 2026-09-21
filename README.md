@@ -694,6 +694,16 @@ Regression coverage verifies ranked candidates, unranked candidates, non-finite 
 - Added regression coverage for continuity-present and continuity-missing candidates.
 - Automatic Gather/Hunt actions remain disabled by default.
 
+## V0.8.1 — Live capture runtime hardening
+
+- Captured Image resources are now closed exactly once even when bitmap conversion fails, and conversion failures release the busy gate instead of wedging the capture loop.
+- Image acquisition failures are handled fail-closed and recorded as dropped frames.
+- Frames older than the runtime capture-age threshold are rejected before CV/OCR processing so stale screen content cannot enter the live planner.
+- Capture telemetry now separates stale-frame drops from ordinary drops.
+- Virtual-display creation failures tear down capture resources and stop the service instead of leaving a partially initialized session alive.
+- Added regression coverage for stale-frame accounting.
+- Automatic Gather/Hunt actions remain disabled by default; these runtime hardening changes do not relax any action-safety gate.
+- The next milestone is sustained real-device/game validation: restart recovery, rotation/display changes, memory pressure, long-running capture, and detector accuracy.
 ## V0.8.0 — Live device readiness foundation
 
 - Added deterministic capture-session telemetry for frame arrival, accepted/dropped frames, viewport resets, processing latency, maximum latency, and average latency.
