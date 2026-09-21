@@ -62,6 +62,7 @@ class ScreenCaptureService : Service() {
     private val memoryPressurePolicy = MemoryPressurePolicy()
     private val processingLatency = ProcessingLatencyTracker()
     private val captureQualityPolicy = CaptureQualityPolicy()
+    private lateinit var captureDiagnosticsStore: CaptureSessionDiagnosticsStore
     private var captureSessionActive = false
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
@@ -116,6 +117,7 @@ class ScreenCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         analyzer = FrameAnalyzer()
+        captureDiagnosticsStore = CaptureSessionDiagnosticsStore(this)
         liveScanner = LiveMapScanner(this)
         recoveryEpochStore = ActionRecoveryEpochStore(this)
         actionAttemptIdStore = ActionAttemptIdStore(this)
@@ -670,6 +672,7 @@ class ScreenCaptureService : Service() {
                             memory
                         )
                     )
+                    captureDiagnosticsStore.save(diagnostics)
                     OverlayService.instance?.showStatus(
                         status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
                             "\nCapture: " + diagnostics.averageProcessingMs.toLong() + "ms avg / " +
