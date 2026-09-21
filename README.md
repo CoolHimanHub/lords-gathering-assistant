@@ -987,6 +987,9 @@ V0.10 guarded dispatch integration coverage:
 - Fresh target mutation fails before the callback is invoked.
 - Automatic Gather/Hunt disabled state still prevents the dispatch boundary from opening.
 - The callback remains a test-only side-effect boundary; no real gesture is performed by these tests.
+- Added provenance continuity coverage for attempt ID, recovery epoch, capture-session ID, and target identity across persisted lifecycle audit events.
+- Recovery resets are distinguishable from prior attempts even when the same capture session remains active.
+
 
 
 
