@@ -16,13 +16,13 @@ class CaptureRuntimeSessionTrackerTest {
         assertTrue(tracker.snapshot().active)
 
         tracker.recordStall()
-        tracker.recordViewportChange()
-        tracker.stop(CaptureStopReason.CAPTURE_STALLED)
-
         val stalled = tracker.snapshot()
         assertEquals(1L, stalled.stallCount)
         assertEquals(CaptureStopReason.CAPTURE_STALLED.name, stalled.lastFailureReason)
-        assertEquals(CaptureStopReason.CAPTURE_STALLED, stalled.lastStopReason)
+
+        tracker.recordViewportChange()
+        tracker.stop(CaptureStopReason.CAPTURE_STALLED)
+        assertEquals(CaptureStopReason.CAPTURE_STALLED, tracker.snapshot().lastStopReason)
 
         tracker.start()
         val snapshot = tracker.snapshot()
