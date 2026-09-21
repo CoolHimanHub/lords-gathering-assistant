@@ -81,7 +81,7 @@ class ActionDiagnosticsSnapshotTest {
         assertTrue(text.contains("Nearest march: 28.0 px"))
         assertTrue(text.contains("Association ratio: 0.40"))
         assertTrue(text.contains("Target stability: 0 frames"))
-        assertTrue(text.contains("Action attempt: none"))
+        assertTrue(text.contains("Action attempt: 123"))
         assertTrue(text.contains("Recovery epoch: 7"))
         assertTrue(text.contains("Recovery epoch persistence: healthy"))
         assertTrue(text.contains("Journal attempt: 122"))
