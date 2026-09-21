@@ -19,6 +19,11 @@ class CaptureRuntimeSessionTrackerTest {
         tracker.recordViewportChange()
         tracker.stop(CaptureStopReason.CAPTURE_STALLED)
 
+        val stalled = tracker.snapshot()
+        assertEquals(1L, stalled.stallCount)
+        assertEquals(CaptureStopReason.CAPTURE_STALLED.name, stalled.lastFailureReason)
+        assertEquals(CaptureStopReason.CAPTURE_STALLED, stalled.lastStopReason)
+
         tracker.start()
         val snapshot = tracker.snapshot()
         assertEquals(2L, snapshot.sessionId)
