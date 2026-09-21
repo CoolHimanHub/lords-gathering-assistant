@@ -60,6 +60,7 @@ class ScreenCaptureService : Service() {
     private val captureWatchdog = CaptureWatchdog()
     private val captureRuntime = CaptureRuntimeSessionTracker()
     private val memoryPressurePolicy = MemoryPressurePolicy()
+    private val processingLatency = ProcessingLatencyTracker()
     private var captureSessionActive = false
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
@@ -282,8 +283,10 @@ class ScreenCaptureService : Service() {
 
             captureHealth.frameAccepted()
 
+            val frameStartedAt = System.currentTimeMillis()
             analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
                 try {
+                    val scanStartedAt = System.currentTimeMillis()
                     val scan = liveScanner.scan(
                         bitmap = bitmap,
                         defaultKingdom = result.coordinate?.kingdom ?: 0,
@@ -291,6 +294,10 @@ class ScreenCaptureService : Service() {
                         textRegions = result.textRegions,
                         popupState = result.popup
                     )
+                    val scanProcessingMs = System.currentTimeMillis() - scanStartedAt
+                    val totalProcessingMs = System.currentTimeMillis() - frameStartedAt
+                    processingLatency.record(result.ocrProcessingMs, scanProcessingMs, totalProcessingMs)
+                    val latency = processingLatency.snapshot()
                     val origin = scan.origin
                     val status = buildString {
                         append("LIVE MAP  •  ")
