@@ -936,3 +936,20 @@ V0.9.8 extends sustained real-device diagnostics from individual completed sessi
 App version: 0.9.8 (versionCode 98).
 
 Next validation target: use repeated real-device sessions to identify persistent capture-quality, viewport, stall, and detector-validation patterns before considering any further automation expansion.
+
+
+## V0.9.9 — Session-attributed candidate rejection correlation
+
+V0.9.9 extends sustained validation so candidate rejection diagnostics can be attributed to the durable capture session that produced them.
+
+- Candidate audit events now carry the durable capture-session ID.
+- Completed capture-session diagnostics persist the rejection distribution observed during that session.
+- Evidence Diagnostics correlates rejection distributions across the bounded completed-session history.
+- Projection termination now uses the same session-finalization path as other capture stops, ensuring completed sessions are archived consistently.
+- Session attribution is diagnostic only and cannot authorize, schedule, retry, recover, or dispatch actions.
+- Added regression coverage for session-scoped rejection aggregation and persistence.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.9 (versionCode 99).
+
+Next validation target: repeated real-device sessions to identify whether camera continuity, validation safety, planner eligibility, capture quality, stalls, or viewport transitions are persistent rather than isolated.
