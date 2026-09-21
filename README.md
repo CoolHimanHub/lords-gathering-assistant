@@ -981,3 +981,13 @@ V0.10 extracts the scanner-to-scheduler eligibility boundary into a deterministi
 - Automatic Gather/Hunt remains OFF by default.
 
 This phase does not claim real-device validation; that remains a separate device/game testing step.
+
+
+### V0.10 safety-integration coverage
+
+- Added end-to-end JVM coverage from reconciled live candidate through scheduler selection into the pre-action revalidation boundary.
+- Candidate mutation after selection (world identity or interaction point) fails closed before the dispatch boundary.
+- A failed selected-target revalidation does not discard an independently queued target.
+- Restart quarantine blocks scheduler selection while preserving the queued candidate for safe recovery handling.
+- This remains test-only safety coverage; it does not enable gestures or claim real-device validation.
+- Automatic Gather/Hunt remains OFF by default.
