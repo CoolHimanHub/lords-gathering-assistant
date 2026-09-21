@@ -71,10 +71,18 @@ class ActionRecoveryQuarantineTest {
         gate.restore(99L, 21L, 800L)
 
         assertTrue(gate.snapshot.recoveredCaptureSessionId == 800L)
+        assertFalse(gate.releaseAfterDeliberateRecovery(
+            lifecycleIdle = true,
+            recoveryEpochPersisted = true,
+            journalCleared = true,
+            currentCaptureSessionId = 800L
+        ))
+        assertTrue(gate.active)
         assertTrue(gate.releaseAfterDeliberateRecovery(
             lifecycleIdle = true,
             recoveryEpochPersisted = true,
-            journalCleared = true
+            journalCleared = true,
+            currentCaptureSessionId = 801L
         ))
         assertTrue(gate.snapshot.recoveredCaptureSessionId == null)
         assertTrue(gate.snapshot.recoveredAttemptId == null)
