@@ -803,5 +803,21 @@ V0.8.8 adds deterministic reasons for candidates that remain outside the schedul
 - Added regression coverage for key rejection paths.
 - Scheduler eligibility remains unchanged: rejection telemetry cannot authorize an action.
 - Automatic Gather/Hunt remains OFF by default.
-
 App version: 0.8.8 (versionCode 88).
+
+
+## V0.8.9 — Consolidated live-session diagnostics
+
+V0.8.9 consolidates the capture/runtime/latency/quality telemetry already produced by the live scanner into one read-only diagnostics snapshot for sustained real-device validation.
+
+- Added `CaptureSessionDiagnosticsSnapshot` combining capture health, runtime session state, processing latency, and capture-quality classification.
+- Exposes frame counts, accepted/dropped/stale frames, FPS, drop rate, OCR/scanner latency, session ID, restarts, stalls, and viewport-change counts through one diagnostics object.
+- The live overlay now presents the consolidated diagnostics after each completed scan.
+- Processing completion is recorded before the displayed diagnostics snapshot, so the reported capture-processing average includes the current frame.
+- The diagnostics layer is strictly observational: it does not alter candidate eligibility, scheduler decisions, lifecycle gates, or gesture execution.
+- Added deterministic JVM regression coverage for roll-up integrity and UNSAFE quality propagation.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.8.9 (versionCode 89).
+
+Next validation target: sustained real-device sessions with the consolidated diagnostics captured alongside detector accuracy and action-safety evidence.
