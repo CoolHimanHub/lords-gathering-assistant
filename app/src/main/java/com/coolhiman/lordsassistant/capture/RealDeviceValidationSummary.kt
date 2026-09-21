@@ -9,7 +9,8 @@ import com.coolhiman.lordsassistant.target.ActionDiagnosticsSnapshot
 data class RealDeviceValidationSummary(
     val capture: CaptureSessionDiagnosticsSnapshot?,
     val rejectionCounts: Map<String, Int>,
-    val action: ActionDiagnosticsSnapshot?
+    val action: ActionDiagnosticsSnapshot?,
+    val history: List<CaptureSessionDiagnosticsSnapshot> = emptyList()
 ) {
     val totalRejections: Int
         get() = rejectionCounts.values.sum()
@@ -28,6 +29,19 @@ data class RealDeviceValidationSummary(
             appendLine("Runtime: ${capture.restartCount} restarts • ${capture.stallCount} stalls • ${capture.viewportChangeCount} viewport changes")
             capture.runtime.lastStopReason?.let { appendLine("Last stop: ${it.name}") }
             capture.runtime.lastFailureReason?.let { appendLine("Last failure: $it") }
+        }
+        appendLine()
+        appendLine("CROSS-SESSION CORRELATION")
+        if (history.isEmpty()) {
+            appendLine("Completed sessions: none persisted.")
+        } else {
+            val qualityCounts = history.groupingBy { it.quality.name }.eachCount()
+            val stopCounts = history.mapNotNull { it.runtime.lastStopReason?.name }.groupingBy { it }.eachCount()
+            val averageFps = history.map { it.fps }.average()
+            appendLine("Completed sessions: ${history.size}")
+            appendLine("Average FPS: %.2f".format(averageFps))
+            appendLine("Quality: " + qualityCounts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
+            appendLine("Stop reasons: " + if (stopCounts.isEmpty()) "none" else stopCounts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
         }
         appendLine()
         appendLine("Candidate rejections: $totalRejections")
