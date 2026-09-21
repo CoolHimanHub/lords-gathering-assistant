@@ -572,14 +572,21 @@ class ScreenCaptureService : Service() {
                                                 recoveryEpoch = provenance.recoveryEpoch,
                                                 target = scheduled.target
                                             ))
+                                            // Keep scheduler in-flight state aligned with the
+                                            // durable dispatch barrier. This blocks another live
+                                            // selection until the guarded dispatch returns.
+                                            actionSchedulerAdapter.markDispatchStarted(now)
                                             actionOrchestrator.dispatch(now) {
-                                            LmAccessibilityService.instance?.tapRevalidated(
-                                                selected = currentCandidate.target,
-                                                latestObservation = currentCandidate.observation,
-                                                latestValidation = currentCandidate.validation,
-                                                latestAction = currentCandidate.actionButton
-                                            ) == true
+                                                runCatching {
+                                                    LmAccessibilityService.instance?.tapRevalidated(
+                                                        selected = currentCandidate.target,
+                                                        latestObservation = currentCandidate.observation,
+                                                        latestValidation = currentCandidate.validation,
+                                                        latestAction = currentCandidate.actionButton
+                                                    ) == true
+                                                }.getOrDefault(false)
                                             }.also { result ->
+                                                actionSchedulerAdapter.markActionFinished()
                                                 actionAuditLog.append(ActionAuditEvent(
                                                     timestampMs = now,
                                                     type = if (result.lifecycle.state == ActionLifecycleState.FAILED) ActionAuditEventType.DISPATCH_FAILED else ActionAuditEventType.DISPATCH_SUCCEEDED,
