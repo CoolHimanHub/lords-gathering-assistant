@@ -10,7 +10,8 @@ package com.coolhiman.lordsassistant.target
  */
 object LiveActionCandidatePolicy {
     fun isSchedulerEligible(candidate: com.coolhiman.lordsassistant.map.LiveActionCandidate): Boolean {
-        return candidate.validation.safe &&
+        return candidate.cameraContinuityValid &&
+            candidate.validation.safe &&
             candidate.validation.stage == TargetValidationStage.SAFE_TO_INTERACT &&
             candidate.plannerRank >= 0 &&
             candidate.plannerScore.isFinite()
