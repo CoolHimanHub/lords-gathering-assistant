@@ -57,7 +57,21 @@ class ScreenCaptureService : Service() {
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
     private val captureHealth = CaptureHealthTracker()
+    private val captureWatchdog = CaptureWatchdog()
     private var captureSessionActive = false
+    private val captureWatchdogRunnable = object : Runnable {
+        override fun run() {
+            if (!captureSessionActive) return
+            val now = System.currentTimeMillis()
+            if (captureWatchdog.check(now)) {
+                OverlayService.instance?.showStatus("CAPTURE STALLED • scanner stopped safely")
+                stopCaptureResources()
+                stopSelf()
+                return
+            }
+            handler.postDelayed(this, 1000L)
+        }
+    }
 
     companion object {
         const val EXTRA_RESULT_CODE = "result_code"
@@ -87,6 +101,8 @@ class ScreenCaptureService : Service() {
         projection?.stop()
         projection = null
         viewportGuard.reset()
+        handler.removeCallbacks(captureWatchdogRunnable)
+        captureWatchdog.stop()
         captureHealth.stop()
         captureSessionActive = false
     }
@@ -151,7 +167,11 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
         captureSessionActive = true
-        captureHealth.start(System.currentTimeMillis())
+        val captureStartedAt = System.currentTimeMillis()
+        captureHealth.start(captureStartedAt)
+        captureWatchdog.start(captureStartedAt)
+        handler.removeCallbacks(captureWatchdogRunnable)
+        handler.postDelayed(captureWatchdogRunnable, 1000L)
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
                 if (captureSessionActive) {
@@ -175,6 +195,7 @@ class ScreenCaptureService : Service() {
         reader?.setOnImageAvailableListener({ source ->
             val now = System.currentTimeMillis()
             captureHealth.frameArrived(now)
+            captureWatchdog.frameArrived(now)
             if (now - lastScanMs < 500L || !busy.compareAndSet(false, true)) {
                 source.acquireLatestImage()?.close()
                 captureHealth.frameDropped()
