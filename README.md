@@ -683,3 +683,13 @@ Regression coverage verifies ranked candidates, unranked candidates, non-finite 
 - The action-safety regression suite therefore becomes a required build-stage verification step rather than relying only on source-level review.
 - APK assembly remains a separate step after tests complete successfully.
 - Latest commits still require an actual GitHub Actions run before CI success can be claimed.
+
+
+## V0.7.7 — Action-candidate camera continuity gate
+
+- Camera assessments now expose an explicit `continuityForActions` proof bit that is false on the first frame and whenever the minimum shared-target continuity is lost.
+- Live action candidates carry that continuity proof into the scheduler boundary.
+- Scheduler eligibility now requires established camera continuity in addition to `SAFE_TO_INTERACT`, planner rank/score validity, and the existing validation chain.
+- This prevents a candidate from crossing the automatic-action boundary merely because a single frame is classified as stable; camera continuity must first be established across frames.
+- Added regression coverage for continuity-present and continuity-missing candidates.
+- Automatic Gather/Hunt actions remain disabled by default.
