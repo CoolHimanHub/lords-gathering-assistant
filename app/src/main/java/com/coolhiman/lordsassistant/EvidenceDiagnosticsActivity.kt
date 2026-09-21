@@ -31,7 +31,8 @@ class EvidenceDiagnosticsActivity : Activity() {
                     capture = captureDiagnostics.read(),
                     rejectionCounts = auditLog.rejectionCounts(),
                     action = ActionDiagnosticsStore.latest
-                ).format() + "\n\n" + captureDiagnostics.formatLatest()
+                ).format() + "\n\n" + captureDiagnostics.formatLatest() +
+                    "\n\n" + captureDiagnostics.formatHistory()
             if (::auditText.isInitialized) auditText.text =
                 "CANDIDATE REJECTIONS — aggregate\n" + auditLog.formatRejectionSummary() +
                     "\n\nACTION AUDIT — latest events\n\n" +
