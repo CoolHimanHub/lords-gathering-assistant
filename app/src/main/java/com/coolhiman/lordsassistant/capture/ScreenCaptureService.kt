@@ -207,7 +207,6 @@ class ScreenCaptureService : Service() {
             val bitmap = try {
                 ImageBitmapConverter.toBitmap(image)
             } catch (_: Throwable) {
-                image.close()
                 captureHealth.frameDropped()
                 busy.set(false)
                 return@setOnImageAvailableListener
