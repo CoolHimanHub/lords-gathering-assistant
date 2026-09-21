@@ -30,7 +30,8 @@ class EvidenceDiagnosticsActivity : Activity() {
                 RealDeviceValidationSummary(
                     capture = captureDiagnostics.read(),
                     rejectionCounts = auditLog.rejectionCounts(),
-                    action = ActionDiagnosticsStore.latest
+                    action = ActionDiagnosticsStore.latest,
+                    history = captureDiagnostics.readHistory()
                 ).format() + "\n\n" + captureDiagnostics.formatLatest() +
                     "\n\n" + captureDiagnostics.formatHistory()
             if (::auditText.isInitialized) auditText.text =
