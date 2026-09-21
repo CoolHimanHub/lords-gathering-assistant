@@ -19,6 +19,12 @@ class CaptureSessionDiagnosticsStore(context: Context) {
         return runCatching { fromJson(JSONObject(raw)) }.getOrNull()
     }
 
+    fun allocateNextSessionId(): Long = synchronized(this) {
+        val next = prefs.getLong(KEY_SESSION_SEQUENCE, 0L) + 1L
+        prefs.edit().putLong(KEY_SESSION_SEQUENCE, next).commit()
+        next
+    }
+
     fun clear(): Boolean = prefs.edit().remove(KEY_SNAPSHOT).commit()
 
     fun formatLatest(): String {
@@ -126,5 +132,6 @@ class CaptureSessionDiagnosticsStore(context: Context) {
 
     companion object {
         private const val KEY_SNAPSHOT = "snapshot"
+        private const val KEY_SESSION_SEQUENCE = "session_sequence"
     }
 }
