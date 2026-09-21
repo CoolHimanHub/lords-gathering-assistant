@@ -602,6 +602,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.6 — Fail-closed camera continuity gate
+
+- Camera state now becomes `UNSTABLE` when an established frame loses the minimum shared-target continuity needed to prove stability.
+- The first frame remains neutral, but subsequent sparse continuity cannot silently reopen the action path.
+- Added regression coverage for insufficient shared-target continuity.
+- App version is now 0.7.6.
+
 ## V0.7.5 — Viewport discontinuity quarantine
 
 - Invalid viewport frames now reset camera-anchor, camera-state, temporal-observation, and target-stability continuity.
