@@ -15,7 +15,9 @@ data class CaptureSessionDiagnosticsSnapshot(
     val capture: CaptureHealthSnapshot,
     val runtime: CaptureRuntimeSnapshot,
     val latency: ProcessingLatencySnapshot,
-    val quality: CaptureQuality
+    val quality: CaptureQuality,
+    /** Candidate rejection counts attributed to this capture session. */
+    val candidateRejectionCounts: Map<String, Int> = emptyMap()
 ) {
     val frames: Long get() = capture.totalFrames
     val acceptedFrames: Long get() = capture.acceptedFrames
@@ -45,11 +47,13 @@ object CaptureSessionDiagnostics {
         capture: CaptureHealthSnapshot,
         runtime: CaptureRuntimeSnapshot,
         latency: ProcessingLatencySnapshot,
-        quality: CaptureQuality
+        quality: CaptureQuality,
+        candidateRejectionCounts: Map<String, Int> = emptyMap()
     ): CaptureSessionDiagnosticsSnapshot = CaptureSessionDiagnosticsSnapshot(
         capture = capture,
         runtime = runtime,
         latency = latency,
-        quality = quality
+        quality = quality,
+        candidateRejectionCounts = candidateRejectionCounts.toMap()
     )
 }
