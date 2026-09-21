@@ -19,7 +19,7 @@ data class RealDeviceValidationSummary(
         if (capture == null) {
             appendLine("Capture session: no persisted session yet.")
         } else {
-            appendLine("Capture session: #${capture.sessionId} • quality=${capture.quality.name}")
+            appendLine("Capture session: #${capture.sessionId} • state=${capture.sessionState.name.lowercase()} • quality=${capture.quality.name}")
             appendLine("Frames: ${capture.frames} total / ${capture.acceptedFrames} accepted / ${capture.droppedFrames} dropped / ${capture.staleFrames} stale")
             appendLine("FPS: %.2f • drop rate: %.1f%%".format(capture.fps, capture.dropRatePercent))
             appendLine("Latency: %.0f ms total avg • OCR %.0f ms • scan %.0f ms".format(
