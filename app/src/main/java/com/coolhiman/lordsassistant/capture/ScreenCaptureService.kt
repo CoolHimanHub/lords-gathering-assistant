@@ -705,7 +705,7 @@ class ScreenCaptureService : Service() {
                         journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
                         journalCaptureSessionId = actionJournal.readInFlight()?.captureSessionId,
                         reconciledInitialEpoch = reconciledInitialEpoch,
-                        restartQuarantine = restartQuarantine,
+                        restartQuarantine = recoveryQuarantine.active,
                         timestampMs = now
                     )
 
