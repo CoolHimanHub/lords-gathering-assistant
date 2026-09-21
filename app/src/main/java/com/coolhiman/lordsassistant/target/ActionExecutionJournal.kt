@@ -56,9 +56,8 @@ class ActionExecutionJournal(context: Context) {
             )
         } else null
 
-    fun clear() {
+    fun clear(): Boolean =
         prefs.edit().clear().commit()
-    }
 
     companion object {
         private const val KEY_IN_FLIGHT = "in_flight"
