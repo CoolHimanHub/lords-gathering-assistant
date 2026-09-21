@@ -82,6 +82,24 @@ class LiveActionSchedulerAdapterTest {
         assertEquals(1, adapter.queuedCount())
     }
 
+    @Test
+    fun captureSessionResetClearsAdapterSchedulerState() {
+        val adapter = LiveActionSchedulerAdapter(ActionScheduler())
+        adapter.update(listOf(candidate(1)))
+        adapter.markDispatchStarted(1_000L)
+
+        adapter.resetForCaptureSession()
+
+        assertEquals(0, adapter.queuedCount())
+        assertEquals(
+            ActionScheduleBlockReason.EMPTY_QUEUE,
+            adapter.select(1_000L, safeState()).reason
+        )
+
+        adapter.update(listOf(candidate(2)))
+        assertEquals(target(2), adapter.select(1_000L, safeState()).candidate?.target)
+    }
+
     private fun safeState(
         lifecycle: ActionLifecycleState = ActionLifecycleState.IDLE
     ) = ActionSchedulerSafetyState(
