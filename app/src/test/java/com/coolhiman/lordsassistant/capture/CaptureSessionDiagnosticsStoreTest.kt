@@ -77,5 +77,11 @@ class CaptureSessionDiagnosticsStoreTest {
         val firstId = store.allocateNextSessionId()
         val secondId = store.allocateNextSessionId()
         assertEquals(firstId + 1L, secondId)
+
+        // A fresh store instance must continue the same durable sequence,
+        // modeling ScreenCaptureService recreation/process restart.
+        val recreatedStore = CaptureSessionDiagnosticsStore(context)
+        val thirdId = recreatedStore.allocateNextSessionId()
+        assertEquals(secondId + 1L, thirdId)
     }
 }
