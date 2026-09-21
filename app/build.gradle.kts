@@ -33,4 +33,5 @@ dependencies {
     implementation("org.opencv:opencv:4.14.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation(kotlin("test"))
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
