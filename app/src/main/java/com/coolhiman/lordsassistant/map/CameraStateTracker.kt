@@ -21,6 +21,7 @@ class CameraStateTracker(
     private val unstableScaleChangePercent: Float = 8f
 ) {
     private var previous = emptyMap<String, Pair<Float, Float>>()
+    private var established = false
 
     fun update(observations: List<MapObservation>): CameraAssessment {
         val current = observations.mapNotNull { o ->
@@ -37,9 +38,22 @@ class CameraStateTracker(
             sqrt(dx * dx + dy * dy)
         }
         val scaleChangePercent = estimateScaleChange(current)
+        val hadPreviousFrame = established
         previous = current
+        established = true
 
-        if (shifts.size < minSharedTargets) return CameraAssessment(CameraState.STABLE, shifts.size, 0f, 0f)
+        if (shifts.size < minSharedTargets) {
+            // The first frame has no continuity to validate and is therefore
+            // neutral. Once continuity exists, losing the minimum number of
+            // shared targets is not proof of stability; it is an unknown camera
+            // transition and must remain fail-closed for action eligibility.
+            return CameraAssessment(
+                state = if (hadPreviousFrame) CameraState.UNSTABLE else CameraState.STABLE,
+                sharedTargets = shifts.size,
+                medianShiftPx = 0f,
+                spreadPx = 0f
+            )
+        }
 
         val sorted = shifts.sorted()
         val median = sorted[sorted.size / 2]
@@ -85,5 +99,8 @@ class CameraStateTracker(
         return kotlin.math.abs(ratios.sorted()[ratios.size / 2])
     }
 
-    fun reset() { previous = emptyMap() }
+    fun reset() {
+        previous = emptyMap()
+        established = false
+    }
 }
