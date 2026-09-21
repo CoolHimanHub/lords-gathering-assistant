@@ -111,4 +111,7 @@ class TemporalObservationTracker(
         tracks.entries.removeIf { nowMs - it.value.lastSeen > maxGapMs * 4 }
         return output
     }
+    fun reset() {
+        tracks.clear()
+    }
 }
