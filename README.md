@@ -953,3 +953,31 @@ V0.9.9 extends sustained validation so candidate rejection diagnostics can be at
 App version: 0.9.9 (versionCode 99).
 
 Next validation target: repeated real-device sessions to identify whether camera continuity, validation safety, planner eligibility, capture quality, stalls, or viewport transitions are persistent rather than isolated.
+
+
+## V0.9.10 — Session rejection trend diagnostics
+
+V0.9.10 extends sustained validation with bounded cross-session rejection trend metrics.
+
+- Reports session-attributed rejection density per 100 accepted frames.
+- Reports average drop rate, aggregate stalls, and viewport-change counts across completed sessions.
+- Keeps the metric diagnostic-only; rejection telemetry cannot authorize, schedule, retry, recover, or dispatch actions.
+- Added deterministic JVM regression coverage for the trend formatting and aggregation.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.10 (versionCode 100).
+
+Next development phase: V0.10 live scanner -> current-frame candidate reconciliation -> scheduler handoff, while preserving camera continuity, target revalidation, lifecycle, cooldown, identity, and post-action verification gates.
+
+## V0.10 — Live candidate reconciliation boundary
+
+V0.10 extracts the scanner-to-scheduler eligibility boundary into a deterministic reconciler.
+
+- LiveActionCandidateReconciler admits only candidates accepted by the existing LiveActionCandidatePolicy.
+- Current-frame camera continuity, safe validation, SAFE_TO_INTERACT, valid planner rank, and finite planner score remain mandatory.
+- The scheduler still owns latest-frame queue reconciliation, cooldown, in-flight protection, and completed-target suppression.
+- The reconciler has no gesture or lifecycle authority and cannot bypass ActionOrchestrator.
+- Added JVM coverage for rejection and order preservation.
+- Automatic Gather/Hunt remains OFF by default.
+
+This phase does not claim real-device validation; that remains a separate device/game testing step.
