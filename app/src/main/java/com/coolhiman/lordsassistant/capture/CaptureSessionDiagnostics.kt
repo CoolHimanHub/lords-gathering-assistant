@@ -5,6 +5,12 @@ package com.coolhiman.lordsassistant.capture
  * pipeline. This class owns no safety decisions and never changes scheduler
  * eligibility or action execution.
  */
+enum class CaptureSessionState {
+    NO_SESSION,
+    ACTIVE,
+    COMPLETED
+}
+
 data class CaptureSessionDiagnosticsSnapshot(
     val capture: CaptureHealthSnapshot,
     val runtime: CaptureRuntimeSnapshot,
@@ -26,6 +32,12 @@ data class CaptureSessionDiagnosticsSnapshot(
     val stallCount: Long get() = runtime.stallCount
     val viewportChangeCount: Long get() = runtime.viewportChangeCount
     val memorySafeForDiagnostics: Boolean get() = quality != CaptureQuality.UNSAFE
+    val sessionState: CaptureSessionState
+        get() = when {
+            runtime.sessionId <= 0L -> CaptureSessionState.NO_SESSION
+            runtime.active -> CaptureSessionState.ACTIVE
+            else -> CaptureSessionState.COMPLETED
+        }
 }
 
 object CaptureSessionDiagnostics {
