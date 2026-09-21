@@ -693,3 +693,14 @@ Regression coverage verifies ranked candidates, unranked candidates, non-finite 
 - This prevents a candidate from crossing the automatic-action boundary merely because a single frame is classified as stable; camera continuity must first be established across frames.
 - Added regression coverage for continuity-present and continuity-missing candidates.
 - Automatic Gather/Hunt actions remain disabled by default.
+
+## V0.8.0 — Live device readiness foundation
+
+- Added deterministic capture-session telemetry for frame arrival, accepted/dropped frames, viewport resets, processing latency, maximum latency, and average latency.
+- Capture lifecycle now tears down any previous reader/projection before starting a new capture request, preventing duplicate capture resources after service restarts or repeated permission flows.
+- MediaProjection stop is treated as a capture-session termination event and stops the service rather than leaving a stale scanner session alive.
+- Capture-resolution changes are handled fail-closed: the mismatched frame is dropped, the viewport guard is reset, and the following frame can establish a fresh screen-space baseline.
+- The live overlay now reports basic capture health (average processing time and drop rate) alongside the existing camera/validation/action lifecycle diagnostics.
+- Added unit coverage for capture telemetry accounting and reset behavior.
+- Automatic Gather/Hunt actions remain disabled by default; telemetry is diagnostic and does not relax any action-safety gate.
+- App version is now 0.8.0.
