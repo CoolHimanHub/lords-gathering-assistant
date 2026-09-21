@@ -74,6 +74,27 @@ class CameraAnchorTrackerTest {
     }
 
     @Test
+    fun ambiguousRepeatedTargetsAreNotAssociated() {
+        val tracker = CameraAnchorTracker(ambiguityMarginPx = 20f)
+
+        tracker.update(
+            listOf(
+                observation(100f, 100f, 10),
+                observation(140f, 100f, 20)
+            )
+        )
+
+        val anchors = tracker.update(
+            listOf(
+                observation(119f, 100f, 10),
+                observation(121f, 100f, 20)
+            )
+        )
+
+        assertTrue(anchors.isEmpty())
+    }
+
+    @Test
     fun farSemanticMovementIsNotAssociated() {
         val tracker = CameraAnchorTracker(maxAssociationDistancePx = 50f)
 
