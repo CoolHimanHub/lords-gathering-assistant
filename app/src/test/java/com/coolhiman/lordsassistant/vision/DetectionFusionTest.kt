@@ -48,8 +48,8 @@ class DetectionFusionTest {
             DetectionFrame(listOf(tile), 1),
             emptyList(),
             listOf(MarchSignal(155f, 120f, 50.0, 0.8f)),
-            { _, _ -> WorldCoordinate(1, 200, 300) },
-            popup
+            popupState = popup,
+            coordinateResolver = { _, _ -> WorldCoordinate(1, 200, 300) }
         )
         assertEquals(false, result.single().occupied)
         assertEquals(false, result.single().incomingTroops)
