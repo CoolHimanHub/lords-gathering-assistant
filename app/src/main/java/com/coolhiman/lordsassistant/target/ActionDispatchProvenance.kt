@@ -22,5 +22,6 @@ data class ActionDispatchProvenance(
     fun matches(session: ActionOrchestrator.Session?): Boolean =
         session != null &&
             session.attemptId == attemptId &&
-            session.recoveryEpoch == recoveryEpoch
+            session.recoveryEpoch == recoveryEpoch &&
+            (captureSessionId == null || session.captureSessionId == captureSessionId)
 }

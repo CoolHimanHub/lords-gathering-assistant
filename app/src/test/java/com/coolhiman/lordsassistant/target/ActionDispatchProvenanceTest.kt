@@ -55,13 +55,15 @@ class ActionDispatchProvenanceTest {
             beforeObservation = observation,
             popupBefore = popup,
             baselineMarchSignals = emptyList(),
+            captureSessionId = 7001L,
             nowMs = 80_000L
         )
-        val provenance = ActionDispatchProvenance(1L, 12L, 80_001L)
+        val provenance = ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7001L)
 
         assertTrue(provenance.matches(result.session))
         assertFalse(ActionDispatchProvenance(2L, 12L, 80_001L).matches(result.session))
         assertFalse(ActionDispatchProvenance(1L, 13L, 80_001L).matches(result.session))
+        assertFalse(ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7002L).matches(result.session))
         assertFalse(ActionDispatchProvenance(1L, 12L, 80_001L).matches(null))
     }
 

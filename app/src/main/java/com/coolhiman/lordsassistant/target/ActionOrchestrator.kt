@@ -14,6 +14,7 @@ class ActionOrchestrator(
     data class Session(
         val attemptId: Long,
         val recoveryEpoch: Long,
+        val captureSessionId: Long?,
         val selected: ActionTargetSnapshot,
         val beforeObservation: MapObservation?,
         val popupBefore: PopupState?,
@@ -49,6 +50,7 @@ class ActionOrchestrator(
         beforeObservation: MapObservation?,
         popupBefore: PopupState?,
         baselineMarchSignals: List<MarchSignal>,
+        captureSessionId: Long? = null,
         nowMs: Long
     ): Result {
         if (lifecycle.snapshot.failure == ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED) {
@@ -100,6 +102,7 @@ class ActionOrchestrator(
             Session(
                 attemptId = attemptId,
                 recoveryEpoch = recoveryEpoch,
+                captureSessionId = captureSessionId,
                 selected = it,
                 beforeObservation = beforeObservation,
                 popupBefore = popupBefore,
