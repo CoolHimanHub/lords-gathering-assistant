@@ -63,4 +63,29 @@ class CaptureHealthTrackerTest {
         assertEquals(0L, snapshot.droppedFrames)
         assertEquals(null, snapshot.lastFrameAtMs)
     }
+
+    @Test
+    fun watchdogTripsOnceAfterCaptureStall() {
+        val watchdog = CaptureWatchdog(stallTimeoutMs = 3000L)
+        watchdog.start(1000L)
+
+        assertTrue(!watchdog.check(3999L))
+        assertTrue(watchdog.check(4000L))
+        assertTrue(!watchdog.check(5000L))
+
+        watchdog.frameArrived(5100L)
+        assertTrue(!watchdog.check(8099L))
+        assertTrue(watchdog.check(8100L))
+    }
+
+    @Test
+    fun watchdogStopsAndIgnoresLateChecks() {
+        val watchdog = CaptureWatchdog(stallTimeoutMs = 1000L)
+        watchdog.start(100L)
+        watchdog.stop()
+
+        assertTrue(!watchdog.isActive())
+        assertTrue(!watchdog.isStalled())
+        assertTrue(!watchdog.check(5000L))
+    }
 }
