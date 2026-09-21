@@ -50,7 +50,8 @@ class CaptureSessionDiagnosticsTest {
             capture = health,
             runtime = runtime,
             latency = latency,
-            quality = CaptureQuality.DEGRADED
+            quality = CaptureQuality.DEGRADED,
+            candidateRejectionCounts = mapOf("CAMERA_CONTINUITY_INVALID" to 2, "VALIDATION_UNSAFE" to 1)
         )
 
         assertEquals(10L, snapshot.frames)
@@ -63,6 +64,8 @@ class CaptureSessionDiagnosticsTest {
         assertEquals(900L, snapshot.maxProcessingMs)
         assertTrue(snapshot.memorySafeForDiagnostics)
         assertEquals(CaptureSessionState.ACTIVE, snapshot.sessionState)
+        assertEquals(2, snapshot.candidateRejectionCounts["CAMERA_CONTINUITY_INVALID"])
+        assertEquals(1, snapshot.candidateRejectionCounts["VALIDATION_UNSAFE"])
     }
 
     @Test
