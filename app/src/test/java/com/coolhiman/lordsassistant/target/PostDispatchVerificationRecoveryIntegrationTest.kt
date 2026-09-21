@@ -3,6 +3,10 @@ package com.coolhiman.lordsassistant.target
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.TargetKind
+import com.coolhiman.lordsassistant.model.WorldCoordinate
+import com.coolhiman.lordsassistant.model.ScreenPoint
 import org.junit.Test
 
 /**
@@ -75,9 +79,17 @@ class PostDispatchVerificationRecoveryIntegrationTest {
         assertEquals(ActionLifecycleState.REQUESTED, requested.lifecycle.state)
 
         orchestrator.revalidate(
-            latestObservation = null,
+            latestObservation = MapObservation(
+                coordinate = WorldCoordinate(355, 167, 511),
+                screenPoint = ScreenPoint(500f, 400f),
+                occupied = false,
+                incomingTroops = false,
+                kind = TargetKind.RESOURCE,
+                level = 3,
+                confidence = 1f
+            ),
             latestValidation = safeValidation(),
-            latestAction = null
+            latestAction = ActionButton(ActionKind.GATHER, ScreenPoint(500f, 400f), 1f)
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
