@@ -37,11 +37,11 @@ class CaptureRuntimeSessionTracker {
     private var lastStopReason: CaptureStopReason? = null
     private var lastFailureReason: String? = null
 
-    fun start() {
+    fun start(sessionIdOverride: Long? = null) {
         if (active) return
         if (startCount > 0L) restartCount++
         startCount++
-        sessionId++
+        sessionId = sessionIdOverride?.takeIf { it > 0L } ?: (sessionId + 1L)
         active = true
         lastStopReason = null
         lastFailureReason = null
@@ -76,6 +76,11 @@ class CaptureRuntimeSessionTracker {
         lastStopReason = lastStopReason,
         lastFailureReason = lastFailureReason
     )
+
+    /**
+     * Starts a session with a caller-supplied durable identity when available.
+     * Without an override, the tracker retains its historical in-process sequence.
+     */
 
     fun reset() {
         sessionId = 0L
