@@ -69,12 +69,30 @@ class ActionOrchestrator(
             selected != null && selected.identity() == completedTargetIdentity) return Result(lifecycle.snapshot, session)
 
         lastPostActionEvidence = null
-        val attemptId = attemptIdAllocator?.invoke(nextAttemptId) ?: (nextAttemptId + 1L)
-        if (attemptId == null) {
+
+        // Evaluate the lifecycle gate before creating any dispatchable session.
+        val lifecycleResult = lifecycle.request(
+            automaticActionsEnabled = automaticActionsEnabled,
+            selected = selected,
+            validation = validation,
+            nowMs = nowMs
+        )
+        if (lifecycleResult.state != ActionLifecycleState.REQUESTED) {
             session = null
-            return Result(lifecycle.attemptIdPersistenceFailed(selected), null)
+            return Result(lifecycleResult, null)
+        }
+
+        val attemptId: Long = if (attemptIdAllocator != null) {
+            attemptIdAllocator.invoke(nextAttemptId)
+                ?: run {
+                    session = null
+                    return Result(lifecycle.attemptIdPersistenceFailed(selected), null)
+                }
+        } else {
+            nextAttemptId + 1L
         }
         nextAttemptId = maxOf(nextAttemptId, attemptId)
+
         session = selected?.let {
             Session(
                 attemptId = attemptId,
@@ -85,7 +103,7 @@ class ActionOrchestrator(
                 marchSession = marchTracker.begin(it.point, baselineMarchSignals)
             )
         }
-        return Result(lifecycle.request(automaticActionsEnabled, selected, validation, nowMs), session)
+        return Result(lifecycleResult, session)
     }
 
     fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?): Result {
