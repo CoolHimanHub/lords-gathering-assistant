@@ -836,3 +836,19 @@ V0.8.9 consolidates the capture/runtime/latency/quality telemetry already produc
 App version: 0.8.9 (versionCode 89).
 
 Next validation target: sustained real-device sessions with the consolidated diagnostics captured alongside detector accuracy and action-safety evidence.
+
+## V0.9.1 — Persisted real-device session diagnostics
+
+V0.9.1 makes sustained device validation reviewable outside the live overlay.
+
+- Added `CaptureSessionDiagnosticsStore`, a read-only persisted snapshot of the latest capture session.
+- Persisted metrics include frames, accepted/dropped/stale frames, FPS, processing latency, OCR/scanner latency, session/restart/stall/viewport diagnostics, capture quality, and the latest stop/failure reason.
+- Evidence Diagnostics now displays the latest persisted capture-session summary alongside action lifecycle, rejection aggregation, and raw audit events.
+- Added Robolectric regression coverage for persistence round-trip integrity.
+- Persistence is diagnostic only: it never changes candidate eligibility, scheduler behavior, lifecycle gates, recovery policy, or gesture execution.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.1 (versionCode 91).
+
+Next validation target: use the persisted session snapshot during sustained real-device/game sessions and correlate capture quality, rejection distributions, lifecycle events, and post-action evidence.
+
