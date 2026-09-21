@@ -1,7 +1,7 @@
 package com.coolhiman.lordsassistant.target
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import org.robolectric.RuntimeEnvironment
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
@@ -28,7 +28,7 @@ class ActionAuditProvenanceContinuityTest {
 
     @Test
     fun lifecycleEventsRetainAttemptEpochAndCaptureSessionAcrossPersistence() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val context = RuntimeEnvironment.getApplication()
         val store = ActionAuditLogStore(context)
         store.clear()
 
