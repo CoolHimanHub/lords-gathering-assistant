@@ -41,6 +41,7 @@ data class ActionAuditEvent(
     val type: ActionAuditEventType,
     val attemptId: Long? = null,
     val recoveryEpoch: Long? = null,
+    val captureSessionId: Long? = null,
     val target: ActionTargetSnapshot? = null,
     val detail: String? = null
 )
@@ -51,7 +52,7 @@ class ActionAuditLogStore(context: Context) {
     fun appendIfChanged(event: ActionAuditEvent): Boolean {
         val previous = readAll().lastOrNull()
         if (previous != null && previous.type == event.type && previous.attemptId == event.attemptId &&
-            previous.recoveryEpoch == event.recoveryEpoch && previous.target == event.target && previous.detail == event.detail) {
+            previous.recoveryEpoch == event.recoveryEpoch && previous.captureSessionId == event.captureSessionId && previous.target == event.target && previous.detail == event.detail) {
             return true
         }
         return append(event)
@@ -92,9 +93,14 @@ class ActionAuditLogStore(context: Context) {
         readAll().takeLast(limit.coerceAtLeast(0))
 
     fun rejectionCounts(): Map<String, Int> =
+        rejectionCountsForSession(null)
+
+    /** Returns candidate-rejection counts for one durable capture session. */
+    fun rejectionCountsForSession(captureSessionId: Long?): Map<String, Int> =
         readAll()
             .asSequence()
             .filter { it.type == ActionAuditEventType.CANDIDATE_REJECTED }
+            .filter { captureSessionId == null || it.captureSessionId == captureSessionId }
             .map { it.detail ?: "UNKNOWN" }
             .groupingBy { it }
             .eachCount()
@@ -114,6 +120,7 @@ class ActionAuditLogStore(context: Context) {
                 append(" • ").append(event.type.name)
                 event.attemptId?.let { append(" • attempt=").append(it) }
                 event.recoveryEpoch?.let { append(" • epoch=").append(it) }
+                event.captureSessionId?.let { append(" • session=").append(it) }
                 event.target?.let {
                     append(" • K").append(it.coordinate.kingdom)
                     append(" X").append(it.coordinate.x)
@@ -132,6 +139,7 @@ class ActionAuditLogStore(context: Context) {
             put("type", event.type.name)
             event.attemptId?.let { put("attemptId", it) }
             event.recoveryEpoch?.let { put("recoveryEpoch", it) }
+            event.captureSessionId?.let { put("captureSessionId", it) }
             event.target?.let {
                 put("target", JSONObject().apply {
                     put("x", it.coordinate.x)
@@ -177,6 +185,7 @@ class ActionAuditLogStore(context: Context) {
             type = type,
             attemptId = json.optLongOrNull("attemptId"),
             recoveryEpoch = json.optLongOrNull("recoveryEpoch"),
+            captureSessionId = json.optLongOrNull("captureSessionId"),
             target = target,
             detail = json.optString("detail").takeIf { it.isNotBlank() }
         )
