@@ -171,7 +171,7 @@ class ActionScheduler(
     fun claim(nowMs: Long): ActionScheduleDecision {
         val decision = peek(nowMs)
         val candidate = decision.candidate ?: return decision
-        candidates.remove(candidate.target)
+        candidates.remove(candidate.target.identity())
         return decision
     }
 
