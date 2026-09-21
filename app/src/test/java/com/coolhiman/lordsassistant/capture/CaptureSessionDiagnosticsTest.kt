@@ -62,6 +62,25 @@ class CaptureSessionDiagnosticsTest {
         assertEquals(150.0, snapshot.averageScannerMs)
         assertEquals(900L, snapshot.maxProcessingMs)
         assertTrue(snapshot.memorySafeForDiagnostics)
+        assertEquals(CaptureSessionState.ACTIVE, snapshot.sessionState)
+    }
+
+    @Test
+    fun completedSessionIsDistinctFromNoSession() {
+        val health = CaptureHealthSnapshot(true, 1L, 1L, 0L, 0L, 1L, 0L, 100L, 100L, 50L, 50L, 50.0, 100L, 100L)
+        val runtime = CaptureRuntimeSnapshot(9L, false, 1L, 0L, 0L, 0L, CaptureStopReason.USER_STOP, null)
+        val latency = ProcessingLatencySnapshot(1L, 5L, 10L, 15L, 5L, 10L, 15L, 5.0, 10.0, 15.0)
+        val snapshot = CaptureSessionDiagnostics.snapshot(health, runtime, latency, CaptureQuality.HEALTHY)
+        assertEquals(CaptureSessionState.COMPLETED, snapshot.sessionState)
+    }
+
+    @Test
+    fun noSessionIsExplicit() {
+        val health = CaptureHealthSnapshot(false, 0L, 0L, 0L, 0L, 0L, 0L, null, 0L, null, 0L, 0.0, null, 0L)
+        val runtime = CaptureRuntimeSnapshot(0L, false, 0L, 0L, 0L, 0L, null, null)
+        val latency = ProcessingLatencySnapshot(0L, null, null, null, 0L, 0L, 0L, 0.0, 0.0, 0.0)
+        val snapshot = CaptureSessionDiagnostics.snapshot(health, runtime, latency, CaptureQuality.INSUFFICIENT_DATA)
+        assertEquals(CaptureSessionState.NO_SESSION, snapshot.sessionState)
     }
 
     @Test
@@ -92,5 +111,6 @@ class CaptureSessionDiagnosticsTest {
         assertEquals(CaptureQuality.UNSAFE, snapshot.quality)
         assertEquals(5L, snapshot.frames)
         assertTrue(!snapshot.memorySafeForDiagnostics)
+        assertEquals(CaptureSessionState.ACTIVE, snapshot.sessionState)
     }
 }
