@@ -1012,5 +1012,6 @@ V0.10 guarded dispatch integration coverage:
 
 - Added scheduler integration coverage for in-flight blocking, dispatch cooldown, bounded completed-target suppression, and preservation of an independent queued target.
 - Added the missing live scheduler dispatch lifecycle bridge: `ScreenCaptureService` now marks the scheduler in-flight when the durable dispatch barrier opens and clears that state when guarded dispatch returns, with the Accessibility callback fail-closed on exceptions.
+- Completed production audit provenance coverage for the live action lifecycle: selection, request/attempt persistence, revalidation, dispatch barrier, dispatch result, verification/timeout/UNKNOWN, scheduler blocking, and manual recovery now retain the originating capture-session ID alongside attempt/recovery provenance.
 - Added regression coverage proving the live adapter preserves scheduler in-flight blocking and cooldown across that dispatch lifecycle.
 - Added failure/recovery audit coverage for dispatch failure, verification timeout, UNKNOWN entry, recovery reset, and capture-session-scoped rejection counts.
