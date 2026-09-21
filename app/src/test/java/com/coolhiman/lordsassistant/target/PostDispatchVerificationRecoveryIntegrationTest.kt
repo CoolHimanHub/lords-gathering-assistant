@@ -14,7 +14,7 @@ import org.junit.Test
 class PostDispatchVerificationRecoveryIntegrationTest {
 
     @Test
-    fun successfulEvidenceRequiresTwoConsistentFramesBeforeSuccess() {
+    fun successfulEvidenceTransitionsToSuccessForConservativeStateChange() {
         val lifecycle = ActionLifecycleController()
 
         lifecycle.request(
