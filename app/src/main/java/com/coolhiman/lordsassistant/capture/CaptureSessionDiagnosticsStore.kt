@@ -14,6 +14,20 @@ class CaptureSessionDiagnosticsStore(context: Context) {
     fun save(snapshot: CaptureSessionDiagnosticsSnapshot): Boolean =
         prefs.edit().putString(KEY_SNAPSHOT, toJson(snapshot).toString()).commit()
 
+    /** Persist a bounded history entry for a completed capture session. */
+    fun archive(snapshot: CaptureSessionDiagnosticsSnapshot): Boolean = synchronized(this) {
+        val history = readHistoryInternal().toMutableList()
+        history.removeAll { it.sessionId == snapshot.sessionId }
+        history.add(0, snapshot)
+        val bounded = history.take(MAX_HISTORY_ENTRIES)
+        prefs.edit()
+            .putString(KEY_HISTORY, JSONObject().put("sessions", bounded.map { toJson(it) }).toString())
+            .commit()
+    }
+
+    fun readHistory(limit: Int = MAX_HISTORY_ENTRIES): List<CaptureSessionDiagnosticsSnapshot> =
+        readHistoryInternal().take(limit.coerceAtLeast(0))
+
     fun read(): CaptureSessionDiagnosticsSnapshot? {
         val raw = prefs.getString(KEY_SNAPSHOT, null) ?: return null
         return runCatching { fromJson(JSONObject(raw)) }.getOrNull()
@@ -42,6 +56,18 @@ class CaptureSessionDiagnosticsStore(context: Context) {
             snapshot.runtime.lastFailureReason?.let { appendLine("Last failure: $it") }
             appendLine("Diagnostic memory safety: ${snapshot.memorySafeForDiagnostics}")
         }
+    }
+
+    private fun readHistoryInternal(): List<CaptureSessionDiagnosticsSnapshot> {
+        val raw = prefs.getString(KEY_HISTORY, null) ?: return emptyList()
+        return runCatching {
+            val array = JSONObject(raw).optJSONArray("sessions") ?: return emptyList()
+            buildList {
+                for (index in 0 until array.length()) {
+                    runCatching { fromJson(array.getJSONObject(index)) }.getOrNull()?.let(::add)
+                }
+            }
+        }.getOrElse { emptyList() }
     }
 
     private fun toJson(snapshot: CaptureSessionDiagnosticsSnapshot) = JSONObject().apply {
@@ -132,6 +158,8 @@ class CaptureSessionDiagnosticsStore(context: Context) {
 
     companion object {
         private const val KEY_SNAPSHOT = "snapshot"
+        private const val KEY_HISTORY = "history"
         private const val KEY_SESSION_SEQUENCE = "session_sequence"
+        private const val MAX_HISTORY_ENTRIES = 5
     }
 }
