@@ -61,6 +61,7 @@ class ScreenCaptureService : Service() {
     private val captureRuntime = CaptureRuntimeSessionTracker()
     private val memoryPressurePolicy = MemoryPressurePolicy()
     private val processingLatency = ProcessingLatencyTracker()
+    private val captureQualityPolicy = CaptureQualityPolicy()
     private var captureSessionActive = false
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
@@ -299,6 +300,12 @@ class ScreenCaptureService : Service() {
                     val totalProcessingMs = System.currentTimeMillis() - frameStartedAt
                     processingLatency.record(result.ocrProcessingMs, scanProcessingMs, totalProcessingMs)
                     val latency = processingLatency.snapshot()
+                    val captureSnapshot = captureHealth.snapshot()
+                    val memorySnapshot = memoryPressurePolicy.evaluate(
+                        usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                        maxBytes = Runtime.getRuntime().maxMemory()
+                    )
+                    val captureQuality = captureQualityPolicy.assess(captureSnapshot, latency, memorySnapshot)
                     val origin = scan.origin
                     val status = buildString {
                         append("LIVE MAP  •  ")
@@ -322,6 +329,7 @@ class ScreenCaptureService : Service() {
                             })
                         }
                         append("\n").append(scan.processingMs).append("ms")
+                        append("\nCapture quality: ").append(captureQuality.name)
                     }
                     val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
 
