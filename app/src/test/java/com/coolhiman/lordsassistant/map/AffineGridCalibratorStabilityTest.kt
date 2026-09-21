@@ -26,8 +26,6 @@ class AffineGridCalibratorStabilityTest {
         calibrator.addSample(WorldCoordinate(355, 11, 21), ScreenPoint(100f, 240f))
         assertNotNull(calibrator.fit())
     }
-}
-
 
     @Test
     fun inverseKeepsWorkingForLegacyUnboundedCalibration() {
@@ -42,5 +40,4 @@ class AffineGridCalibratorStabilityTest {
             calibration.inverse(ScreenPoint(116f, 210.25f), 355)
         )
     }
-
 }
