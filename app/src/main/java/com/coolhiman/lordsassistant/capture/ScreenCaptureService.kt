@@ -659,15 +659,30 @@ class ScreenCaptureService : Service() {
                         usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
                         maxBytes = Runtime.getRuntime().maxMemory()
                     )
+                    captureHealth.processingFinished(System.currentTimeMillis() - now)
+                    val diagnostics = CaptureSessionDiagnostics.snapshot(
+                        capture = captureHealth.snapshot(),
+                        runtime = runtime,
+                        latency = processingLatency.snapshot(),
+                        quality = captureQualityPolicy.assess(
+                            captureHealth.snapshot(),
+                            processingLatency.snapshot(),
+                            memory
+                        )
+                    )
                     OverlayService.instance?.showStatus(
                         status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
-                            "\nCapture: " + health.averageProcessingMs.toLong() + "ms avg / " +
-                            health.dropRatePercent.toInt() + "% dropped / " +
-                            health.staleFrames + " stale" +
-                            "\nSession: #" + runtime.sessionId + " / restarts " + runtime.restartCount +
-                            " / memory " + memory.level.name
+                            "\nCapture: " + diagnostics.averageProcessingMs.toLong() + "ms avg / " +
+                            diagnostics.dropRatePercent.toInt() + "% dropped / " +
+                            diagnostics.staleFrames + " stale" +
+                            "\nSession: #" + diagnostics.sessionId + " / restarts " + diagnostics.restartCount +
+                            " / stalls " + diagnostics.stallCount +
+                            " / viewport changes " + diagnostics.viewportChangeCount +
+                            " / memory " + memory.level.name +
+                            "\nOCR: " + diagnostics.averageOcrMs.toLong() + "ms avg / Scan: " +
+                            diagnostics.averageScannerMs.toLong() + "ms avg / Quality: " +
+                            diagnostics.quality.name
                     )
-                    captureHealth.processingFinished(System.currentTimeMillis() - now)
                     OverlayService.instance?.showTargets(scan.plan.ranked)
                     previousScan = scan
                 } finally {
