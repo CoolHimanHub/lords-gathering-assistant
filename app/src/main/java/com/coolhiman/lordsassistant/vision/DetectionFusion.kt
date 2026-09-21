@@ -32,8 +32,8 @@ class DetectionFusion(
         frame: DetectionFrame,
         textRegions: List<TextRegion>,
         marchSignals: List<MarchSignal>,
-        coordinateResolver: (Float, Float) -> WorldCoordinate?,
-        popupState: PopupState? = null
+        popupState: PopupState? = null,
+        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
     ): List<FusionCandidate> {
     fun fuse(
         frame: DetectionFrame,
