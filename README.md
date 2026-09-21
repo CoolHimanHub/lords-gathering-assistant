@@ -852,3 +852,18 @@ App version: 0.9.1 (versionCode 91).
 
 Next validation target: use the persisted session snapshot during sustained real-device/game sessions and correlate capture quality, rejection distributions, lifecycle events, and post-action evidence.
 
+## V0.9.2 — Sustained validation correlation
+
+V0.9.2 adds a read-only correlation layer for real-device/game validation.
+
+- Added `RealDeviceValidationSummary` combining persisted capture-session health, candidate-rejection distribution, and the latest action/evidence diagnostics.
+- Evidence Diagnostics now presents one consolidated sustained-validation section before the detailed diagnostics.
+- The summary exposes capture quality, FPS, drops/stale frames, OCR/scanner latency, restarts/stalls/viewport changes, rejection counts, lifecycle state, recovery epoch, quarantine state, and post-action evidence.
+- Added deterministic JVM regression coverage for rejection aggregation and the diagnostic-only boundary.
+- This layer does not authorize or schedule actions and cannot bypass validation, lifecycle, recovery, or gesture gates.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.2 (versionCode 92).
+
+Next validation target: run sustained real-device sessions and use the consolidated summary to identify capture-quality and detector-validation bottlenecks before any further automation expansion.
+
