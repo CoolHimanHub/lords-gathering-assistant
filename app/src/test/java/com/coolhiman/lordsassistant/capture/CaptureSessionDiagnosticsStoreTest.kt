@@ -57,7 +57,8 @@ class CaptureSessionDiagnosticsStoreTest {
             capture = capture,
             runtime = runtime,
             latency = latency,
-            quality = CaptureQuality.DEGRADED
+            quality = CaptureQuality.DEGRADED,
+            candidateRejectionCounts = mapOf("CAMERA_CONTINUITY_INVALID" to 2, "VALIDATION_UNSAFE" to 1)
         )
 
         assertEquals(true, store.save(snapshot))
@@ -72,6 +73,8 @@ class CaptureSessionDiagnosticsStoreTest {
         assertEquals(1L, restored.restartCount)
         assertEquals(CaptureStopReason.CAPTURE_STALLED, restored.runtime.lastStopReason)
         assertEquals(CaptureQuality.DEGRADED, restored.quality)
+        assertEquals(2, restored.candidateRejectionCounts["CAMERA_CONTINUITY_INVALID"])
+        assertEquals(1, restored.candidateRejectionCounts["VALIDATION_UNSAFE"])
         assertEquals(100.0, restored.averageOcrMs, 0.001)
 
         for (session in 7L..13L) {
