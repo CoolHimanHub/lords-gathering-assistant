@@ -67,8 +67,9 @@ class ScreenCaptureService : Service() {
             if (!captureSessionActive) return
             val now = System.currentTimeMillis()
             if (captureWatchdog.check(now)) {
+                captureRuntime.recordStall()
                 OverlayService.instance?.showStatus("CAPTURE STALLED • scanner stopped safely")
-                stopCaptureResources()
+                stopCaptureResources(CaptureStopReason.CAPTURE_STALLED)
                 stopSelf()
                 return
             }
