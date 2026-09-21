@@ -28,6 +28,24 @@ class CaptureSessionDiagnosticsStore(context: Context) {
     fun readHistory(limit: Int = MAX_HISTORY_ENTRIES): List<CaptureSessionDiagnosticsSnapshot> =
         readHistoryInternal().take(limit.coerceAtLeast(0))
 
+    fun formatHistory(limit: Int = MAX_HISTORY_ENTRIES): String {
+        val history = readHistory(limit)
+        if (history.isEmpty()) return "No completed capture-session history yet."
+        return buildString {
+            appendLine("COMPLETED CAPTURE SESSIONS")
+            history.forEach { snapshot ->
+                append("#").append(snapshot.sessionId)
+                    .append(" • ").append(snapshot.quality.name)
+                    .append(" • ").append(snapshot.frames).append(" frames • ")
+                    .append("%.2f FPS".format(snapshot.fps))
+                    .append(" • ").append("%.1f%% dropped".format(snapshot.dropRatePercent))
+                    .append(" • stop=").append(snapshot.runtime.lastStopReason?.name ?: "unknown")
+                    .appendLine()
+            }
+            appendLine("Showing " + history.size + " most recent completed session(s).")
+        }
+    }
+
     fun read(): CaptureSessionDiagnosticsSnapshot? {
         val raw = prefs.getString(KEY_SNAPSHOT, null) ?: return null
         return runCatching { fromJson(JSONObject(raw)) }.getOrNull()
