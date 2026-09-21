@@ -213,7 +213,7 @@ class ScreenCaptureService : Service() {
         // continuity, or target stability satisfy current-session safety checks.
         previousScan = null
         lastScanMs = 0L
-        actionSchedulerAdapter.clear()
+        actionSchedulerAdapter.resetForCaptureSession()
         liveScanner.resetCaptureSession()
 
         val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
