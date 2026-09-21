@@ -91,6 +91,22 @@ class ActionAuditLogStore(context: Context) {
     fun latest(limit: Int = 20): List<ActionAuditEvent> =
         readAll().takeLast(limit.coerceAtLeast(0))
 
+    fun rejectionCounts(): Map<String, Int> =
+        readAll()
+            .asSequence()
+            .filter { it.type == ActionAuditEventType.CANDIDATE_REJECTED }
+            .map { it.detail ?: "UNKNOWN" }
+            .groupingBy { it }
+            .eachCount()
+
+    fun formatRejectionSummary(): String {
+        val counts = rejectionCounts()
+        if (counts.isEmpty()) return "No candidate rejections recorded."
+        return counts.entries
+            .sortedBy { it.key }
+            .joinToString("\n") { (reason, count) -> "$reason = $count" }
+    }
+
     fun formatLatest(limit: Int = 20): String =
         latest(limit).asReversed().joinToString("\n") { event ->
             buildString {
