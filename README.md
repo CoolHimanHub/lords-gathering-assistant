@@ -766,3 +766,16 @@ V0.8.5 adds observability needed for sustained real-device/game validation witho
 - Automatic Gather/Hunt remains OFF by default; telemetry is diagnostic only.
 
 Real-device validation should now capture sustained-session latency, FPS, drops, stale frames, memory pressure, restart/rotation events, and detector behavior before enabling any automatic gameplay path.
+
+
+## V0.8.6 — Capture stall telemetry hardening
+
+V0.8.6 closes a runtime-diagnostics gap identified during the V0.8.5 real-device readiness review.
+
+- A watchdog-confirmed capture stall now increments the runtime session's `stallCount` before teardown.
+- The stall path now records the explicit `CAPTURE_STALLED` stop reason instead of falling through the generic user-stop reason.
+- Added regression coverage that verifies the stall counter, failure reason, and stop reason together.
+- MainActivity readiness/version text is aligned to V0.8.6.
+- Automatic Gather/Hunt remains OFF by default; this milestone only improves diagnostics and fail-closed capture teardown.
+
+App version: 0.8.6 (versionCode 86).
