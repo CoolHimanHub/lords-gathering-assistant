@@ -866,4 +866,17 @@ V0.9.2 adds a read-only correlation layer for real-device/game validation.
 App version: 0.9.2 (versionCode 92).
 
 Next validation target: run sustained real-device sessions and use the consolidated summary to identify capture-quality and detector-validation bottlenecks before any further automation expansion.
+## V0.9.4 — Capture session-state diagnostics
 
+V0.9.4 makes persisted capture diagnostics distinguish three states: `NO_SESSION`, `ACTIVE`, and `COMPLETED`.
+
+- Completed sessions are no longer represented simply as inactive sessions.
+- Persisted diagnostics retain the explicit `sessionStarted` signal while deriving the current session state from session identity and runtime activity.
+- Evidence Diagnostics can therefore distinguish a completed real-device capture session from the absence of any session.
+- Added JVM regression coverage for active, completed, and no-session classification.
+- This remains read-only diagnostic state and does not authorize, schedule, retry, or dispatch any action.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.4 (versionCode 94).
+
+Next validation target: use explicit session-state classification during repeated start/stop/restart device sessions and correlate it with capture quality and candidate-rejection evidence.
