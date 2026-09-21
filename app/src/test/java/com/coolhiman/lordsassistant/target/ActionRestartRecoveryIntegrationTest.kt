@@ -138,5 +138,20 @@ class ActionRestartRecoveryIntegrationTest {
                 )
             )
         )
+
+        // The recovered attempt identity must never be reused after the fresh
+        // recovery boundary.
+        val next = restarted.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safe,
+            beforeObservation = null,
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 2000L
+        )
+        assertEquals(ActionLifecycleState.REQUESTED, next.lifecycle.state)
+        assertTrue(next.session!!.attemptId > inFlightAttempt)
+        assertEquals(restarted.currentRecoveryEpoch, next.session!!.recoveryEpoch)
     }
 }
