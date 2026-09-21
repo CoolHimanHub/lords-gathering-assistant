@@ -17,6 +17,7 @@ import com.coolhiman.lordsassistant.overlay.OverlayService
 
 class MainActivity : Activity() {
     private lateinit var store: PreferencesStore
+    private lateinit var readinessStatus: TextView
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PreferencesStore(this)
@@ -30,12 +31,12 @@ class MainActivity : Activity() {
             setTextColor(0xFF8D91A0.toInt())
             setPadding(0, 10, 0, 4)
         })
-        root.addView(TextView(this).apply {
-            tag = "readiness_status"
+        readinessStatus = TextView(this).apply {
             setTextColor(Color.WHITE)
             setPadding(0, 0, 0, 8)
             text = readinessText()
-        })
+        }
+        root.addView(readinessStatus)
         root.addView(TextView(this).apply { text="RESOURCE PREFERENCES"; setTextColor(0xFF8D91A0.toInt()); setPadding(0,18,0,4) })
         ResourceType.values().forEach { type -> root.addView(CheckBox(this).apply { text=type.name; setTextColor(Color.WHITE); isChecked=current.resourceTypes.contains(type); setOnCheckedChangeListener { _,checked -> store.setResourceEnabled(type,checked) } }) }
         val levelRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
@@ -53,7 +54,7 @@ class MainActivity : Activity() {
     }
     override fun onResume() {
         super.onResume()
-        findViewByTag<TextView>("readiness_status")?.text = readinessText()
+        readinessStatus.text = readinessText()
     }
 
     private fun readinessText(): String {
