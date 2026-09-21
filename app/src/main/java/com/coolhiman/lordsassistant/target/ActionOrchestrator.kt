@@ -50,8 +50,8 @@ class ActionOrchestrator(
         beforeObservation: MapObservation?,
         popupBefore: PopupState?,
         baselineMarchSignals: List<MarchSignal>,
-        captureSessionId: Long? = null,
-        nowMs: Long
+        nowMs: Long,
+        captureSessionId: Long? = null
     ): Result {
         if (lifecycle.snapshot.failure == ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED) {
             session = null
