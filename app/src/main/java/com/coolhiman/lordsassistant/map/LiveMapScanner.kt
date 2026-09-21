@@ -99,8 +99,7 @@ class LiveMapScanner(context: Context) {
             // accepted frame cannot inherit stale anchor positions.
             cameraAnchorTracker.reset()
             cameraStateTracker.reset()
-            tracker.reset()
-            targetStabilityTracker.reset()
+                targetStabilityTracker.reset()
             targetStabilityTrackers.clear()
 
             val snapshot = mapMemory.snapshot()
@@ -363,7 +362,6 @@ class LiveMapScanner(context: Context) {
         cameraAnchorTracker.reset()
         targetStabilityTracker.reset()
         targetStabilityTrackers.clear()
-        marchTracker.reset()
     }
 
     fun close() {
