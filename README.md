@@ -602,6 +602,13 @@ capture → detect → fuse → temporal state → camera state → target stabi
 - This does not relax evidence requirements: target-state evidence, camera stability, march association, and the existing verification rules remain unchanged.
 
 
+## V0.7.4 — Ambiguous camera-anchor fail-closed hardening
+
+- Repeated semantic anchors now reject near-tied nearest-neighbor matches instead of guessing an identity.
+- Added regression coverage for ambiguous repeated-target movement.
+- This protects the camera model from being opened by a plausible but incorrect anchor association.
+- App version is now 0.7.4.
+
 ## V0.7.3 — End-to-end camera movement regression
 
 - Added multi-frame camera simulation coverage proving that pan + zoom preserve the same world identity after camera correction.
