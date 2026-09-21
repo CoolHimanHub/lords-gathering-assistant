@@ -454,7 +454,8 @@ class ScreenCaptureService : Service() {
                         val quarantineReleased = recoveryQuarantine.releaseAfterDeliberateRecovery(
                             lifecycleIdle = recoveryResult.lifecycle.state == ActionLifecycleState.IDLE,
                             recoveryEpochPersisted = recoveryPersisted,
-                            journalCleared = journalCleared
+                            journalCleared = journalCleared,
+                            currentCaptureSessionId = liveCaptureSessionId
                         )
                         if (quarantineReleased) {
                             previousScan = null
