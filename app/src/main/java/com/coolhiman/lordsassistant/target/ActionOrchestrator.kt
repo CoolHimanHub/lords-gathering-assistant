@@ -66,7 +66,10 @@ class ActionOrchestrator(
         }
 
         if (lifecycle.snapshot.state == ActionLifecycleState.SUCCEEDED &&
-            selected != null && selected.identity() == completedTargetIdentity) return Result(lifecycle.snapshot, session)
+            selected != null && selected.identity() == completedTargetIdentity) {
+            session = null
+            return Result(lifecycle.snapshot, null)
+        }
 
         lastPostActionEvidence = null
 
