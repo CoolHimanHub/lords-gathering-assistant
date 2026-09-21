@@ -43,7 +43,8 @@ class LiveActionCandidatePolicyTest {
         validation = validation,
         stability = TargetStability(stable = true, consecutiveFrames = 3),
         plannerRank = 0,
-        plannerScore = 10.0
+        plannerScore = 10.0,
+        cameraContinuityValid = true
     )
 
     @Test
@@ -95,3 +96,13 @@ class LiveActionCandidatePolicyTest {
         )
     }
 }
+
+
+    @Test
+    fun missingCameraContinuityCannotCrossSchedulerBoundary() {
+        assertFalse(
+            LiveActionCandidatePolicy.isSchedulerEligible(
+                candidate.copy(cameraContinuityValid = false)
+            )
+        )
+    }
