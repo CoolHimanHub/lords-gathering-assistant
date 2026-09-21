@@ -119,6 +119,13 @@ class CameraInvariantWorldModel(
             ((screen.x - model.offsetX) / model.scale).toFloat(),
             ((screen.y - model.offsetY) / model.scale).toFloat()
         )
-        return baseCalibration.inverse(normalized, kingdom, maxResidualPx / model.scale)
+        // Calibration.inverse measures residual in the base-camera pixel
+        // space. Keep a conservative finite tolerance here while avoiding an
+        // unnecessary scale-dependent rejection of an otherwise valid target.
+        return baseCalibration.inverse(
+            normalized,
+            kingdom,
+            maxResidualPx.coerceAtMost(maxAnchorResidualPx)
+        )
     }
 }
