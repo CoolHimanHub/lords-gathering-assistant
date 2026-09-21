@@ -1,15 +1,18 @@
 package com.coolhiman.lordsassistant.capture
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
+@RunWith(RobolectricTestRunner::class)
 class CaptureSessionDiagnosticsStoreTest {
     @Test
     fun roundTripPreservesSessionMetrics() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val context = RuntimeEnvironment.getApplication()
         val store = CaptureSessionDiagnosticsStore(context)
         store.clear()
 
