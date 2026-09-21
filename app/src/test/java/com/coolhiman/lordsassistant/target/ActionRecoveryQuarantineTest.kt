@@ -30,7 +30,8 @@ class ActionRecoveryQuarantineTest {
         assertFalse(gate.releaseAfterDeliberateRecovery(
             lifecycleIdle = true,
             recoveryEpochPersisted = false,
-            journalCleared = true
+            journalCleared = true,
+            currentCaptureSessionId = 702L
         ))
         assertTrue(gate.active)
 
@@ -48,10 +49,18 @@ class ActionRecoveryQuarantineTest {
         ))
         assertTrue(gate.active)
 
+        assertFalse(gate.releaseAfterDeliberateRecovery(
+            lifecycleIdle = true,
+            recoveryEpochPersisted = true,
+            journalCleared = true,
+            currentCaptureSessionId = 701L
+        ))
+        assertTrue(gate.active)
         assertTrue(gate.releaseAfterDeliberateRecovery(
             lifecycleIdle = true,
             recoveryEpochPersisted = true,
-            journalCleared = true
+            journalCleared = true,
+            currentCaptureSessionId = 702L
         ))
         assertFalse(gate.active)
     }
