@@ -207,6 +207,15 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
         captureSessionActive = true
+
+        // A new MediaProjection session is a hard temporal/provenance boundary.
+        // Do not let the previous session's frame, scheduler queue, camera
+        // continuity, or target stability satisfy current-session safety checks.
+        previousScan = null
+        lastScanMs = 0L
+        actionSchedulerAdapter.clear()
+        liveScanner.resetCaptureSession()
+
         val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
         captureRuntime.start(durableSessionId)
 
