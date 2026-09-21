@@ -409,6 +409,7 @@ class ScreenCaptureService : Service() {
                             )
                         }
                     }
+                    val liveCaptureSessionId = captureRuntime.snapshot().sessionId
                     if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
                         actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
                     ) {
@@ -459,7 +460,6 @@ class ScreenCaptureService : Service() {
                             previousScan = null
                         }
                     }
-                    val liveCaptureSessionId = captureRuntime.snapshot().sessionId
                     val active = actionOrchestrator.lifecycleSnapshot.state
                     if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !restartQuarantine) {
                         when {
