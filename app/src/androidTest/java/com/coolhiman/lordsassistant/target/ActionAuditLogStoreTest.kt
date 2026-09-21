@@ -20,6 +20,7 @@ class ActionAuditLogStoreTest {
             type = ActionAuditEventType.DISPATCH_BARRIER_OPENED,
             attemptId = 17L,
             recoveryEpoch = 9L,
+            captureSessionId = 42L,
             target = ActionTargetSnapshot(
                 coordinate = WorldCoordinate(1, 167, 511),
                 kind = TargetKind.RESOURCE,
@@ -37,6 +38,7 @@ class ActionAuditLogStoreTest {
         assertEquals(event.type, restored.type)
         assertEquals(event.attemptId, restored.attemptId)
         assertEquals(event.recoveryEpoch, restored.recoveryEpoch)
+        assertEquals(event.captureSessionId, restored.captureSessionId)
         assertEquals(event.target, restored.target)
         assertEquals(event.detail, restored.detail)
 
@@ -84,6 +86,37 @@ class ActionAuditLogStoreTest {
             store.readAll().map { it.type }
         )
 
+        store.clear()
+    }
+
+    @Test
+    fun rejectionCountsCanBeScopedToCaptureSession() {
+        val context = androidx.test.core.app.ApplicationProvider
+            .getApplicationContext<android.content.Context>()
+        val store = ActionAuditLogStore(context)
+        store.clear()
+
+        assertEquals(true, store.append(ActionAuditEvent(
+            timestampMs = 1L,
+            type = ActionAuditEventType.CANDIDATE_REJECTED,
+            captureSessionId = 7L,
+            detail = "CAMERA_CONTINUITY_INVALID"
+        )))
+        assertEquals(true, store.append(ActionAuditEvent(
+            timestampMs = 2L,
+            type = ActionAuditEventType.CANDIDATE_REJECTED,
+            captureSessionId = 7L,
+            detail = "VALIDATION_UNSAFE"
+        )))
+        assertEquals(true, store.append(ActionAuditEvent(
+            timestampMs = 3L,
+            type = ActionAuditEventType.CANDIDATE_REJECTED,
+            captureSessionId = 8L,
+            detail = "VALIDATION_UNSAFE"
+        )))
+
+        assertEquals(mapOf("CAMERA_CONTINUITY_INVALID" to 1, "VALIDATION_UNSAFE" to 1), store.rejectionCountsForSession(7L))
+        assertEquals(mapOf("VALIDATION_UNSAFE" to 1), store.rejectionCountsForSession(8L))
         store.clear()
     }
 
