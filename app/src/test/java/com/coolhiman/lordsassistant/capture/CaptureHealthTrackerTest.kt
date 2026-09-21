@@ -26,6 +26,7 @@ class CaptureHealthTrackerTest {
         assertEquals(3L, snapshot.totalFrames)
         assertEquals(2L, snapshot.acceptedFrames)
         assertEquals(1L, snapshot.droppedFrames)
+        assertEquals(0L, snapshot.staleFrames)
         assertEquals(2L, snapshot.processedFrames)
         assertEquals(1L, snapshot.viewportResets)
         assertEquals(600L, snapshot.lastFrameGapMs)
@@ -41,7 +42,7 @@ class CaptureHealthTrackerTest {
         val tracker = CaptureHealthTracker()
         tracker.start(10L)
         tracker.frameArrived(10L)
-        tracker.frameDropped()
+        tracker.frameDropped(stale = true)
         tracker.reset()
 
         val snapshot = tracker.snapshot()
