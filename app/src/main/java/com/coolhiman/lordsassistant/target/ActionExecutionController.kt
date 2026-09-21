@@ -38,10 +38,10 @@ class ActionExecutionController(
         if (selected == null || !validation.safe || validation.stage != TargetValidationStage.SAFE_TO_INTERACT) {
             return ActionExecutionDecision(false, ActionExecutionBlockReason.TARGET_INVALID)
         }
-        if (nowMs - lastDispatchMs < cooldownMs) {
+        if (lastDispatchMs != Long.MIN_VALUE && nowMs - lastDispatchMs < cooldownMs) {
             return ActionExecutionDecision(false, ActionExecutionBlockReason.COOLDOWN)
         }
-        if (selected == lastTarget && nowMs - lastTargetMs < duplicateTargetWindowMs) {
+        if (lastTarget != null && selected == lastTarget && lastTargetMs != Long.MIN_VALUE && nowMs - lastTargetMs < duplicateTargetWindowMs) {
             return ActionExecutionDecision(false, ActionExecutionBlockReason.DUPLICATE_TARGET)
         }
 
