@@ -720,6 +720,7 @@ Regression coverage verifies ranked candidates, unranked candidates, non-finite 
 - Added a deterministic capture watchdog with a 3-second no-frame threshold after capture-session start.
 - Each arriving capture frame refreshes the watchdog; a genuine stall produces one edge-triggered failure signal rather than repeated resets.
 - A stalled capture session is stopped fail-closed, with no relaxation of camera continuity, validation, scheduler, or action-execution gates.
+- A capture viewport/dimension change is now treated as a display-geometry transition; the active reader is stopped instead of re-baselining onto potentially stale screen geometry, and the user can restart scanning cleanly.
 - Watchdog state is cleaned up on normal capture teardown and MediaProjection termination.
 - Added JVM regression tests for the exact timeout boundary, one-shot stall behavior, frame recovery, and stopped-session behavior.
 - App version is now 0.8.2.
