@@ -43,6 +43,10 @@ class RealDeviceValidationSummaryTest {
         assertTrue(formatted.contains("DEGRADED=1"))
         assertTrue(formatted.contains("CAPTURE_STALLED=1"))
         assertTrue(formatted.contains("Session-attributed rejections: CAMERA_CONTINUITY_INVALID=2, VALIDATION_UNSAFE=3"))
+        assertTrue(formatted.contains("Trend: 250.00% rejections per 100 accepted frames"))
+        assertTrue(formatted.contains("avg drop 0.0%"))
+        assertTrue(formatted.contains("stalls=1"))
+        assertTrue(formatted.contains("viewport changes=0"))
         assertTrue(formatted.contains("no action authority"))
     }
 }
