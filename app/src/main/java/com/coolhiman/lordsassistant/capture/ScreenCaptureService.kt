@@ -169,6 +169,7 @@ class ScreenCaptureService : Service() {
                     type = ActionAuditEventType.RESTART_QUARANTINE,
                     attemptId = entry.attemptId,
                     recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                    captureSessionId = entry.captureSessionId,
                     detail = "Recovered in-flight action from capture session " +
                         (entry.captureSessionId?.toString() ?: "legacy/unknown") +
                         "; recovered epoch=" + entry.recoveryEpoch +
@@ -695,6 +696,7 @@ class ScreenCaptureService : Service() {
                         journalAttemptId = actionJournal.readInFlight()?.attemptId,
                         journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
                         journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
+                        journalCaptureSessionId = actionJournal.readInFlight()?.captureSessionId,
                         reconciledInitialEpoch = reconciledInitialEpoch,
                         restartQuarantine = restartQuarantine,
                         timestampMs = now
