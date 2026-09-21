@@ -310,8 +310,9 @@ class ScreenCaptureService : Service() {
                                 val scheduled = if (decision.candidate != null) {
                                     actionSchedulerAdapter.claim(now, safetyState).candidate
                                 } else null
+                                val previousFrame = previous
                                 val previousCandidate = scheduled?.let { selected ->
-                                    previous?.actionCandidates?.firstOrNull { it.target.identity() == selected.target.identity() }
+                                    previousFrame?.actionCandidates?.firstOrNull { it.target.identity() == selected.target.identity() }
                                 }
                                 val currentCandidate = scheduled?.let { selected ->
                                     scan.actionCandidates.firstOrNull { it.target.identity() == selected.target.identity() }
@@ -334,8 +335,8 @@ class ScreenCaptureService : Service() {
                                         selected = scheduled.target,
                                         validation = previousCandidate.validation,
                                         beforeObservation = previousCandidate.observation,
-                                        popupBefore = previous.popupState,
-                                        baselineMarchSignals = previous.marchSignals,
+                                        popupBefore = previousFrame?.popupState,
+                                        baselineMarchSignals = previousFrame?.marchSignals.orEmpty(),
                                         nowMs = now
                                     )
                                     actionAuditLog.append(
