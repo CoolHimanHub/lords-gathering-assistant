@@ -350,6 +350,22 @@ class LiveMapScanner(context: Context) {
         return kotlin.math.hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble()).toFloat()
     }
 
+    /**
+     * Starts a new capture-session temporal boundary without discarding the
+     * durable map memory. Screen-space continuity, camera geometry, march
+     * tracking, and target stability from the previous capture session are
+     * never valid evidence for a new session.
+     */
+    fun resetCaptureSession() {
+        viewportGuard.reset()
+        tracker.reset()
+        cameraStateTracker.reset()
+        cameraAnchorTracker.reset()
+        targetStabilityTracker.reset()
+        targetStabilityTrackers.clear()
+        marchTracker.reset()
+    }
+
     fun close() {
         templates.forEach { (_, bitmap) ->
             if (!bitmap.isRecycled) bitmap.recycle()
