@@ -362,9 +362,8 @@ class ScreenCaptureService : Service() {
                         )
                     }
                     scan.actionCandidates.forEach { candidate ->
-                        if (candidate.validation.safe &&
-                            candidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
-                        ) {
+                        val rejection = com.coolhiman.lordsassistant.target.LiveActionCandidatePolicy.rejectionReason(candidate)
+                        if (rejection == null) {
                             actionAuditLog.appendIfChanged(
                                 ActionAuditEvent(
                                     timestampMs = now,
@@ -372,6 +371,16 @@ class ScreenCaptureService : Service() {
                                     target = candidate.target,
                                     recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                     detail = "independently validated current-frame candidate"
+                                )
+                            )
+                        } else {
+                            actionAuditLog.appendIfChanged(
+                                ActionAuditEvent(
+                                    timestampMs = now,
+                                    type = ActionAuditEventType.CANDIDATE_REJECTED,
+                                    target = candidate.target,
+                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                    detail = rejection.name
                                 )
                             )
                         }
