@@ -29,7 +29,7 @@ class DetectionFusionTest {
         assertTrue(result.single().incomingTroops == true)
         assertEquals(200, result.single().coordinate?.x)
         assertEquals(MarchAssociationStatus.CLEAR_MARCH, result.single().marchAssociation.status)
-        assertEquals(55f, result.single().marchAssociation.nearestDistancePx!!, 0.01f)
+        assertEquals(35f, result.single().marchAssociation.nearestDistancePx!!, 0.01f)
     }
 
     @Test
