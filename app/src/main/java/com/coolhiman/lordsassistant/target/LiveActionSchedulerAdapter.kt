@@ -38,6 +38,16 @@ class LiveActionSchedulerAdapter(
         scheduler.markTargetCompleted(target, nowMs)
     }
 
+    /**
+     * Starts a hard capture-session boundary.
+     *
+     * Queue membership, completed-target suppression, dispatch cooldown, and
+     * in-flight state are scoped to the current MediaProjection session.
+     */
+    fun resetForCaptureSession() {
+        scheduler.resetForCaptureSession()
+    }
+
     fun clear() {
         scheduler.clear()
     }
