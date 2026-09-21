@@ -19,7 +19,7 @@ enum class ActionExecutionBlockReason {
 }
 
 class ActionExecutionController(
-    private val cooldownMs: Long = 1500L,
+    private val cooldownMs: Long = 1000L,
     private val duplicateTargetWindowMs: Long = 3000L
 ) {
     private var lastDispatchMs: Long = Long.MIN_VALUE
