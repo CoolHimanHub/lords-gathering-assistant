@@ -20,10 +20,14 @@ data class CaptureHealthSnapshot(
     val lastProcessingMs: Long?,
     val maxProcessingMs: Long,
     val averageProcessingMs: Double,
-    val lastFrameAtMs: Long?
+    val lastFrameAtMs: Long?,
+    val sessionDurationMs: Long
 ) {
     val dropRatePercent: Double
         get() = if (totalFrames == 0L) 0.0 else droppedFrames * 100.0 / totalFrames
+
+    val framesPerSecond: Double
+        get() = if (sessionDurationMs <= 0L) 0.0 else totalFrames * 1000.0 / sessionDurationMs
 }
 
 class CaptureHealthTracker {
@@ -34,6 +38,7 @@ class CaptureHealthTracker {
     private var staleFrames = 0L
     private var processedFrames = 0L
     private var viewportResets = 0L
+    private var sessionStartedAtMs: Long? = null
     private var lastFrameAtMs: Long? = null
     private var lastFrameGapMs: Long? = null
     private var maxFrameGapMs = 0L
@@ -43,6 +48,7 @@ class CaptureHealthTracker {
 
     fun start(nowMs: Long) {
         started = true
+        sessionStartedAtMs = nowMs
         lastFrameAtMs = nowMs
     }
 
@@ -97,7 +103,10 @@ class CaptureHealthTracker {
         lastProcessingMs = lastProcessingMs,
         maxProcessingMs = maxProcessingMs,
         averageProcessingMs = if (processedFrames == 0L) 0.0 else processingTotalMs.toDouble() / processedFrames,
-        lastFrameAtMs = lastFrameAtMs
+        lastFrameAtMs = lastFrameAtMs,
+        sessionDurationMs = if (sessionStartedAtMs != null && lastFrameAtMs != null && lastFrameAtMs!! >= sessionStartedAtMs!!) {
+            lastFrameAtMs!! - sessionStartedAtMs!!
+        } else 0L
     )
 
     fun reset() {
@@ -108,6 +117,7 @@ class CaptureHealthTracker {
         staleFrames = 0L
         processedFrames = 0L
         viewportResets = 0L
+        sessionStartedAtMs = null
         lastFrameAtMs = null
         lastFrameGapMs = null
         maxFrameGapMs = 0L
