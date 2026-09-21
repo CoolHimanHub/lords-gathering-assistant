@@ -806,6 +806,21 @@ V0.8.8 adds deterministic reasons for candidates that remain outside the schedul
 App version: 0.8.8 (versionCode 88).
 
 
+
+## V0.9.0 — Candidate rejection diagnostics aggregation
+
+V0.9.0 turns the persistent candidate-rejection audit trail into a deterministic diagnostic summary for real-device validation.
+
+- Added rejection-count aggregation by persisted rejection reason.
+- Evidence Diagnostics now shows aggregate candidate rejection counts before the latest raw audit events.
+- Aggregation considers only `CANDIDATE_REJECTED` events and never changes candidate eligibility, scheduler behavior, lifecycle state, or gesture execution.
+- Added Android instrumentation coverage for aggregation correctness.
+- Automatic Gather/Hunt remains OFF by default.
+
+App version: 0.9.0 (versionCode 90).
+
+Next validation target: correlate capture/session health, rejection distributions, action lifecycle events, and post-action evidence during sustained device sessions.
+
 ## V0.8.9 — Consolidated live-session diagnostics
 
 V0.8.9 consolidates the capture/runtime/latency/quality telemetry already produced by the live scanner into one read-only diagnostics snapshot for sustained real-device validation.
