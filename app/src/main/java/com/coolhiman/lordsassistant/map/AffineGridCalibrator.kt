@@ -133,9 +133,10 @@ data class Calibration(
         val worldY = (screenX[0] * sy - sx * screenY[0]) / det
         val candidateX = kotlin.math.round(worldX).toInt()
         val candidateY = kotlin.math.round(worldY).toInt()
-        if (candidateX !in (minWorldX - 1)..(maxWorldX + 1) ||
-            candidateY !in (minWorldY - 1)..(maxWorldY + 1)
-        ) return null
+        val boundedX = minWorldX != Int.MIN_VALUE && maxWorldX != Int.MAX_VALUE
+        val boundedY = minWorldY != Int.MIN_VALUE && maxWorldY != Int.MAX_VALUE
+        if (boundedX && candidateX !in (minWorldX - 1)..(maxWorldX + 1)) return null
+        if (boundedY && candidateY !in (minWorldY - 1)..(maxWorldY + 1)) return null
         val candidate = WorldCoordinate(kingdom, candidateX, candidateY)
         val predicted = predict(candidate)
         val residual = kotlin.math.hypot(
