@@ -26,7 +26,12 @@ class EvidenceDiagnosticsActivity : Activity() {
     private lateinit var captureDiagnostics: CaptureSessionDiagnosticsStore
     private val refresh = object : Runnable {
         override fun run() {
-            if (::text.isInitialized) text.text = ActionDiagnosticsFormatter.format(ActionDiagnosticsStore.latest) + "\n\n" + RealDeviceValidationSummary(\n                capture = captureDiagnostics.read(),\n                rejectionCounts = auditLog.rejectionCounts(),\n                action = ActionDiagnosticsStore.latest\n            ).format() + "\n\n" + captureDiagnostics.formatLatest()
+            if (::text.isInitialized) text.text = ActionDiagnosticsFormatter.format(ActionDiagnosticsStore.latest) + "\n\n" +
+                RealDeviceValidationSummary(
+                    capture = captureDiagnostics.read(),
+                    rejectionCounts = auditLog.rejectionCounts(),
+                    action = ActionDiagnosticsStore.latest
+                ).format() + "\n\n" + captureDiagnostics.formatLatest()
             if (::auditText.isInitialized) auditText.text =
                 "CANDIDATE REJECTIONS — aggregate\n" + auditLog.formatRejectionSummary() +
                     "\n\nACTION AUDIT — latest events\n\n" +
