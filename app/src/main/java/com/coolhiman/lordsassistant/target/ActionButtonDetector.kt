@@ -52,7 +52,8 @@ object ActionButtonDetector {
             }
             if (targetKind != null && expected != targetKind) return@mapNotNull null
 
-            val expanded = RectF(region.bounds).apply { inset(-18f, -12f) }
+            val b = region.bounds
+            val expanded = RectF(b.left - 18f, b.top - 12f, b.right + 18f, b.bottom + 12f)
             ActionCandidate(kind, expanded)
         }
 
@@ -74,7 +75,10 @@ object ActionButtonDetector {
             ActionButton(
                 kind = candidate.kind,
                 bounds = candidate.bounds,
-                point = ScreenPoint(candidate.bounds.centerX(), candidate.bounds.centerY()),
+                point = ScreenPoint(
+                    (candidate.bounds.left + candidate.bounds.right) / 2f,
+                    (candidate.bounds.top + candidate.bounds.bottom) / 2f
+                ),
                 confidence = (0.90f - (nearest / popupAnchorMaxDistancePx) * 0.10f)
                     .coerceIn(0.70f, 0.90f)
             )
