@@ -57,7 +57,7 @@ class ActionExecutionJournal(context: Context) {
         } else null
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit().clear().commit()
     }
 
     companion object {
