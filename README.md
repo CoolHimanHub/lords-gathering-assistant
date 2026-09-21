@@ -893,3 +893,17 @@ V0.9.5 aligns the device-facing UI and sustained-validation diagnostics with the
 - Automatic Gather/Hunt remains OFF by default.
 
 Next validation target: repeated real-device start → capture → stop → restart sessions, correlating session state, capture quality, candidate rejection reasons, and action/evidence diagnostics.
+
+
+## V0.9.6 — Durable capture-session identity foundation
+
+V0.9.6 begins hardening repeated real-device capture validation across service/process restarts.
+
+- Capture runtime tracking now accepts a caller-supplied positive session identity while retaining the existing in-process sequence as the fallback.
+- CaptureSessionDiagnosticsStore now provides a monotonic persisted session-ID allocator for the capture runtime to consume.
+- Added regression coverage for explicit session identity and persisted session-ID sequencing.
+- MainActivity and Android version metadata are aligned to V0.9.6 (versionCode 96).
+- This is a diagnostic identity layer only; it does not authorize, schedule, retry, or dispatch any action.
+- Automatic Gather/Hunt remains OFF by default.
+
+Next integration target: wire ScreenCaptureService session start to the persisted allocator so repeated start → capture → stop → restart sessions receive durable, unique IDs across service recreation.
