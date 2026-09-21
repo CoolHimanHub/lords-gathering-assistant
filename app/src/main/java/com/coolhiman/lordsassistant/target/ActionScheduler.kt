@@ -93,6 +93,21 @@ class ActionScheduler(
         candidates.clear()
     }
 
+    /**
+     * Starts a hard capture-session boundary.
+     *
+     * Queue membership, completed-target suppression, and dispatch cooldown
+     * are screen/session-scoped evidence. They must never leak into a new
+     * MediaProjection session. Lifecycle/recovery safety remains owned by the
+     * ActionSchedulerSafetyGate and ActionOrchestrator.
+     */
+    fun resetForCaptureSession() {
+        candidates.clear()
+        completedUntilMs.clear()
+        inFlight = false
+        lastDispatchAtMs = null
+    }
+
     fun markDispatchStarted(nowMs: Long) {
         inFlight = true
         lastDispatchAtMs = nowMs
