@@ -385,7 +385,7 @@ class ActionOrchestratorTest {
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
         orchestrator.dispatch(30_001L) { true }
 
-        val result = orchestrator.verifyPostAction(observation, null)
+        val result = orchestrator.verifyPostAction(observation, null, 30_100L)
 
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, result.lifecycle.state)
     }
