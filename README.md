@@ -880,3 +880,16 @@ V0.9.4 makes persisted capture diagnostics distinguish three states: `NO_SESSION
 App version: 0.9.4 (versionCode 94).
 
 Next validation target: use explicit session-state classification during repeated start/stop/restart device sessions and correlate it with capture quality and candidate-rejection evidence.
+
+## V0.9.5 — Runtime/UI session-state alignment
+
+V0.9.5 aligns the device-facing UI and sustained-validation diagnostics with the persisted capture session-state model.
+
+- MainActivity now reports V0.9.5 and explicitly identifies sustained capture-session diagnostics.
+- Sustained Device Validation now shows the persisted capture state (no_session, active, or completed) directly alongside quality.
+- Added JVM regression coverage for explicit completed-session formatting.
+- Android version metadata is now 0.9.5 (versionCode 95).
+- This remains read-only diagnostic state and does not authorize, schedule, retry, or dispatch any action.
+- Automatic Gather/Hunt remains OFF by default.
+
+Next validation target: repeated real-device start → capture → stop → restart sessions, correlating session state, capture quality, candidate rejection reasons, and action/evidence diagnostics.
