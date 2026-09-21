@@ -74,7 +74,15 @@ class AffineGridCalibrator {
             error += (px - p.x) * (px - p.x) + (py - p.y) * (py - p.y)
         }
 
-        return Calibration(cx, cy, kotlin.math.sqrt(error / samples.size))
+        return Calibration(
+            screenX = cx,
+            screenY = cy,
+            rmsErrorPx = kotlin.math.sqrt(error / samples.size),
+            minWorldX = xs.minOrNull()!!.toInt(),
+            maxWorldX = xs.maxOrNull()!!.toInt(),
+            minWorldY = ys.minOrNull()!!.toInt(),
+            maxWorldY = ys.maxOrNull()!!.toInt()
+        )
     }
 
     private fun solve3(input: Array<DoubleArray>, rhs: DoubleArray): DoubleArray? {
@@ -104,7 +112,11 @@ class AffineGridCalibrator {
 data class Calibration(
     val screenX: DoubleArray,
     val screenY: DoubleArray,
-    val rmsErrorPx: Double
+    val rmsErrorPx: Double,
+    val minWorldX: Int = Int.MIN_VALUE,
+    val maxWorldX: Int = Int.MAX_VALUE,
+    val minWorldY: Int = Int.MIN_VALUE,
+    val maxWorldY: Int = Int.MAX_VALUE
 ) {
     fun predict(world: WorldCoordinate): ScreenPoint =
         ScreenPoint(
@@ -119,7 +131,12 @@ data class Calibration(
         val sy = screen.y.toDouble() - screenY[2]
         val worldX = (sx * screenY[1] - screenX[1] * sy) / det
         val worldY = (screenX[0] * sy - sx * screenY[0]) / det
-        val candidate = WorldCoordinate(kingdom, kotlin.math.round(worldX).toInt(), kotlin.math.round(worldY).toInt())
+        val candidateX = kotlin.math.round(worldX).toInt()
+        val candidateY = kotlin.math.round(worldY).toInt()
+        if (candidateX !in (minWorldX - 1)..(maxWorldX + 1) ||
+            candidateY !in (minWorldY - 1)..(maxWorldY + 1)
+        ) return null
+        val candidate = WorldCoordinate(kingdom, candidateX, candidateY)
         val predicted = predict(candidate)
         val residual = kotlin.math.hypot(
             predicted.x.toDouble() - screen.x,
