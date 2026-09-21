@@ -1,6 +1,5 @@
 package com.coolhiman.lordsassistant.capture
 
-import android.content.Context
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -11,7 +10,7 @@ import org.junit.Test
 @RunWith(RobolectricTestRunner::class)
 class CaptureSessionDiagnosticsStoreTest {
     @Test
-    fun roundTripPreservesSessionMetrics() {
+    fun roundTripPreservesSessionMetricsAndCompletedSessionState() {
         val context = RuntimeEnvironment.getApplication()
         val store = CaptureSessionDiagnosticsStore(context)
         store.clear()
@@ -68,6 +67,8 @@ class CaptureSessionDiagnosticsStoreTest {
         assertEquals(12L, restored.droppedFrames)
         assertEquals(2L, restored.staleFrames)
         assertEquals(7L, restored.sessionId)
+        assertEquals(false, restored.runtime.active)
+        assertEquals(true, restored.capture.sessionStarted)
         assertEquals(1L, restored.restartCount)
         assertEquals(CaptureStopReason.CAPTURE_STALLED, restored.runtime.lastStopReason)
         assertEquals(CaptureQuality.DEGRADED, restored.quality)
