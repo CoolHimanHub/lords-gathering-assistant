@@ -33,7 +33,7 @@ class AffineGridCalibrator {
         val ys = samples.map { it.first.y.toDouble() }
         val xSpan = xs.maxOrNull()!! - xs.minOrNull()!!
         val ySpan = ys.maxOrNull()!! - ys.minOrNull()!!
-        if (xSpan < 2.0 || ySpan < 2.0) return null
+        if (xSpan <= 0.0 || ySpan <= 0.0) return null
 
         val meanX = xs.average()
         val meanY = ys.average()
