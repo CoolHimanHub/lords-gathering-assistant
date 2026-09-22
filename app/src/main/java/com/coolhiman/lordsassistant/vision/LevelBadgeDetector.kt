@@ -28,7 +28,7 @@ class LevelBadgeDetector(
     private val maxArea: Double = 900.0
 ) {
     fun detect(bitmap: Bitmap): List<LevelBadge> {
-        if (bitmap.isRecycled) return emptyList()
+        if (bitmap.isRecycled || !OpenCvRuntime.ensureLoaded()) return emptyList()
         val src = Mat()
         val hsv = Mat()
         val blue = Mat()
