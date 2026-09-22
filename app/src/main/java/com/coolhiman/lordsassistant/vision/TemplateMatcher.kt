@@ -10,6 +10,8 @@ data class MatchResult(val score: Double, val x: Int, val y: Int, val width: Int
 
 class TemplateMatcher {
     fun match(screen: Bitmap, template: Bitmap, threshold: Double = 0.82): MatchResult? {
+        if (screen.isRecycled || template.isRecycled || !OpenCvRuntime.ensureLoaded()) return null
+
         val source = Mat()
         val needle = Mat()
         Utils.bitmapToMat(screen, source)
