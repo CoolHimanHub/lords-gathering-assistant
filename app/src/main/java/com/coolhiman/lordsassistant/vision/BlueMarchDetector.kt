@@ -21,6 +21,7 @@ class BlueMarchDetector {
      * It is deliberately only a signal; popup validation remains authoritative.
      */
     fun detect(bitmap: Bitmap): List<MarchSignal> {
+        if (!OpenCvRuntime.ensureLoaded()) return emptyList()
         val rgba = Mat()
         val hsv = Mat()
         val mask = Mat()
