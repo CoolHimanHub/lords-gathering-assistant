@@ -83,6 +83,11 @@ class ScreenCaptureService : Service() {
     // listener and UI work share that looper, so a stalled callback must still
     // be able to release the frame gate and invalidate the old token safely.
     private val frameTimeoutExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    // Capture-stall detection must not share the main/UI looper. A delayed main
+    // queue can postpone the check while ImageReader continues receiving frames.
+    // The watchdog therefore samples capture-thread state from its own scheduler
+    // and only posts the fail-closed shutdown back to the main thread.
+    private val captureWatchdogExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     // Bitmap conversion is the expensive CPU/memory boundary of capture. Keep it off the ImageReader callback thread so a slow allocation/GC cannot starve frame-arrival callbacks and trigger a false capture stall.
     private val captureProcessingExecutor: java.util.concurrent.ExecutorService = Executors.newSingleThreadExecutor()
     private var frameTimeoutFuture: ScheduledFuture<*>? = null
@@ -101,14 +106,9 @@ class ScreenCaptureService : Service() {
         override fun run() {
             if (!captureSessionActive) return
             val now = System.currentTimeMillis()
-            if (captureWatchdog.check(now)) {
-                captureRuntime.recordStall()
-                OverlayService.instance?.showStatus("CAPTURE STALLED • scanner stopped safely")
-                persistCaptureDiagnostics()
-                stopCaptureResources(CaptureStopReason.CAPTURE_STALLED)
-                stopSelf()
-                return
-            }
+            // Stall detection runs independently on captureWatchdogExecutor.
+            // This main-looper task is intentionally limited to diagnostics/HUD
+            // refresh so UI backlog cannot create a false capture stall.
             // Keep the scanner HUD attached to the foreground capture session.
             // Android can detach overlay windows independently of the service;
             // reattach before persisting the next live diagnostic snapshot.
@@ -416,6 +416,20 @@ class ScreenCaptureService : Service() {
         captureWatchdog.start(captureStartedAt)
         handler.removeCallbacks(captureWatchdogRunnable)
         handler.postDelayed(captureWatchdogRunnable, 1000L)
+        captureWatchdogExecutor.scheduleAtFixedRate({
+            if (!captureSessionActive) return@scheduleAtFixedRate
+            val now = System.currentTimeMillis()
+            if (captureWatchdog.check(now)) {
+                handler.post {
+                    if (!captureSessionActive) return@post
+                    captureRuntime.recordStall()
+                    OverlayService.instance?.showStatus("CAPTURE STALLED • scanner stopped safely")
+                    persistCaptureDiagnostics()
+                    stopCaptureResources(CaptureStopReason.CAPTURE_STALLED)
+                    stopSelf()
+                }
+            }
+        }, 1000L, 1000L, TimeUnit.MILLISECONDS)
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
                 if (captureSessionActive) {
@@ -1065,6 +1079,7 @@ class ScreenCaptureService : Service() {
         liveScanner.close()
         analyzer.close()
         frameTimeoutExecutor.shutdownNow()
+        captureWatchdogExecutor.shutdownNow()
         captureProcessingExecutor.shutdownNow()
         captureThread.quitSafely()
         removeScannerHud()
