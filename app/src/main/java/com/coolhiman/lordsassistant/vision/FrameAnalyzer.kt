@@ -50,6 +50,8 @@ class FrameAnalyzer {
     @Volatile private var stage = "IDLE"
     @Volatile private var lastFailure: String? = null
 
+    fun isProcessing(): Boolean = inFlight.get()
+
     fun diagnosticState(): String {
         val failure = lastFailure?.let { " • " + it } ?: ""
         return stage + failure
