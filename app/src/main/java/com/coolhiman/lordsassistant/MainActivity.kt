@@ -13,6 +13,7 @@ import android.widget.*
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.coolhiman.lordsassistant.capture.ScreenCaptureService
+import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
 import com.coolhiman.lordsassistant.data.PreferencesStore
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.overlay.OverlayService
@@ -74,6 +75,7 @@ class MainActivity : Activity() {
         val automatic = store.load().automaticActions
         return buildString {
             append("Overlay: ").append(if (overlay) "READY" else "NEEDS PERMISSION")
+            append("\nGesture service: ").append(if (LmAccessibilityService.instance != null) "CONNECTED" else "NOT CONNECTED")
             append("\nScreen capture: requested when scanner starts")
             append("\nAutomatic actions: ").append(if (automatic) "ENABLED (advanced)" else "OFF — safe default")
             append("\nRuntime: V0.10.0 session rejection trend diagnostics active")
@@ -103,6 +105,15 @@ class MainActivity : Activity() {
         // Scanner HUD is owned by the foreground capture service. Require the
         // overlay permission before starting capture so a session can never
         // start with an invisible diagnostic surface.
+        if (LmAccessibilityService.instance == null) {
+            Toast.makeText(
+                this,
+                "Enable LM Companion gesture service before starting scanner",
+                Toast.LENGTH_LONG
+            ).show()
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            return
+        }
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Grant overlay permission before starting scanner", Toast.LENGTH_LONG).show()
             startOverlayPermission()
