@@ -89,6 +89,24 @@ class OverlayService : Service() {
 
     fun showStatus(text: String) { card?.post { card?.text = text } }
 
+    fun showCaptureHealth(
+        sessionId: Long,
+        totalFrames: Long,
+        acceptedFrames: Long,
+        droppedFrames: Long,
+        processedFrames: Long,
+        stage: String,
+        quality: String
+    ) {
+        val state = if (stage.contains("ERROR") || stage.contains("STOPPED")) "■" else "●"
+        card?.post {
+            card?.text = "LM • SCANNER  $state $stage\\n" +
+                "Session #$sessionId • $totalFrames frames\\n" +
+                "Accepted $acceptedFrames • Processed $processedFrames • Dropped $droppedFrames\\n" +
+                "Quality: $quality"
+        }
+    }
+
     fun showTargets(targets: List<RankedTarget>) {
         markerView?.post { markerView?.setTargets(targets.take(12)) }
     }
