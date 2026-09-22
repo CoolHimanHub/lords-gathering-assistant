@@ -36,7 +36,7 @@ class MainActivity : Activity() {
             insets
         }
         ViewCompat.requestApplyInsets(root)
-        root.addView(TextView(this).apply { text = "LM Companion  •  V0.10.0"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
+        root.addView(TextView(this).apply { text = "LM Companion  •  V1.0.0"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
         root.addView(TextView(this).apply { text = "Resource + monster scanner / calibration console / compact overlay"; setTextColor(0xFFB8BBC4.toInt()); setPadding(0,0,0,14) })
         root.addView(Switch(this).apply { text = "Always-on-top overlay"; setTextColor(Color.WHITE); isChecked=current.overlayEnabled; setOnCheckedChangeListener { _,checked -> if (checked && !Settings.canDrawOverlays(this@MainActivity)) { isChecked = false; store.setOverlayEnabled(false); Toast.makeText(this@MainActivity, "Grant overlay permission first", Toast.LENGTH_SHORT).show(); startOverlayPermission() } else { store.setOverlayEnabled(checked); if (checked) startOverlayServiceSafely() else stopService(Intent(this@MainActivity,OverlayService::class.java)) } } })
         root.addView(TextView(this).apply {
@@ -78,7 +78,7 @@ class MainActivity : Activity() {
             append("\nGesture service: ").append(if (LmAccessibilityService.instance != null) "CONNECTED" else "NOT CONNECTED")
             append("\nScreen capture: requested when scanner starts")
             append("\nAutomatic actions: ").append(if (automatic) "ENABLED (advanced)" else "OFF — safe default")
-            append("\nRuntime: V0.10.0 session rejection trend diagnostics active")
+            append("\nRuntime: V1.0.0 — fail-safe scanner diagnostics active")
         }
     }
 
