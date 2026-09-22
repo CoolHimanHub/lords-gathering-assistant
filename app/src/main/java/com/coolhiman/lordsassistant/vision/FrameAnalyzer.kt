@@ -6,6 +6,8 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class FrameAnalysis(
@@ -31,6 +33,11 @@ object OcrBitmapPreprocessor {
 }
 
 class FrameAnalyzer {
+    // Keep ML Kit submission away from ImageReader/UI's main-thread callback.
+    // Some real devices perform bundled-model initialization synchronously on
+    // the first process() call; blocking the capture thread can also starve the
+    // watchdog and make an accepted frame appear permanently stuck.
+    private val ocrExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     fun analyze(bitmap: Bitmap, defaultKingdom: Int, callback: (FrameAnalysis) -> Unit) {
@@ -47,48 +54,62 @@ class FrameAnalyzer {
         }
 
         try {
-            recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
-                .addOnSuccessListener { result ->
-                    val text = OcrParser.normalize(result.text)
-                    val regions = result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
-                        line.boundingBox?.let {
-                            TextRegion(
-                                RectF(it),
-                                GameTextClassifier.classify(line.text),
-                                OcrParser.normalize(line.text)
+            ocrExecutor.execute {
+                try {
+                    recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
+                        .addOnSuccessListener { result ->
+                            val text = OcrParser.normalize(result.text)
+                            val regions = result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
+                                line.boundingBox?.let {
+                                    TextRegion(
+                                        RectF(it),
+                                        GameTextClassifier.classify(line.text),
+                                        OcrParser.normalize(line.text)
+                                    )
+                                }
+                            }
+                            deliver(
+                                FrameAnalysis(
+                                    text = text,
+                                    coordinate = OcrParser.parseCoordinate(text, defaultKingdom),
+                                    classification = GameTextClassifier.classify(text),
+                                    textRegions = regions,
+                                    popup = PopupStateParser.parse(text, defaultKingdom),
+                                    ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                )
                             )
                         }
-                    }
-                    deliver(
-                        FrameAnalysis(
-                            text = text,
-                            coordinate = OcrParser.parseCoordinate(text, defaultKingdom),
-                            classification = GameTextClassifier.classify(text),
-                            textRegions = regions,
-                            popup = PopupStateParser.parse(text, defaultKingdom),
-                            ocrProcessingMs = System.currentTimeMillis() - startedAt
-                        )
-                    )
-                }
-                .addOnFailureListener {
-                    deliver(
-                        FrameAnalysis(
-                            "",
-                            null,
-                            TextClassification(),
-                            emptyList(),
-                            null,
-                            System.currentTimeMillis() - startedAt
-                        )
-                    )
-                }
-                .addOnCompleteListener {
+                        .addOnFailureListener {
+                            deliver(
+                                FrameAnalysis(
+                                    "",
+                                    null,
+                                    TextClassification(),
+                                    emptyList(),
+                                    null,
+                                    System.currentTimeMillis() - startedAt
+                                )
+                            )
+                        }
+                        .addOnCompleteListener {
+                            if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
+                                ocrBitmap.recycle()
+                            }
+                            deliver(
+                                FrameAnalysis(
+                                    "",
+                                    null,
+                                    TextClassification(),
+                                    emptyList(),
+                                    null,
+                                    System.currentTimeMillis() - startedAt
+                                )
+                            )
+                        }
+                } catch (_: Throwable) {
                     if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
                         ocrBitmap.recycle()
                     }
-                    // Defensive completion path: ML Kit should terminate through
-                    // success/failure, but the capture pipeline must never keep
-                    // a frame locked if a future implementation violates that.
                     deliver(
                         FrameAnalysis(
                             "",
@@ -100,7 +121,8 @@ class FrameAnalyzer {
                         )
                     )
                 }
-        } catch (error: Throwable) {
+            }
+        } catch (_: Throwable) {
             if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
                 ocrBitmap.recycle()
             }
@@ -117,5 +139,8 @@ class FrameAnalyzer {
         }
     }
 
-    fun close() = recognizer.close()
+    fun close() {
+        ocrExecutor.shutdownNow()
+        recognizer.close()
+    }
 }
