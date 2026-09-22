@@ -170,7 +170,8 @@ class ScreenCaptureService : Service() {
                 setTextColor(Color.WHITE)
                 setBackgroundColor(0xEE111111.toInt())
                 setPadding(22, 16, 22, 16)
-                elevation = 16f
+                minWidth = 260
+                elevation = 24f
                 visibility = View.VISIBLE
             }
             val lp = WindowManager.LayoutParams(
@@ -179,7 +180,7 @@ class ScreenCaptureService : Service() {
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
