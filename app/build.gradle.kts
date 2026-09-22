@@ -20,9 +20,9 @@ android {
         signingConfigs {
             create("stableDebug") {
                 storeFile = file(stableKeystorePath!!)
-                storePassword = System.getenv("LM_DEBUG_STORE_PASSWORD")
-                keyAlias = System.getenv("LM_DEBUG_KEY_ALIAS")
-                keyPassword = System.getenv("LM_DEBUG_KEY_PASSWORD")
+                storePassword = System.getenv("LM_DEBUG_STORE_PASSWORD") ?: "changeit"
+                keyAlias = System.getenv("LM_DEBUG_KEY_ALIAS") ?: "lm-companion-debug"
+                keyPassword = System.getenv("LM_DEBUG_KEY_PASSWORD") ?: "changeit"
             }
         }
     }
