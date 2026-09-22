@@ -3,6 +3,12 @@ package com.coolhiman.lordsassistant.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.target.InteractionGate
@@ -14,6 +20,48 @@ import com.coolhiman.lordsassistant.model.MapObservation
 
 class LmAccessibilityService : AccessibilityService() {
     companion object { @Volatile var instance: LmAccessibilityService? = null }
+    private var scannerHud: TextView? = null
+    private var scannerHudManager: WindowManager? = null
+
+    fun showScannerHud(text: String): Boolean {
+        return runCatching {
+            val manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
+            val view = scannerHud ?: TextView(this).apply {
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                setBackgroundColor(0xE616181D.toInt())
+                setPadding(18, 14, 18, 14)
+                elevation = 12f
+            }
+            if (scannerHud == null) {
+                val lp = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    x = 20
+                    y = 90
+                }
+                manager.addView(view, lp)
+                scannerHudManager = manager
+                scannerHud = view
+            }
+            scannerHud?.text = text
+            true
+        }.getOrElse { false }
+    }
+
+    fun hideScannerHud() {
+        val view = scannerHud ?: return
+        runCatching { scannerHudManager?.removeView(view) }
+        scannerHud = null
+        scannerHudManager = null
+    }
 
     override fun onServiceConnected() { super.onServiceConnected(); instance = this }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
@@ -53,5 +101,5 @@ class LmAccessibilityService : AccessibilityService() {
         return tapValidated(latestAction!!.point, validation)
     }
 
-    override fun onDestroy() { instance = null; super.onDestroy() }
+    override fun onDestroy() { hideScannerHud(); instance = null; super.onDestroy() }
 }
