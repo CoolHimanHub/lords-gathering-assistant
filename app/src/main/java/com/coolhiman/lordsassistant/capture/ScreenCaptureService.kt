@@ -139,10 +139,10 @@ class ScreenCaptureService : Service() {
         captureDiagnosticsStore.save(diagnostics)
         OverlayService.instance?.showCaptureHealth(
             sessionId = runtime.sessionId,
-            totalFrames = diagnostics.totalFrames,
+            totalFrames = diagnostics.frames,
             acceptedFrames = diagnostics.acceptedFrames,
             droppedFrames = diagnostics.droppedFrames,
-            processedFrames = diagnostics.processedFrames,
+            processedFrames = diagnostics.capture.processedFrames,
             stage = captureStage,
             quality = diagnostics.quality.name
         )
