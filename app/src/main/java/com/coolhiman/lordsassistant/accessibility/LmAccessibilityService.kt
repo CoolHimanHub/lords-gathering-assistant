@@ -25,7 +25,17 @@ class LmAccessibilityService : AccessibilityService() {
 
     fun showScannerHud(text: String): Boolean {
         return runCatching {
-            val manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
+            var manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
+
+            // Android may detach an accessibility overlay window while keeping
+            // the View reference alive. Never treat a detached HUD as healthy:
+            // discard the stale reference and recreate the window.
+            if (scannerHud != null && scannerHud?.parent == null) {
+                scannerHud = null
+                scannerHudManager = null
+                manager = getSystemService(WINDOW_SERVICE) as WindowManager
+            }
+
             val view = scannerHud ?: TextView(this).apply {
                 textSize = 13f
                 setTextColor(Color.WHITE)
