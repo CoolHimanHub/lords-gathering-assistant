@@ -1,14 +1,15 @@
 package com.coolhiman.lordsassistant.vision
 
 import org.opencv.core.Core
+import org.opencv.core.Mat
 
 /**
  * Owns OpenCV's process-wide native library initialization.
  *
  * The Maven OpenCV artifact ships the native library, but Android does not
- * guarantee that the JNI library is loaded before the first Mat constructor.
- * Keep loading explicit and fail closed so a vision feature can never crash
- * the capture service.
+ * guarantee that the JNI library is usable before the first Mat constructor.
+ * Keep loading explicit and perform a JNI smoke test before reporting success.
+ * Vision callers fail closed when the native binding is unavailable.
  */
 object OpenCvRuntime {
     @Volatile
@@ -24,6 +25,14 @@ object OpenCvRuntime {
 
         return try {
             System.loadLibrary(Core.NATIVE_LIBRARY_NAME)
+
+            // A successful dlopen is not sufficient: the Java binding can still
+            // be present without the JNI implementation for Mat. Exercise the
+            // exact native entry point used by every detector before allowing
+            // vision code to continue.
+            val probe = Mat()
+            probe.release()
+
             loaded = true
             true
         } catch (error: UnsatisfiedLinkError) {
