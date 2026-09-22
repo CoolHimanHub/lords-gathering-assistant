@@ -25,6 +25,7 @@ class LmAccessibilityService : AccessibilityService() {
     private var scannerHud: TextView? = null
     private var scannerHudManager: WindowManager? = null
     @Volatile private var scannerHudDesiredText: String? = null
+    private var scannerHudOrientation: Int? = null
 
     // The system is allowed to change accessibility-overlay visibility. Keep the
     // HUD owned by the accessibility service and independently heal a detached
@@ -59,14 +60,17 @@ class LmAccessibilityService : AccessibilityService() {
         return runCatching {
             var manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
             val existing = scannerHud
+            val currentOrientation = resources.configuration.orientation
 
             if (existing != null) {
                 val attached = existing.parent != null
                 val visible = existing.windowVisibility == View.VISIBLE &&
                     existing.visibility == View.VISIBLE &&
                     existing.isShown
+                val orientationChanged = scannerHudOrientation != null &&
+                    scannerHudOrientation != currentOrientation
 
-                if (!attached || !visible) {
+                if (!attached || !visible || orientationChanged) {
                     runCatching { manager.removeViewImmediate(existing) }
                     scannerHud = null
                     scannerHudManager = null
@@ -104,6 +108,7 @@ class LmAccessibilityService : AccessibilityService() {
             manager.addView(view, lp)
             scannerHudManager = manager
             scannerHud = view
+            scannerHudOrientation = currentOrientation
             view.text = text
             true
         }.getOrElse { false }
@@ -125,6 +130,13 @@ class LmAccessibilityService : AccessibilityService() {
             if (view != null) runCatching { manager.removeViewImmediate(view) }
         }
         scannerHudManager = null
+        scannerHudOrientation = null
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val desired = scannerHudDesiredText ?: return
+        mainHandler.post { ensureScannerHud(desired) }
     }
 
     /**
