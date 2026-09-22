@@ -1,5 +1,6 @@
 package com.coolhiman.lordsassistant.vision
 
+import android.graphics.Bitmap
 import android.graphics.RectF
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -108,6 +109,25 @@ class DetectionFusionTest {
         assertEquals(MarchAssociationStatus.NO_MARCH, result.single().marchAssociation.status)
         assertNull(result.single().marchAssociation.nearestDistancePx)
         assertNull(result.single().marchAssociation.secondNearestDistancePx)
+    }
+
+    @Test
+    fun ocrPreprocessorBoundsLargeFrameWithoutMutatingSource() {
+        val source = Bitmap.createBitmap(1440, 2560, Bitmap.Config.ARGB_8888)
+        val prepared = OcrBitmapPreprocessor.prepare(source)
+        assertEquals(720, prepared.width)
+        assertEquals(1280, prepared.height)
+        assertTrue(prepared !== source)
+        prepared.recycle()
+        source.recycle()
+    }
+
+    @Test
+    fun ocrPreprocessorKeepsSmallFrameForZeroCopyPath() {
+        val source = Bitmap.createBitmap(800, 1200, Bitmap.Config.ARGB_8888)
+        val prepared = OcrBitmapPreprocessor.prepare(source)
+        assertTrue(prepared === source)
+        source.recycle()
     }
 
 }
