@@ -64,6 +64,14 @@ class LmAccessibilityService : AccessibilityService() {
     private fun ensureDisplayAttachedScannerHud(text: String): Boolean {
         if (android.os.Build.VERSION.SDK_INT < 34) return false
         return runCatching {
+            val orientation = resources.configuration.orientation
+            val existingSurface = scannerHudSurface
+            if (existingSurface != null && existingSurface.isValid() && scannerHudSurfaceHost != null &&
+                scannerHudOrientation == orientation && scannerHud != null
+            ) {
+                scannerHud?.text = text
+                return@runCatching true
+            }
             releaseDisplayAttachedScannerHud()
             val display = (getSystemService(DISPLAY_SERVICE) as android.hardware.display.DisplayManager)
                 .getDisplay(Display.DEFAULT_DISPLAY) ?: return@runCatching false
@@ -93,7 +101,7 @@ class LmAccessibilityService : AccessibilityService() {
             scannerHudSurface = surface
             scannerHud = view
             scannerHudManager = null
-            scannerHudOrientation = resources.configuration.orientation
+            scannerHudOrientation = orientation
             true
         }.getOrElse { false }
     }
