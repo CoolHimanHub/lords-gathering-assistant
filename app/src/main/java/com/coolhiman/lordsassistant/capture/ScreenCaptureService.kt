@@ -3,6 +3,7 @@ package com.coolhiman.lordsassistant.capture
 import android.app.*
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.media.ImageReader
@@ -11,6 +12,10 @@ import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.TextView
 import android.util.DisplayMetrics
 import com.coolhiman.lordsassistant.map.LiveMapScanner
 import com.coolhiman.lordsassistant.overlay.OverlayService
@@ -45,6 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
+    private var scannerHud: TextView? = null
+    private var scannerHudManager: WindowManager? = null
     private lateinit var analyzer: FrameAnalyzer
     private lateinit var liveScanner: LiveMapScanner
     private lateinit var actionOrchestrator: ActionOrchestrator
@@ -118,6 +125,67 @@ class ScreenCaptureService : Service() {
         return recoveryEpochPersistenceHealthy
     }
 
+    private fun ensureScannerHud() {
+        if (!Settings.canDrawOverlays(this)) return
+        if (scannerHud != null) return
+        runCatching {
+            val manager = getSystemService(WINDOW_SERVICE) as WindowManager
+            val view = TextView(this).apply {
+                text = "LM • SCANNER  ● STARTING\nScreen scanner active"
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                setBackgroundColor(0xE616181D.toInt())
+                setPadding(18, 14, 18, 14)
+                elevation = 12f
+            }
+            val type = if (android.os.Build.VERSION.SDK_INT >= 26)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else WindowManager.LayoutParams.TYPE_PHONE
+            val lp = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 20
+                y = 90
+            }
+            manager.addView(view, lp)
+            scannerHudManager = manager
+            scannerHud = view
+        }
+    }
+
+    private fun updateScannerHud(
+        sessionId: Long,
+        totalFrames: Long,
+        acceptedFrames: Long,
+        droppedFrames: Long,
+        processedFrames: Long,
+        stage: String,
+        quality: String
+    ) {
+        handler.post {
+            ensureScannerHud()
+            scannerHud?.text = "LM • SCANNER  " +
+                (if (stage == "ERROR" || stage == "STOPPED") "■" else "●") + " " + stage + "\n" +
+                "Session #" + sessionId + " • " + totalFrames + " frames\n" +
+                "Accepted " + acceptedFrames + " • Processed " + processedFrames + " • Dropped " + droppedFrames + "\n" +
+                "Quality: " + quality
+        }
+    }
+
+    private fun removeScannerHud() {
+        val view = scannerHud
+        scannerHud = null
+        runCatching { if (view != null) scannerHudManager?.removeView(view) }
+        scannerHudManager = null
+    }
+
     private fun persistCaptureDiagnostics() {
         if (!::captureDiagnosticsStore.isInitialized) return
         val runtime = captureRuntime.snapshot()
@@ -137,6 +205,7 @@ class ScreenCaptureService : Service() {
             candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
         )
         captureDiagnosticsStore.save(diagnostics)
+        updateScannerHud(runtime.sessionId, diagnostics.frames, diagnostics.acceptedFrames, diagnostics.droppedFrames, diagnostics.capture.processedFrames, captureStage, diagnostics.quality.name)
         OverlayService.instance?.showCaptureHealth(
             sessionId = runtime.sessionId,
             totalFrames = diagnostics.frames,
@@ -187,6 +256,7 @@ class ScreenCaptureService : Service() {
             CaptureStopReason.USER_STOP -> "STOPPED"
             else -> "ERROR"
         }
+        removeScannerHud()
     }
 
     override fun onCreate() {
@@ -262,6 +332,7 @@ class ScreenCaptureService : Service() {
         }
         captureSessionActive = true
         captureStage = "STARTING"
+        ensureScannerHud()
         // Re-assert the diagnostic overlay from the already-running foreground
         // capture service. This makes visibility independent of the activity
         // lifecycle and of the separate overlay preference.
@@ -900,6 +971,7 @@ class ScreenCaptureService : Service() {
         liveScanner.close()
         analyzer.close()
         frameTimeoutExecutor.shutdownNow()
+        removeScannerHud()
         ActionDiagnosticsStore.latest = null
         super.onDestroy()
     }
