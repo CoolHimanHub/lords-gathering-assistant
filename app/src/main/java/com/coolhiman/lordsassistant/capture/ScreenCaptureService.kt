@@ -54,6 +54,13 @@ class ScreenCaptureService : Service() {
     private var reconciledInitialEpoch = 0L
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
+    private val processingWatchdog = Runnable {
+        if (busy.compareAndSet(true, false)) {
+            captureRuntime.recordFailure("Frame analysis timeout")
+            captureHealth.frameDropped()
+            OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
+        }
+    }
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
@@ -89,6 +96,7 @@ class ScreenCaptureService : Service() {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
         private const val MAX_FRAME_AGE_MS = 1500L
+        private const val FRAME_ANALYSIS_TIMEOUT_MS = 5000L
     }
 
     private fun persistRecoveryEpoch(): Boolean {
@@ -353,6 +361,8 @@ class ScreenCaptureService : Service() {
             captureHealth.frameAccepted()
 
             val frameStartedAt = System.currentTimeMillis()
+            handler.removeCallbacks(processingWatchdog)
+            handler.postDelayed(processingWatchdog, FRAME_ANALYSIS_TIMEOUT_MS)
             analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
                 try {
                     val scanStartedAt = System.currentTimeMillis()
@@ -783,6 +793,7 @@ class ScreenCaptureService : Service() {
                     OverlayService.instance?.showTargets(scan.plan.ranked)
                     previousScan = scan
                 } finally {
+                    handler.removeCallbacks(processingWatchdog)
                     if (!bitmap.isRecycled) bitmap.recycle()
                     busy.set(false)
                 }
