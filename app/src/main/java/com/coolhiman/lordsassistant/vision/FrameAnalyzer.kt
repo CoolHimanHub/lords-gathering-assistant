@@ -39,11 +39,27 @@ class FrameAnalyzer {
     // Some real devices perform bundled-model initialization synchronously on
     // the first process() call; blocking the capture thread can also starve the
     // watchdog and make an accepted frame appear permanently stuck.
-    private val ocrExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    // Keep ML Kit submission and Task callbacks on separate executors. If
+    // process() performs synchronous model/native work on a real device, that
+    // must not starve the executor responsible for completion callbacks.
+    private val submissionExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val callbackExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val callbackHandler = Handler(Looper.getMainLooper())
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private val inFlight = AtomicBoolean(false)
+    @Volatile private var stage = "IDLE"
+    @Volatile private var lastFailure: String? = null
 
-    fun analyze(bitmap: Bitmap, defaultKingdom: Int, callback: (FrameAnalysis) -> Unit) {
+    fun diagnosticState(): String {
+        val failure = lastFailure?.let { " • " + it } ?: ""
+        return stage + failure
+    }
+
+    fun analyze(bitmap: Bitmap, defaultKingdom: Int, callback: (FrameAnalysis) -> Unit): Boolean {
+        if (!inFlight.compareAndSet(false, true)) {
+            stage = "BUSY"
+            return false
+        }
         val startedAt = System.currentTimeMillis()
         val ocrBitmap = try {
             OcrBitmapPreprocessor.prepare(bitmap)
@@ -52,15 +68,24 @@ class FrameAnalyzer {
         }
         val delivered = AtomicBoolean(false)
 
+        fun finish() {
+            inFlight.set(false)
+        }
+
         fun deliver(result: FrameAnalysis) {
             if (delivered.compareAndSet(false, true)) callbackHandler.post { callback(result) }
         }
 
         try {
-            ocrExecutor.execute {
+            submissionExecutor.execute {
                 try {
-                    recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
-                        .addOnSuccessListener(ocrExecutor) { result ->
+                    stage = "PREPARED"
+                    lastFailure = null
+                    stage = "SUBMITTING"
+                    val task = recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
+                    stage = "SUBMITTED"
+                    task
+                        .addOnSuccessListener(callbackExecutor) { result ->
                             val text = OcrParser.normalize(result.text)
                             val regions = result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
                                 line.boundingBox?.let {
@@ -71,6 +96,7 @@ class FrameAnalyzer {
                                     )
                                 }
                             }
+                            stage = "SUCCESS"
                             deliver(
                                 FrameAnalysis(
                                     text = text,
@@ -82,7 +108,9 @@ class FrameAnalyzer {
                                 )
                             )
                         }
-                        .addOnFailureListener(ocrExecutor) {
+                        .addOnFailureListener(callbackExecutor) { error ->
+                            stage = "FAILURE"
+                            lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
                             deliver(
                                 FrameAnalysis(
                                     "",
@@ -94,10 +122,12 @@ class FrameAnalyzer {
                                 )
                             )
                         }
-                        .addOnCompleteListener(ocrExecutor) {
+                        .addOnCompleteListener(callbackExecutor) {
+                            stage = "COMPLETE"
                             if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
                                 ocrBitmap.recycle()
                             }
+                            finish()
                             deliver(
                                 FrameAnalysis(
                                     "",
@@ -109,10 +139,13 @@ class FrameAnalyzer {
                                 )
                             )
                         }
-                } catch (_: Throwable) {
+                } catch (error: Throwable) {
+                    stage = "SUBMISSION_EXCEPTION"
+                    lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
                     if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
                         ocrBitmap.recycle()
                     }
+                    finish()
                     deliver(
                         FrameAnalysis(
                             "",
@@ -125,10 +158,13 @@ class FrameAnalyzer {
                     )
                 }
             }
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            stage = "EXECUTOR_REJECTED"
+            lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
             if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
                 ocrBitmap.recycle()
             }
+            finish()
             deliver(
                 FrameAnalysis(
                     "",
@@ -143,7 +179,9 @@ class FrameAnalyzer {
     }
 
     fun close() {
-        ocrExecutor.shutdownNow()
+        submissionExecutor.shutdownNow()
+        callbackExecutor.shutdownNow()
+        inFlight.set(false)
         callbackHandler.removeCallbacksAndMessages(null)
         recognizer.close()
     }
