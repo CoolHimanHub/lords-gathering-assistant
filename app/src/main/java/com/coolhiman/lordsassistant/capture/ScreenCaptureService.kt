@@ -72,10 +72,15 @@ class ScreenCaptureService : Service() {
             if (captureWatchdog.check(now)) {
                 captureRuntime.recordStall()
                 OverlayService.instance?.showStatus("CAPTURE STALLED • scanner stopped safely")
+                persistCaptureDiagnostics()
                 stopCaptureResources(CaptureStopReason.CAPTURE_STALLED)
                 stopSelf()
                 return
             }
+            // Keep a lightweight live snapshot persisted even before the first
+            // successful CV/OCR result. This makes MediaProjection/ImageReader
+            // setup failures and zero-frame sessions diagnosable on-device.
+            persistCaptureDiagnostics()
             handler.postDelayed(this, 1000L)
         }
     }
@@ -99,6 +104,27 @@ class ScreenCaptureService : Service() {
             )
         }
         return recoveryEpochPersistenceHealthy
+    }
+
+    private fun persistCaptureDiagnostics() {
+        if (!::captureDiagnosticsStore.isInitialized) return
+        val runtime = captureRuntime.snapshot()
+        val memory = memoryPressurePolicy.evaluate(
+            usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+            maxBytes = Runtime.getRuntime().maxMemory()
+        )
+        val diagnostics = CaptureSessionDiagnostics.snapshot(
+            capture = captureHealth.snapshot(),
+            runtime = runtime,
+            latency = processingLatency.snapshot(),
+            quality = captureQualityPolicy.assess(
+                captureHealth.snapshot(),
+                processingLatency.snapshot(),
+                memory
+            ),
+            candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
+        )
+        captureDiagnosticsStore.save(diagnostics)
     }
 
     private fun stopCaptureResources(reason: CaptureStopReason = CaptureStopReason.USER_STOP) {
@@ -202,6 +228,7 @@ class ScreenCaptureService : Service() {
         projection = manager.getMediaProjection(resultCode, data)
         if (projection == null) {
             captureRuntime.recordFailure("MediaProjection unavailable")
+            persistCaptureDiagnostics()
             stopCaptureResources(CaptureStopReason.CAPTURE_SETUP_FAILED)
             stopSelf(startId)
             return START_NOT_STICKY
@@ -218,6 +245,7 @@ class ScreenCaptureService : Service() {
 
         val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
         captureRuntime.start(durableSessionId)
+        persistCaptureDiagnostics()
 
         val captureStartedAt = System.currentTimeMillis()
         captureHealth.start(captureStartedAt)
