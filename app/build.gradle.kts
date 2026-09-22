@@ -12,7 +12,27 @@ android {
         versionCode = 100
         versionName = "0.10.0"
     }
+
+    val stableKeystorePath = System.getenv("LM_DEBUG_KEYSTORE")
+    val stableSigningAvailable = !stableKeystorePath.isNullOrBlank() && file(stableKeystorePath).exists()
+
+    if (stableSigningAvailable) {
+        signingConfigs {
+            create("stableDebug") {
+                storeFile = file(stableKeystorePath!!)
+                storePassword = System.getenv("LM_DEBUG_STORE_PASSWORD")
+                keyAlias = System.getenv("LM_DEBUG_KEY_ALIAS")
+                keyPassword = System.getenv("LM_DEBUG_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (stableSigningAvailable) {
+                signingConfig = signingConfigs.getByName("stableDebug")
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
