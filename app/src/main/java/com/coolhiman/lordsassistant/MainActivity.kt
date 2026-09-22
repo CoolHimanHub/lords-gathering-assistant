@@ -100,9 +100,17 @@ class MainActivity : Activity() {
     }
 
     private fun requestCapture() {
+        // The scanner's diagnostics must remain visible while Lords Mobile is
+        // foreground. Start the overlay before handing the screen-capture
+        // permission dialog to Android, rather than making visibility depend
+        // on the user's separate overlay toggle.
+        if (Settings.canDrawOverlays(this)) {
+            store.setOverlayEnabled(true)
+            startOverlayServiceSafely()
+        }
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         startActivityForResult(manager.createScreenCaptureIntent(), 9001)
     }
     @Suppress("DEPRECATION")
-    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) { super.onActivityResult(requestCode,resultCode,data); if(requestCode!=9001 || resultCode!=RESULT_OK || data==null) return; startForegroundService(Intent(this,ScreenCaptureService::class.java).apply { putExtra(ScreenCaptureService.EXTRA_RESULT_CODE,resultCode); putExtra(ScreenCaptureService.EXTRA_DATA,data) }); if (store.load().overlayEnabled) startOverlayServiceSafely() }
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) { super.onActivityResult(requestCode,resultCode,data); if(requestCode!=9001 || resultCode!=RESULT_OK || data==null) return; startForegroundService(Intent(this,ScreenCaptureService::class.java).apply { putExtra(ScreenCaptureService.EXTRA_RESULT_CODE,resultCode); putExtra(ScreenCaptureService.EXTRA_DATA,data) }); if (Settings.canDrawOverlays(this)) startOverlayServiceSafely() }
 }
