@@ -20,62 +20,95 @@ import com.coolhiman.lordsassistant.model.MapObservation
 
 class LmAccessibilityService : AccessibilityService() {
     companion object { @Volatile var instance: LmAccessibilityService? = null }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var scannerHud: TextView? = null
     private var scannerHudManager: WindowManager? = null
+    @Volatile private var scannerHudDesiredText: String? = null
 
-    fun showScannerHud(text: String): Boolean {
+    // The system is allowed to change accessibility-overlay visibility. Keep the
+    // HUD owned by the accessibility service and independently heal a detached
+    // or hidden window. This is deliberately separate from MediaProjection so
+    // capture stalls cannot make the diagnostic surface disappear.
+    private val scannerHudKeepAlive = object : Runnable {
+        override fun run() {
+            val desired = scannerHudDesiredText ?: return
+            ensureScannerHud(desired)
+            mainHandler.postDelayed(this, 750L)
+        }
+    }
+
+    private fun ensureScannerHud(text: String): Boolean {
         return runCatching {
             var manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
+            val existing = scannerHud
 
-            // Android may detach an accessibility overlay window while keeping
-            // the View reference alive. Never treat a detached HUD as healthy:
-            // discard the stale reference and recreate the window.
-            if (scannerHud != null && scannerHud?.parent == null) {
-                scannerHud = null
-                scannerHudManager = null
-                manager = getSystemService(WINDOW_SERVICE) as WindowManager
-            }
+            if (existing != null) {
+                val attached = existing.parent != null
+                val visible = existing.windowVisibility == View.VISIBLE &&
+                    existing.visibility == View.VISIBLE &&
+                    existing.isShown
 
-            val view = scannerHud ?: TextView(this).apply {
-                textSize = 13f
-                setTextColor(Color.WHITE)
-                setBackgroundColor(0xE616181D.toInt())
-                setPadding(18, 14, 18, 14)
-                elevation = 12f
-            }
-            if (scannerHud == null) {
-                val lp = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    PixelFormat.TRANSLUCENT
-                ).apply {
-                    gravity = Gravity.TOP or Gravity.START
-                    x = 20
-                    y = 90
+                if (!attached || !visible) {
+                    runCatching { manager.removeViewImmediate(existing) }
+                    scannerHud = null
+                    scannerHudManager = null
+                    manager = getSystemService(WINDOW_SERVICE) as WindowManager
+                } else {
+                    existing.text = text
+                    return@runCatching true
                 }
-                manager.addView(view, lp)
-                scannerHudManager = manager
-                scannerHud = view
             }
-            scannerHud?.text = text
+
+            val view = TextView(this).apply {
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setBackgroundColor(0xEE111318.toInt())
+                setPadding(22, 16, 22, 16)
+                elevation = 24f
+                visibility = View.VISIBLE
+                minWidth = 260
+            }
+
+            val lp = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 24
+                y = 96
+            }
+
+            manager.addView(view, lp)
+            scannerHudManager = manager
+            scannerHud = view
+            view.text = text
             true
         }.getOrElse { false }
     }
 
-    fun hideScannerHud() {
-        val view = scannerHud ?: return
-        runCatching { scannerHudManager?.removeView(view) }
-        scannerHud = null
-        scannerHudManager = null
+    fun showScannerHud(text: String): Boolean {
+        scannerHudDesiredText = text
+        mainHandler.removeCallbacks(scannerHudKeepAlive)
+        mainHandler.post(scannerHudKeepAlive)
+        return ensureScannerHud(text)
     }
 
-    override fun onServiceConnected() { super.onServiceConnected(); instance = this }
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
-    override fun onInterrupt() = Unit
+    fun hideScannerHud() {
+        scannerHudDesiredText = null
+        mainHandler.removeCallbacks(scannerHudKeepAlive)
+        val view = scannerHud
+        scannerHud = null
+        scannerHudManager?.let { manager ->
+            if (view != null) runCatching { manager.removeViewImmediate(view) }
+        }
+        scannerHudManager = null
+    }
 
     /**
      * The only public gesture entry point. It refuses to dispatch a tap unless
