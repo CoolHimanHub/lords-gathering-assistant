@@ -96,7 +96,7 @@ class LmAccessibilityService : AccessibilityService() {
             SurfaceControl.Transaction()
                 .setPosition(surface, 24f, 96f)
                 .setLayer(surface, 100000)
-                .show(surface)
+                .setVisibility(surface, true)
                 .apply()
             scannerHudSurfaceHost = host
             scannerHudSurface = surface
