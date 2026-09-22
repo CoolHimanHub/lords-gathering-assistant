@@ -1005,7 +1005,7 @@ class ScreenCaptureService : Service() {
                     busy.set(false)
                     OverlayService.instance?.showStatus("FRAME ANALYZER ERROR • retrying safely")
                 }
-            }, captureHandler)
+            
 
                     }
                 }
