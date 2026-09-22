@@ -8,6 +8,9 @@ import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.Display
+import android.view.SurfaceControl
+import android.view.SurfaceControlViewHost
 import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
 import com.coolhiman.lordsassistant.model.ScreenPoint
@@ -26,6 +29,8 @@ class LmAccessibilityService : AccessibilityService() {
     private var scannerHudManager: WindowManager? = null
     @Volatile private var scannerHudDesiredText: String? = null
     private var scannerHudOrientation: Int? = null
+    private var scannerHudSurfaceHost: SurfaceControlViewHost? = null
+    private var scannerHudSurface: SurfaceControl? = null
 
     // The system is allowed to change accessibility-overlay visibility. Keep the
     // HUD owned by the accessibility service and independently heal a detached
@@ -56,7 +61,56 @@ class LmAccessibilityService : AccessibilityService() {
         // No active accessibility event processing to interrupt.
     }
 
+    private fun ensureDisplayAttachedScannerHud(text: String): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 34) return false
+        return runCatching {
+            releaseDisplayAttachedScannerHud()
+            val display = (getSystemService(DISPLAY_SERVICE) as android.hardware.display.DisplayManager)
+                .getDisplay(Display.DEFAULT_DISPLAY) ?: return@runCatching false
+            val view = TextView(this).apply {
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setBackgroundColor(0xEE111318.toInt())
+                setPadding(22, 16, 22, 16)
+                elevation = 24f
+                visibility = View.VISIBLE
+            }
+            val width = 420
+            val height = 150
+            val host = SurfaceControlViewHost(this, display, null)
+            host.setView(view, width, height)
+            val surface = host.surfacePackage?.surfaceControl ?: run {
+                host.release()
+                return@runCatching false
+            }
+            attachAccessibilityOverlayToDisplay(display.displayId, surface)
+            SurfaceControl.Transaction()
+                .setPosition(surface, 24f, 96f)
+                .setLayer(surface, 100000)
+                .show(surface)
+                .apply()
+            scannerHudSurfaceHost = host
+            scannerHudSurface = surface
+            scannerHud = view
+            scannerHudManager = null
+            scannerHudOrientation = resources.configuration.orientation
+            true
+        }.getOrElse { false }
+    }
+
+    private fun releaseDisplayAttachedScannerHud() {
+        val surface = scannerHudSurface
+        if (surface != null) {
+            runCatching { SurfaceControl.Transaction().reparent(surface, null).apply() }
+            runCatching { surface.release() }
+        }
+        scannerHudSurface = null
+        scannerHudSurfaceHost?.let { runCatching { it.release() } }
+        scannerHudSurfaceHost = null
+    }
+
     private fun ensureScannerHud(text: String): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= 34 && ensureDisplayAttachedScannerHud(text)) return true
         return runCatching {
             var manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
             val existing = scannerHud
@@ -124,6 +178,7 @@ class LmAccessibilityService : AccessibilityService() {
     fun hideScannerHud() {
         scannerHudDesiredText = null
         mainHandler.removeCallbacks(scannerHudKeepAlive)
+        releaseDisplayAttachedScannerHud()
         val view = scannerHud
         scannerHud = null
         scannerHudManager?.let { manager ->
