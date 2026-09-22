@@ -38,6 +38,23 @@ class LmAccessibilityService : AccessibilityService() {
         }
     }
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+        val desired = scannerHudDesiredText
+        if (desired != null) {
+            mainHandler.post { ensureScannerHud(desired) }
+        }
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // Gesture/overlay service does not currently consume accessibility events.
+    }
+
+    override fun onInterrupt() {
+        // No active accessibility event processing to interrupt.
+    }
+
     private fun ensureScannerHud(text: String): Boolean {
         return runCatching {
             var manager = scannerHudManager ?: getSystemService(WINDOW_SERVICE) as WindowManager
