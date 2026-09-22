@@ -365,12 +365,13 @@ class ScreenCaptureService : Service() {
                     OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
                 }
             }, FRAME_ANALYSIS_TIMEOUT_MS)
-            analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
-                if (processingToken.get() != frameToken) {
-                    if (!bitmap.isRecycled) bitmap.recycle()
-                    return@analyze
-                }
-                try {
+            try {
+                analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                    if (processingToken.get() != frameToken) {
+                        if (!bitmap.isRecycled) bitmap.recycle()
+                        return@analyze
+                    }
+                    try {
                     val scanStartedAt = System.currentTimeMillis()
                     val scan = liveScanner.scan(
                         bitmap = bitmap,
@@ -798,12 +799,22 @@ class ScreenCaptureService : Service() {
                     )
                     OverlayService.instance?.showTargets(scan.plan.ranked)
                     previousScan = scan
-                } finally {
-                    if (processingToken.compareAndSet(frameToken, frameToken + 1L)) {
-                        if (!bitmap.isRecycled) bitmap.recycle()
-                        busy.set(false)
+                    } finally {
+                        if (processingToken.compareAndSet(frameToken, frameToken + 1L)) {
+                            if (!bitmap.isRecycled) bitmap.recycle()
+                            busy.set(false)
+                        }
                     }
                 }
+            } catch (error: Throwable) {
+                processingToken.compareAndSet(frameToken, frameToken + 1L)
+                captureRuntime.recordFailure(
+                    "Frame analyzer exception: " + (error.message ?: error.javaClass.simpleName).take(160)
+                )
+                captureHealth.frameDropped()
+                if (!bitmap.isRecycled) bitmap.recycle()
+                busy.set(false)
+                OverlayService.instance?.showStatus("FRAME ANALYZER ERROR • retrying safely")
             }
         }, handler)
 
