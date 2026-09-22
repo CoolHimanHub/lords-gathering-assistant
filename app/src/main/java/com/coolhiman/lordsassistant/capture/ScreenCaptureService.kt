@@ -533,7 +533,11 @@ class ScreenCaptureService : Service() {
                     }
 
                     handler.post {
-                captureHealth.frameAccepted()
+                        if (processingToken.get() != frameToken || !captureSessionActive) {
+                            if (!bitmap.isRecycled) bitmap.recycle()
+                            return@post
+                        }
+                        captureHealth.frameAccepted()
                 captureStage = "ANALYZING"
 
                 try {
