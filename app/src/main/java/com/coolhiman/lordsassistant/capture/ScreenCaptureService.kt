@@ -126,8 +126,11 @@ class ScreenCaptureService : Service() {
     }
 
     private fun ensureScannerHud() {
-        val accessibilityOverlayAvailable = LmAccessibilityService.instance != null
-        if (!Settings.canDrawOverlays(this) && !accessibilityOverlayAvailable) return
+        val accessibilityService = LmAccessibilityService.instance
+        if (accessibilityService != null) {
+            if (accessibilityService.showScannerHud("LM • SCANNER  ● STARTING\\nScreen scanner active")) return
+        }
+        if (!Settings.canDrawOverlays(this)) return
         if (scannerHud != null) return
         runCatching {
             val manager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -139,9 +142,7 @@ class ScreenCaptureService : Service() {
                 setPadding(18, 14, 18, 14)
                 elevation = 12f
             }
-            val type = if (accessibilityOverlayAvailable) {
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-            } else if (android.os.Build.VERSION.SDK_INT >= 26) {
+            val type = if (android.os.Build.VERSION.SDK_INT >= 26) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
@@ -175,16 +176,21 @@ class ScreenCaptureService : Service() {
         quality: String
     ) {
         handler.post {
-            ensureScannerHud()
-            scannerHud?.text = "LM • SCANNER  " +
+            val accessibilityService = LmAccessibilityService.instance
+            val hudText = "LM • SCANNER  " +
                 (if (stage == "ERROR" || stage == "STOPPED") "■" else "●") + " " + stage + "\n" +
                 "Session #" + sessionId + " • " + totalFrames + " frames\n" +
                 "Accepted " + acceptedFrames + " • Processed " + processedFrames + " • Dropped " + droppedFrames + "\n" +
                 "Quality: " + quality
+            if (accessibilityService?.showScannerHud(hudText) != true) {
+                ensureScannerHud()
+                scannerHud?.text = hudText
+            }
         }
     }
 
     private fun removeScannerHud() {
+        LmAccessibilityService.instance?.hideScannerHud()
         val view = scannerHud
         scannerHud = null
         runCatching { if (view != null) scannerHudManager?.removeView(view) }
