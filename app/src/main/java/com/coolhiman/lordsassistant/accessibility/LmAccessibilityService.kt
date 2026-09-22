@@ -13,6 +13,7 @@ import android.view.SurfaceControl
 import android.view.SurfaceControlViewHost
 import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
+import android.os.IBinder
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.target.InteractionGate
 import com.coolhiman.lordsassistant.target.TargetValidationResult
@@ -85,7 +86,7 @@ class LmAccessibilityService : AccessibilityService() {
             }
             val width = 420
             val height = 150
-            val host = SurfaceControlViewHost(this, display, null)
+            val host = SurfaceControlViewHost(this, display, null as IBinder?)
             host.setView(view, width, height)
             val surface = host.surfacePackage?.surfaceControl ?: run {
                 host.release()
