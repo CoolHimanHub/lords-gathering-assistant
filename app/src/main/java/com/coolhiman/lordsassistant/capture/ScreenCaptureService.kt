@@ -513,7 +513,10 @@ class ScreenCaptureService : Service() {
                     captureRuntime.recordFailure("Frame analysis timeout (independent watchdog)")
                     captureStage = "TIMEOUT"
                     captureHealth.frameDropped()
-                    if (!bitmap.isRecycled) bitmap.recycle()
+                    // Do not recycle the bitmap here: FrameAnalyzer may still hold it
+                    // through ML Kit's asynchronous Task. The analyzer callback owns
+                    // final bitmap cleanup, and its stale-token path will recycle it
+                    // after the OCR task has actually completed.
                     handler.post {
                         OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
                     }
