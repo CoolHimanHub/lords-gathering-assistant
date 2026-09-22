@@ -178,6 +178,7 @@ class FrameAnalyzer {
                 )
             )
         }
+        return true
     }
 
     fun close() {
