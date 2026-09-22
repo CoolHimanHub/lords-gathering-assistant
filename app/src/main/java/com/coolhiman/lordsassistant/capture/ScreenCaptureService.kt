@@ -54,13 +54,7 @@ class ScreenCaptureService : Service() {
     private var reconciledInitialEpoch = 0L
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
-    private val processingWatchdog = Runnable {
-        if (busy.compareAndSet(true, false)) {
-            captureRuntime.recordFailure("Frame analysis timeout")
-            captureHealth.frameDropped()
-            OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
-        }
-    }
+    private val processingToken = java.util.concurrent.atomic.AtomicLong(0L)
     private val handler = Handler(Looper.getMainLooper())
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
@@ -361,9 +355,21 @@ class ScreenCaptureService : Service() {
             captureHealth.frameAccepted()
 
             val frameStartedAt = System.currentTimeMillis()
-            handler.removeCallbacks(processingWatchdog)
-            handler.postDelayed(processingWatchdog, FRAME_ANALYSIS_TIMEOUT_MS)
+            val frameToken = processingToken.incrementAndGet()
+            handler.postDelayed({
+                if (processingToken.get() == frameToken && busy.compareAndSet(true, false)) {
+                    processingToken.compareAndSet(frameToken, frameToken + 1L)
+                    captureRuntime.recordFailure("Frame analysis timeout")
+                    captureHealth.frameDropped()
+                    if (!bitmap.isRecycled) bitmap.recycle()
+                    OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
+                }
+            }, FRAME_ANALYSIS_TIMEOUT_MS)
             analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                if (processingToken.get() != frameToken) {
+                    if (!bitmap.isRecycled) bitmap.recycle()
+                    return@analyze
+                }
                 try {
                     val scanStartedAt = System.currentTimeMillis()
                     val scan = liveScanner.scan(
@@ -793,9 +799,10 @@ class ScreenCaptureService : Service() {
                     OverlayService.instance?.showTargets(scan.plan.ranked)
                     previousScan = scan
                 } finally {
-                    handler.removeCallbacks(processingWatchdog)
-                    if (!bitmap.isRecycled) bitmap.recycle()
-                    busy.set(false)
+                    if (processingToken.compareAndSet(frameToken, frameToken + 1L)) {
+                        if (!bitmap.isRecycled) bitmap.recycle()
+                        busy.set(false)
+                    }
                 }
             }
         }, handler)
