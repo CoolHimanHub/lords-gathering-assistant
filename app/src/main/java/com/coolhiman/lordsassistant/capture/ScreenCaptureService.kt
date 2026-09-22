@@ -516,7 +516,9 @@ class ScreenCaptureService : Service() {
                     busy.compareAndSet(true, false)
                 ) {
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
-                    captureRuntime.recordFailure("Frame analysis timeout (independent watchdog)")
+                    captureRuntime.recordFailure(
+                        "Frame analysis timeout: " + analyzer.diagnosticState()
+                    )
                     captureStage = "TIMEOUT"
                     captureHealth.frameDropped()
                     // Do not recycle the bitmap here: FrameAnalyzer may still hold it
