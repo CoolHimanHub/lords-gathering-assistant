@@ -14,6 +14,7 @@ import org.opencv.imgproc.Imgproc
  */
 class OrangeMarchDetector {
     fun detect(bitmap: Bitmap): List<MarchSignal> {
+        if (!OpenCvRuntime.ensureLoaded()) return emptyList()
         val rgba = Mat()
         val hsv = Mat()
         val mask = Mat()
