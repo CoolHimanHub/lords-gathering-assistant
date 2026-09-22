@@ -262,7 +262,13 @@ class ScreenCaptureService : Service() {
         }
         captureSessionActive = true
         captureStage = "STARTING"
-        OverlayService.instance?.showStatus("LM • SCANNER  ● STARTING\\nOpening screen capture…")
+        // Re-assert the diagnostic overlay from the already-running foreground
+        // capture service. This makes visibility independent of the activity
+        // lifecycle and of the separate overlay preference.
+        runCatching { startService(Intent(this, OverlayService::class.java)) }
+        handler.postDelayed({
+            OverlayService.instance?.showStatus("LM • SCANNER  ● STARTING\\nOpening screen capture…")
+        }, 150L)
 
         // A new MediaProjection session is a hard temporal/provenance boundary.
         // Do not let the previous session's frame, scheduler queue, camera
