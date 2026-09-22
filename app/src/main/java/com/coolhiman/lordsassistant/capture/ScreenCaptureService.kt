@@ -75,6 +75,7 @@ class ScreenCaptureService : Service() {
     private val captureQualityPolicy = CaptureQualityPolicy()
     private lateinit var captureDiagnosticsStore: CaptureSessionDiagnosticsStore
     private var captureSessionActive = false
+    @Volatile private var captureStage = "STARTING"
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
             if (!captureSessionActive) return
@@ -136,6 +137,15 @@ class ScreenCaptureService : Service() {
             candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
         )
         captureDiagnosticsStore.save(diagnostics)
+        OverlayService.instance?.showCaptureHealth(
+            sessionId = runtime.sessionId,
+            totalFrames = diagnostics.totalFrames,
+            acceptedFrames = diagnostics.acceptedFrames,
+            droppedFrames = diagnostics.droppedFrames,
+            processedFrames = diagnostics.processedFrames,
+            stage = captureStage,
+            quality = diagnostics.quality.name
+        )
     }
 
     private fun stopCaptureResources(reason: CaptureStopReason = CaptureStopReason.USER_STOP) {
@@ -173,6 +183,10 @@ class ScreenCaptureService : Service() {
             captureDiagnosticsStore.archive(finalDiagnostics)
         }
         captureSessionActive = false
+        captureStage = when (reason) {
+            CaptureStopReason.USER_STOP -> "STOPPED"
+            else -> "ERROR"
+        }
     }
 
     override fun onCreate() {
@@ -247,6 +261,8 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
         captureSessionActive = true
+        captureStage = "STARTING"
+        OverlayService.instance?.showStatus("LM • SCANNER  ● STARTING\\nOpening screen capture…")
 
         // A new MediaProjection session is a hard temporal/provenance boundary.
         // Do not let the previous session's frame, scheduler queue, camera
@@ -364,6 +380,7 @@ class ScreenCaptureService : Service() {
             }
 
             captureHealth.frameAccepted()
+            captureStage = "ANALYZING"
 
             val frameStartedAt = System.currentTimeMillis()
             val frameToken = processingToken.incrementAndGet()
@@ -372,6 +389,7 @@ class ScreenCaptureService : Service() {
                 if (processingToken.get() == frameToken && busy.compareAndSet(true, false)) {
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
                     captureRuntime.recordFailure("Frame analysis timeout (independent watchdog)")
+                    captureStage = "TIMEOUT"
                     captureHealth.frameDropped()
                     if (!bitmap.isRecycled) bitmap.recycle()
                     handler.post {
@@ -388,6 +406,7 @@ class ScreenCaptureService : Service() {
                         return@analyze
                     }
                     try {
+                    captureStage = "LIVE SCAN"
                     val scanStartedAt = System.currentTimeMillis()
                     val scan = liveScanner.scan(
                         bitmap = bitmap,
@@ -826,6 +845,7 @@ class ScreenCaptureService : Service() {
                 frameTimeoutFuture?.cancel(false)
                 frameTimeoutFuture = null
                 processingToken.compareAndSet(frameToken, frameToken + 1L)
+                captureStage = "ERROR"
                 captureRuntime.recordFailure(
                     "Frame analyzer exception: " + (error.message ?: error.javaClass.simpleName).take(160)
                 )
