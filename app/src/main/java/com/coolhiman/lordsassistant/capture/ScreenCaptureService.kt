@@ -10,6 +10,7 @@ import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
@@ -68,6 +69,16 @@ class ScreenCaptureService : Service() {
     private val busy = AtomicBoolean(false)
     private val processingToken = java.util.concurrent.atomic.AtomicLong(0L)
     private val handler = Handler(Looper.getMainLooper())
+    // ImageReader callbacks and full-resolution RGBA -> Bitmap conversion must
+    // never share the main/UI looper. A blocked UI thread can otherwise make
+    // the capture watchdog observe a false stall even while MediaProjection is
+    // delivering frames normally.
+    private val captureThread = HandlerThread("LM-Capture")
+    private val captureHandler: Handler
+    init {
+        captureThread.start()
+        captureHandler = Handler(captureThread.looper)
+    }
     // Frame-analysis timeout must not depend on the main looper. The capture
     // listener and UI work share that looper, so a stalled callback must still
     // be able to release the frame gate and invalidate the old token safely.
@@ -1001,7 +1012,7 @@ class ScreenCaptureService : Service() {
                 busy.set(false)
                 OverlayService.instance?.showStatus("FRAME ANALYZER ERROR • retrying safely")
             }
-        }, handler)
+        }, captureHandler)
 
         try {
             projection?.createVirtualDisplay(
@@ -1041,6 +1052,7 @@ class ScreenCaptureService : Service() {
         liveScanner.close()
         analyzer.close()
         frameTimeoutExecutor.shutdownNow()
+        captureThread.quitSafely()
         removeScannerHud()
         ActionDiagnosticsStore.latest = null
         super.onDestroy()
