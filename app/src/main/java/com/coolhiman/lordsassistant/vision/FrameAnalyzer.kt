@@ -2,6 +2,8 @@ package com.coolhiman.lordsassistant.vision
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.os.Handler
+import android.os.Looper
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -38,6 +40,7 @@ class FrameAnalyzer {
     // the first process() call; blocking the capture thread can also starve the
     // watchdog and make an accepted frame appear permanently stuck.
     private val ocrExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val callbackHandler = Handler(Looper.getMainLooper())
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     fun analyze(bitmap: Bitmap, defaultKingdom: Int, callback: (FrameAnalysis) -> Unit) {
@@ -50,14 +53,14 @@ class FrameAnalyzer {
         val delivered = AtomicBoolean(false)
 
         fun deliver(result: FrameAnalysis) {
-            if (delivered.compareAndSet(false, true)) callback(result)
+            if (delivered.compareAndSet(false, true)) callbackHandler.post { callback(result) }
         }
 
         try {
             ocrExecutor.execute {
                 try {
                     recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
-                        .addOnSuccessListener { result ->
+                        .addOnSuccessListener(ocrExecutor) { result ->
                             val text = OcrParser.normalize(result.text)
                             val regions = result.textBlocks.flatMap { it.lines }.mapNotNull { line ->
                                 line.boundingBox?.let {
@@ -79,7 +82,7 @@ class FrameAnalyzer {
                                 )
                             )
                         }
-                        .addOnFailureListener {
+                        .addOnFailureListener(ocrExecutor) {
                             deliver(
                                 FrameAnalysis(
                                     "",
@@ -91,7 +94,7 @@ class FrameAnalyzer {
                                 )
                             )
                         }
-                        .addOnCompleteListener {
+                        .addOnCompleteListener(ocrExecutor) {
                             if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
                                 ocrBitmap.recycle()
                             }
@@ -141,6 +144,7 @@ class FrameAnalyzer {
 
     fun close() {
         ocrExecutor.shutdownNow()
+        callbackHandler.removeCallbacksAndMessages(null)
         recognizer.close()
     }
 }
