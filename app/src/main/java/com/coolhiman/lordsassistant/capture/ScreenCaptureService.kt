@@ -36,6 +36,10 @@ import com.coolhiman.lordsassistant.target.ActionAuditEventType
 import com.coolhiman.lordsassistant.target.ActionAuditLogStore
 import com.coolhiman.lordsassistant.vision.FrameAnalyzer
 import com.coolhiman.lordsassistant.vision.ImageBitmapConverter
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ScreenCaptureService : Service() {
@@ -56,6 +60,11 @@ class ScreenCaptureService : Service() {
     private val busy = AtomicBoolean(false)
     private val processingToken = java.util.concurrent.atomic.AtomicLong(0L)
     private val handler = Handler(Looper.getMainLooper())
+    // Frame-analysis timeout must not depend on the main looper. The capture
+    // listener and UI work share that looper, so a stalled callback must still
+    // be able to release the frame gate and invalidate the old token safely.
+    private val frameTimeoutExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private var frameTimeoutFuture: ScheduledFuture<*>? = null
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
     private val captureHealth = CaptureHealthTracker()
@@ -132,6 +141,8 @@ class ScreenCaptureService : Service() {
     private fun stopCaptureResources(reason: CaptureStopReason = CaptureStopReason.USER_STOP) {
         reader?.setOnImageAvailableListener(null, null)
         reader?.close()
+        frameTimeoutFuture?.cancel(false)
+        frameTimeoutFuture = null
         reader = null
         projection?.stop()
         projection = null
@@ -356,17 +367,22 @@ class ScreenCaptureService : Service() {
 
             val frameStartedAt = System.currentTimeMillis()
             val frameToken = processingToken.incrementAndGet()
-            handler.postDelayed({
+            frameTimeoutFuture?.cancel(false)
+            frameTimeoutFuture = frameTimeoutExecutor.schedule({
                 if (processingToken.get() == frameToken && busy.compareAndSet(true, false)) {
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
-                    captureRuntime.recordFailure("Frame analysis timeout")
+                    captureRuntime.recordFailure("Frame analysis timeout (independent watchdog)")
                     captureHealth.frameDropped()
                     if (!bitmap.isRecycled) bitmap.recycle()
-                    OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
+                    handler.post {
+                        OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
+                    }
                 }
-            }, FRAME_ANALYSIS_TIMEOUT_MS)
+            }, FRAME_ANALYSIS_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             try {
                 analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                    frameTimeoutFuture?.cancel(false)
+                    frameTimeoutFuture = null
                     if (processingToken.get() != frameToken) {
                         if (!bitmap.isRecycled) bitmap.recycle()
                         return@analyze
@@ -807,6 +823,8 @@ class ScreenCaptureService : Service() {
                     }
                 }
             } catch (error: Throwable) {
+                frameTimeoutFuture?.cancel(false)
+                frameTimeoutFuture = null
                 processingToken.compareAndSet(frameToken, frameToken + 1L)
                 captureRuntime.recordFailure(
                     "Frame analyzer exception: " + (error.message ?: error.javaClass.simpleName).take(160)
@@ -855,6 +873,7 @@ class ScreenCaptureService : Service() {
         stopCaptureResources(CaptureStopReason.SERVICE_DESTROYED)
         liveScanner.close()
         analyzer.close()
+        frameTimeoutExecutor.shutdownNow()
         ActionDiagnosticsStore.latest = null
         super.onDestroy()
     }
