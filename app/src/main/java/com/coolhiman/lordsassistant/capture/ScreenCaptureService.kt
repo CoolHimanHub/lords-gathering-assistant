@@ -508,7 +508,13 @@ class ScreenCaptureService : Service() {
             val frameToken = processingToken.incrementAndGet()
             frameTimeoutFuture?.cancel(false)
             frameTimeoutFuture = frameTimeoutExecutor.schedule({
-                if (processingToken.get() == frameToken && busy.compareAndSet(true, false)) {
+                // ML Kit owns the Task until its completion callback fires.
+                // Do not invalidate a frame after the Task has already completed
+                // but before its main-thread delivery callback runs.
+                if (processingToken.get() == frameToken &&
+                    analyzer.isProcessing() &&
+                    busy.compareAndSet(true, false)
+                ) {
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
                     captureRuntime.recordFailure("Frame analysis timeout (independent watchdog)")
                     captureStage = "TIMEOUT"
@@ -518,12 +524,14 @@ class ScreenCaptureService : Service() {
                     // final bitmap cleanup, and its stale-token path will recycle it
                     // after the OCR task has actually completed.
                     handler.post {
-                        OverlayService.instance?.showStatus("FRAME ANALYSIS TIMEOUT • retrying safely")
+                        OverlayService.instance?.showStatus(
+                            "FRAME ANALYSIS TIMEOUT • " + analyzer.diagnosticState()
+                        )
                     }
                 }
             }, FRAME_ANALYSIS_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             try {
-                analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                val analysisStarted = analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
                     frameTimeoutFuture?.cancel(false)
                     frameTimeoutFuture = null
                     if (processingToken.get() != frameToken) {
@@ -965,6 +973,18 @@ class ScreenCaptureService : Service() {
                             busy.set(false)
                         }
                     }
+                }
+                if (!analysisStarted) {
+                    frameTimeoutFuture?.cancel(false)
+                    frameTimeoutFuture = null
+                    processingToken.compareAndSet(frameToken, frameToken + 1L)
+                    captureStage = "OCR BUSY"
+                    captureHealth.frameDropped()
+                    if (!bitmap.isRecycled) bitmap.recycle()
+                    busy.set(false)
+                    OverlayService.instance?.showStatus(
+                        "OCR BUSY • " + analyzer.diagnosticState()
+                    )
                 }
             } catch (error: Throwable) {
                 frameTimeoutFuture?.cancel(false)
