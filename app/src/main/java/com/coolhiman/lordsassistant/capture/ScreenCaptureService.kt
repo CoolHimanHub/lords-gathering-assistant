@@ -95,6 +95,10 @@ class ScreenCaptureService : Service() {
                 stopSelf()
                 return
             }
+            // Keep the scanner HUD attached to the foreground capture session.
+            // Android can detach overlay windows independently of the service;
+            // reattach before persisting the next live diagnostic snapshot.
+            if (captureSessionActive) ensureScannerHud()
             // Keep a lightweight live snapshot persisted even before the first
             // successful CV/OCR result. This makes MediaProjection/ImageReader
             // setup failures and zero-frame sessions diagnosable on-device.
@@ -131,7 +135,11 @@ class ScreenCaptureService : Service() {
             if (accessibilityService.showScannerHud("LM • SCANNER  ● STARTING\\nScreen scanner active")) return
         }
         if (!Settings.canDrawOverlays(this)) return
-        if (scannerHud != null) return
+        if (scannerHud != null && scannerHud?.parent != null) return
+        if (scannerHud != null && scannerHud?.parent == null) {
+            scannerHud = null
+            scannerHudManager = null
+        }
         runCatching {
             val manager = getSystemService(WINDOW_SERVICE) as WindowManager
             val view = TextView(this).apply {
@@ -163,6 +171,13 @@ class ScreenCaptureService : Service() {
             manager.addView(view, lp)
             scannerHudManager = manager
             scannerHud = view
+        }.onFailure { error ->
+            scannerHud = null
+            scannerHudManager = null
+            captureRuntime.recordFailure(
+                "Scanner HUD attach failed: " +
+                    (error.message ?: error.javaClass.simpleName).take(160)
+            )
         }
     }
 
