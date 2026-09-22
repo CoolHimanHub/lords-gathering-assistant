@@ -83,6 +83,8 @@ class ScreenCaptureService : Service() {
     // listener and UI work share that looper, so a stalled callback must still
     // be able to release the frame gate and invalidate the old token safely.
     private val frameTimeoutExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    // Bitmap conversion is the expensive CPU/memory boundary of capture. Keep it off the ImageReader callback thread so a slow allocation/GC cannot starve frame-arrival callbacks and trigger a false capture stall.
+    private val captureProcessingExecutor: java.util.concurrent.ExecutorService = Executors.newSingleThreadExecutor()
     private var frameTimeoutFuture: ScheduledFuture<*>? = null
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
@@ -484,46 +486,11 @@ class ScreenCaptureService : Service() {
                 }
             }
 
-            val bitmap = try {
-                ImageBitmapConverter.toBitmap(image)
-            } catch (_: Throwable) {
-                captureHealth.frameDropped()
-                busy.set(false)
-                return@setOnImageAvailableListener
-            } finally {
-                image.close()
-            }
-
-            if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
-                // ImageReader/VirtualDisplay dimensions are fixed for this
-                // session. A dimension change therefore indicates rotation or
-                // another display-geometry transition; do not re-baseline onto
-                // an old reader and risk applying stale screen/world geometry.
-                captureHealth.viewportReset()
-                captureRuntime.recordViewportChange()
-                captureHealth.frameDropped()
-                OverlayService.instance?.showStatus(
-                    "DISPLAY CHANGED • scanner stopped safely; restart scanner"
-                )
-                if (!bitmap.isRecycled) bitmap.recycle()
-                busy.set(false)
-                stopCaptureResources(CaptureStopReason.VIEWPORT_CHANGED)
-                stopSelf()
-                return@setOnImageAvailableListener
-            }
-
-            captureHealth.frameAccepted()
-            captureStage = "ANALYZING"
-
             val frameStartedAt = System.currentTimeMillis()
             val frameToken = processingToken.incrementAndGet()
             frameTimeoutFuture?.cancel(false)
             frameTimeoutFuture = frameTimeoutExecutor.schedule({
-                // ML Kit owns the Task until its completion callback fires.
-                // Do not invalidate a frame after the Task has already completed
-                // but before its main-thread delivery callback runs.
                 if (processingToken.get() == frameToken &&
-                    analyzer.isProcessing() &&
                     busy.compareAndSet(true, false)
                 ) {
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
@@ -532,10 +499,6 @@ class ScreenCaptureService : Service() {
                     )
                     captureStage = "TIMEOUT"
                     captureHealth.frameDropped()
-                    // Do not recycle the bitmap here: FrameAnalyzer may still hold it
-                    // through ML Kit's asynchronous Task. The analyzer callback owns
-                    // final bitmap cleanup, and its stale-token path will recycle it
-                    // after the OCR task has actually completed.
                     handler.post {
                         OverlayService.instance?.showStatus(
                             "FRAME ANALYSIS TIMEOUT • " + analyzer.diagnosticState()
@@ -543,475 +506,521 @@ class ScreenCaptureService : Service() {
                     }
                 }
             }, FRAME_ANALYSIS_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            try {
-                val analysisStarted = analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
-                    frameTimeoutFuture?.cancel(false)
-                    frameTimeoutFuture = null
-                    if (processingToken.get() != frameToken) {
-                        if (!bitmap.isRecycled) bitmap.recycle()
-                        return@analyze
-                    }
-                    try {
-                    captureStage = "LIVE SCAN"
-                    val scanStartedAt = System.currentTimeMillis()
-                    val scan = liveScanner.scan(
-                        bitmap = bitmap,
-                        defaultKingdom = result.coordinate?.kingdom ?: 0,
-                        ocrCoordinate = result.coordinate,
-                        textRegions = result.textRegions,
-                        popupState = result.popup
-                    )
-                    val scanProcessingMs = System.currentTimeMillis() - scanStartedAt
-                    val totalProcessingMs = System.currentTimeMillis() - frameStartedAt
-                    processingLatency.record(result.ocrProcessingMs, scanProcessingMs, totalProcessingMs)
-                    val latency = processingLatency.snapshot()
-                    val captureSnapshot = captureHealth.snapshot()
-                    val memorySnapshot = memoryPressurePolicy.evaluate(
-                        usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
-                        maxBytes = Runtime.getRuntime().maxMemory()
-                    )
-                    val captureQuality = captureQualityPolicy.assess(captureSnapshot, latency, memorySnapshot)
-                    val origin = scan.origin
-                    val status = buildString {
-                        append("LIVE MAP  •  ")
-                        append(scan.detectedTiles)
-                        append(" tiles / ")
-                        append(scan.plan.ranked.size)
-                        append(" targets")
-                        if (origin != null) {
-                            append("\nK").append(origin.kingdom)
-                            append(" X").append(origin.x)
-                            append(" Y").append(origin.y)
-                        } else {
-                            append("\nCalibrate + expose K/X/Y for ranking")
-                        }
-                        append("\nCamera: ").append(scan.cameraState.name)
-                        append("  Validation: ").append(scan.validation.stage.name)
-                        append("\nAction: ").append(scan.actionButton?.kind?.name ?: "NOT DETECTED")
-                        if (scan.validation.reasons.isNotEmpty()) {
-                            append("\nBlocked: ").append(scan.validation.reasons.joinToString(", ") { reason ->
-                                reason.name.replace('_', ' ')
-                            })
-                        }
-                        append("\n").append(scan.processingMs).append("ms")
-                        append("\nCapture quality: ").append(captureQuality.name)
-                    }
-                    val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
 
-                    // Feed only independently validated current-frame candidates
-                    // with a real detected action-button point into the scheduler.
-                    // Ranked map-memory targets without a verified interaction
-                    // control are never manufactured into actionable candidates.
-                    val reconciliation = com.coolhiman.lordsassistant.target.LiveActionCandidateReconciler
-                        .reconcile(scan.actionCandidates)
-                    val currentCandidates = reconciliation.eligible.map { candidate ->
-                        ActionScheduleCandidate(
-                            target = candidate.target,
-                            priority = 0,
-                            plannerRank = candidate.plannerRank,
-                            plannerScore = candidate.plannerScore,
-                            stabilityFrames = candidate.stability.consecutiveFrames,
-                            validationSafe = true,
-                            queuedAtMs = now
-                        )
+            try {
+                captureProcessingExecutor.execute {
+                    val bitmap = try {
+                        ImageBitmapConverter.toBitmap(image)
+                    } catch (_: Throwable) {
+                        handler.post {
+                            if (processingToken.get() == frameToken &&
+                                busy.compareAndSet(true, false)
+                            ) {
+                                processingToken.compareAndSet(frameToken, frameToken + 1L)
+                                frameTimeoutFuture?.cancel(false)
+                                frameTimeoutFuture = null
+                                captureHealth.frameDropped()
+                                captureRuntime.recordFailure("Frame bitmap conversion failed")
+                                captureStage = "CONVERSION ERROR"
+                                OverlayService.instance?.showStatus(
+                                    "FRAME BITMAP CONVERSION FAILED • retrying safely"
+                                )
+                            }
+                        }
+                        return@execute
+                    } finally {
+                        image.close()
                     }
-                    actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
-                        actionAuditLog.appendIfChanged(
-                            ActionAuditEvent(
-                                timestampMs = now,
-                                type = ActionAuditEventType.CANDIDATE_DROPPED,
-                                captureSessionId = captureRuntime.snapshot().sessionId,
-                                target = droppedTarget,
-                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                detail = "removed by latest-scan reconciliation"
+
+                    handler.post {
+                captureHealth.frameAccepted()
+                captureStage = "ANALYZING"
+
+                try {
+                    val analysisStarted = analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                        frameTimeoutFuture?.cancel(false)
+                        frameTimeoutFuture = null
+                        if (processingToken.get() != frameToken) {
+                            if (!bitmap.isRecycled) bitmap.recycle()
+                            return@analyze
+                        }
+                        try {
+                        captureStage = "LIVE SCAN"
+                        val scanStartedAt = System.currentTimeMillis()
+                        val scan = liveScanner.scan(
+                            bitmap = bitmap,
+                            defaultKingdom = result.coordinate?.kingdom ?: 0,
+                            ocrCoordinate = result.coordinate,
+                            textRegions = result.textRegions,
+                            popupState = result.popup
+                        )
+                        val scanProcessingMs = System.currentTimeMillis() - scanStartedAt
+                        val totalProcessingMs = System.currentTimeMillis() - frameStartedAt
+                        processingLatency.record(result.ocrProcessingMs, scanProcessingMs, totalProcessingMs)
+                        val latency = processingLatency.snapshot()
+                        val captureSnapshot = captureHealth.snapshot()
+                        val memorySnapshot = memoryPressurePolicy.evaluate(
+                            usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                            maxBytes = Runtime.getRuntime().maxMemory()
+                        )
+                        val captureQuality = captureQualityPolicy.assess(captureSnapshot, latency, memorySnapshot)
+                        val origin = scan.origin
+                        val status = buildString {
+                            append("LIVE MAP  •  ")
+                            append(scan.detectedTiles)
+                            append(" tiles / ")
+                            append(scan.plan.ranked.size)
+                            append(" targets")
+                            if (origin != null) {
+                                append("\nK").append(origin.kingdom)
+                                append(" X").append(origin.x)
+                                append(" Y").append(origin.y)
+                            } else {
+                                append("\nCalibrate + expose K/X/Y for ranking")
+                            }
+                            append("\nCamera: ").append(scan.cameraState.name)
+                            append("  Validation: ").append(scan.validation.stage.name)
+                            append("\nAction: ").append(scan.actionButton?.kind?.name ?: "NOT DETECTED")
+                            if (scan.validation.reasons.isNotEmpty()) {
+                                append("\nBlocked: ").append(scan.validation.reasons.joinToString(", ") { reason ->
+                                    reason.name.replace('_', ' ')
+                                })
+                            }
+                            append("\n").append(scan.processingMs).append("ms")
+                            append("\nCapture quality: ").append(captureQuality.name)
+                        }
+                        val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
+
+                        // Feed only independently validated current-frame candidates
+                        // with a real detected action-button point into the scheduler.
+                        // Ranked map-memory targets without a verified interaction
+                        // control are never manufactured into actionable candidates.
+                        val reconciliation = com.coolhiman.lordsassistant.target.LiveActionCandidateReconciler
+                            .reconcile(scan.actionCandidates)
+                        val currentCandidates = reconciliation.eligible.map { candidate ->
+                            ActionScheduleCandidate(
+                                target = candidate.target,
+                                priority = 0,
+                                plannerRank = candidate.plannerRank,
+                                plannerScore = candidate.plannerScore,
+                                stabilityFrames = candidate.stability.consecutiveFrames,
+                                validationSafe = true,
+                                queuedAtMs = now
                             )
-                        )
-                    }
-                    scan.actionCandidates.forEach { candidate ->
-                        val rejection = com.coolhiman.lordsassistant.target.LiveActionCandidatePolicy.rejectionReason(candidate)
-                        if (rejection == null) {
+                        }
+                        actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
                             actionAuditLog.appendIfChanged(
                                 ActionAuditEvent(
                                     timestampMs = now,
-                                    type = ActionAuditEventType.CANDIDATE_QUEUED,
+                                    type = ActionAuditEventType.CANDIDATE_DROPPED,
                                     captureSessionId = captureRuntime.snapshot().sessionId,
-                                    target = candidate.target,
+                                    target = droppedTarget,
                                     recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                    detail = "independently validated current-frame candidate"
-                                )
-                            )
-                        } else {
-                            actionAuditLog.appendIfChanged(
-                                ActionAuditEvent(
-                                    timestampMs = now,
-                                    type = ActionAuditEventType.CANDIDATE_REJECTED,
-                                    captureSessionId = captureRuntime.snapshot().sessionId,
-                                    target = candidate.target,
-                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                    detail = rejection.name
+                                    detail = "removed by latest-scan reconciliation"
                                 )
                             )
                         }
-                    }
-                    val liveCaptureSessionId = captureRuntime.snapshot().sessionId
-                    if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
-                        actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
-                    ) {
-                        val recoveryResult = actionOrchestrator.reset()
-                        val recoveryPersisted = persistRecoveryEpoch()
-                        actionAuditLog.append(
-                            ActionAuditEvent(
-                                timestampMs = now,
-                                type = ActionAuditEventType.RECOVERY_RESET,
-                                            captureSessionId = liveCaptureSessionId,
-                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                detail = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
-                                    "Deliberate UNKNOWN recovery completed"
-                                } else {
-                                    "Deliberate UNKNOWN recovery did not establish a fresh durable boundary"
-                                }
-                            )
-                        )
-                        val journalCleared = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
-                            actionJournal.clear()
-                        } else {
-                            false
-                        }
-                        val quarantineReleased = recoveryQuarantine.releaseAfterDeliberateRecovery(
-                            lifecycleIdle = recoveryResult.lifecycle.state == ActionLifecycleState.IDLE,
-                            recoveryEpochPersisted = recoveryPersisted,
-                            journalCleared = journalCleared,
-                            currentCaptureSessionId = liveCaptureSessionId
-                        )
-                        if (quarantineReleased) {
-                            previousScan = null
-                        }
-                        ActionDiagnosticsStore.latest?.let { latest ->
-                            ActionDiagnosticsStore.latest = latest.copy(
-                                lifecycle = actionOrchestrator.lifecycleSnapshot,
-                                evidence = null,
-                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
-                                journalAttemptId = actionJournal.readInFlight()?.attemptId,
-                                journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
-                                journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
-                                reconciledInitialEpoch = reconciledInitialEpoch,
-                                restartQuarantine = recoveryQuarantine.active,
-                                timestampMs = now
-                            )
-                        }
-                    }
-                    if (!recoveryEpochPersistenceHealthy &&
-                        actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.IDLE &&
-                        !recoveryQuarantine.active
-                    ) {
-                        if (persistRecoveryEpoch() && actionJournal.clear()) {
-                            previousScan = null
-                        }
-                    }
-                    val active = actionOrchestrator.lifecycleSnapshot.state
-                    if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !recoveryQuarantine.active) {
-                        when {
-                            ActionRecoveryPolicy.mayStartAutomaticAttempt(actionOrchestrator.lifecycleSnapshot) -> {
-                                val previous = previousScan
-                                val safetyState = ActionSchedulerSafetyState(
-                                    lifecycle = actionOrchestrator.lifecycleSnapshot,
-                                    automaticActionsEnabled = prefs.automaticActions,
-                                    restartQuarantine = recoveryQuarantine.active,
-                                    recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy
-                                )
-                                val decision = actionSchedulerAdapter.select(now, safetyState)
-                                if (decision.candidate == null) {
-                                    actionAuditLog.appendIfChanged(
-                                        ActionAuditEvent(
-                                            timestampMs = now,
-                                            type = ActionAuditEventType.SCHEDULER_BLOCKED,
-                                            captureSessionId = liveCaptureSessionId,
-                                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                            detail = decision.reason?.name ?: "NO_DECISION"
-                                        )
-                                    )
-                                }
-                                val scheduled = if (decision.candidate != null) {
-                                    actionSchedulerAdapter.claim(now, safetyState).candidate
-                                } else null
-                                val previousFrame = previous
-                                val previousCandidate = scheduled?.let { selected ->
-                                    previousFrame?.actionCandidates?.firstOrNull { it.target.identity() == selected.target.identity() }
-                                }
-                                val currentCandidate = scheduled?.let { selected ->
-                                    scan.actionCandidates.firstOrNull { it.target.identity() == selected.target.identity() }
-                                }
-                                if (previousCandidate != null &&
-                                    currentCandidate != null &&
-                                    previousCandidate.validation.safe &&
-                                    previousCandidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT &&
-                                    currentCandidate.validation.safe &&
-                                    currentCandidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
-                                ) {
-                                    actionAuditLog.append(ActionAuditEvent(
+                        scan.actionCandidates.forEach { candidate ->
+                            val rejection = com.coolhiman.lordsassistant.target.LiveActionCandidatePolicy.rejectionReason(candidate)
+                            if (rejection == null) {
+                                actionAuditLog.appendIfChanged(
+                                    ActionAuditEvent(
                                         timestampMs = now,
-                                        type = ActionAuditEventType.CANDIDATE_SELECTED,
-                                            captureSessionId = liveCaptureSessionId,
-                                        target = scheduled.target,
-                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch
-                                    ))
-                                    val requestResult = actionOrchestrator.request(
-                                        automaticActionsEnabled = true,
-                                        selected = scheduled.target,
-                                        validation = previousCandidate.validation,
-                                        beforeObservation = previousCandidate.observation,
-                                        popupBefore = previousFrame?.popupState,
-                                        baselineMarchSignals = previousFrame?.marchSignals.orEmpty(),
-                                        captureSessionId = liveCaptureSessionId,
-                                        nowMs = now
+                                        type = ActionAuditEventType.CANDIDATE_QUEUED,
+                                        captureSessionId = captureRuntime.snapshot().sessionId,
+                                        target = candidate.target,
+                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                        detail = "independently validated current-frame candidate"
                                     )
-                                    actionAuditLog.append(
-                                        ActionAuditEvent(
-                                            timestampMs = now,
-                                            captureSessionId = liveCaptureSessionId,
-                                            type = if (requestResult.lifecycle.failure == ActionLifecycleFailure.ATTEMPT_ID_PERSISTENCE_FAILED) {
-                                                ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED
-                                            } else {
-                                                ActionAuditEventType.ACTION_REQUESTED
-                                            },
-                                            attemptId = requestResult.session?.attemptId,
-                                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                            target = scheduled.target,
-                                            detail = requestResult.lifecycle.failure?.name
-                                        )
+                                )
+                            } else {
+                                actionAuditLog.appendIfChanged(
+                                    ActionAuditEvent(
+                                        timestampMs = now,
+                                        type = ActionAuditEventType.CANDIDATE_REJECTED,
+                                        captureSessionId = captureRuntime.snapshot().sessionId,
+                                        target = candidate.target,
+                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                        detail = rejection.name
                                     )
-                                    actionOrchestrator.revalidate(
-                                        latestObservation = currentCandidate.observation,
-                                        latestValidation = currentCandidate.validation,
-                                        latestAction = currentCandidate.actionButton
+                                )
+                            }
+                        }
+                        val liveCaptureSessionId = captureRuntime.snapshot().sessionId
+                        if (!prefs.automaticActions && ActionManualRecoveryStore.consumeResetRequest() &&
+                            actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.UNKNOWN
+                        ) {
+                            val recoveryResult = actionOrchestrator.reset()
+                            val recoveryPersisted = persistRecoveryEpoch()
+                            actionAuditLog.append(
+                                ActionAuditEvent(
+                                    timestampMs = now,
+                                    type = ActionAuditEventType.RECOVERY_RESET,
+                                                captureSessionId = liveCaptureSessionId,
+                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                    detail = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
+                                        "Deliberate UNKNOWN recovery completed"
+                                    } else {
+                                        "Deliberate UNKNOWN recovery did not establish a fresh durable boundary"
+                                    }
+                                )
+                            )
+                            val journalCleared = if (recoveryPersisted && recoveryResult.lifecycle.state == ActionLifecycleState.IDLE) {
+                                actionJournal.clear()
+                            } else {
+                                false
+                            }
+                            val quarantineReleased = recoveryQuarantine.releaseAfterDeliberateRecovery(
+                                lifecycleIdle = recoveryResult.lifecycle.state == ActionLifecycleState.IDLE,
+                                recoveryEpochPersisted = recoveryPersisted,
+                                journalCleared = journalCleared,
+                                currentCaptureSessionId = liveCaptureSessionId
+                            )
+                            if (quarantineReleased) {
+                                previousScan = null
+                            }
+                            ActionDiagnosticsStore.latest?.let { latest ->
+                                ActionDiagnosticsStore.latest = latest.copy(
+                                    lifecycle = actionOrchestrator.lifecycleSnapshot,
+                                    evidence = null,
+                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                    recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
+                                    journalAttemptId = actionJournal.readInFlight()?.attemptId,
+                                    journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
+                                    journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
+                                    reconciledInitialEpoch = reconciledInitialEpoch,
+                                    restartQuarantine = recoveryQuarantine.active,
+                                    timestampMs = now
+                                )
+                            }
+                        }
+                        if (!recoveryEpochPersistenceHealthy &&
+                            actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.IDLE &&
+                            !recoveryQuarantine.active
+                        ) {
+                            if (persistRecoveryEpoch() && actionJournal.clear()) {
+                                previousScan = null
+                            }
+                        }
+                        val active = actionOrchestrator.lifecycleSnapshot.state
+                        if (prefs.automaticActions && recoveryEpochPersistenceHealthy && !recoveryQuarantine.active) {
+                            when {
+                                ActionRecoveryPolicy.mayStartAutomaticAttempt(actionOrchestrator.lifecycleSnapshot) -> {
+                                    val previous = previousScan
+                                    val safetyState = ActionSchedulerSafetyState(
+                                        lifecycle = actionOrchestrator.lifecycleSnapshot,
+                                        automaticActionsEnabled = prefs.automaticActions,
+                                        restartQuarantine = recoveryQuarantine.active,
+                                        recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy
                                     )
-                                    if (actionOrchestrator.lifecycleSnapshot.state != ActionLifecycleState.REVALIDATED) {
+                                    val decision = actionSchedulerAdapter.select(now, safetyState)
+                                    if (decision.candidate == null) {
                                         actionAuditLog.appendIfChanged(
                                             ActionAuditEvent(
                                                 timestampMs = now,
-                                                type = ActionAuditEventType.REVALIDATION_FAILED,
-                                            captureSessionId = liveCaptureSessionId,
-                                                attemptId = actionOrchestrator.session?.attemptId,
+                                                type = ActionAuditEventType.SCHEDULER_BLOCKED,
+                                                captureSessionId = liveCaptureSessionId,
                                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                                target = scheduled.target,
-                                                detail = actionOrchestrator.lifecycleSnapshot.failure?.name
+                                                detail = decision.reason?.name ?: "NO_DECISION"
                                             )
                                         )
                                     }
-                                    if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
+                                    val scheduled = if (decision.candidate != null) {
+                                        actionSchedulerAdapter.claim(now, safetyState).candidate
+                                    } else null
+                                    val previousFrame = previous
+                                    val previousCandidate = scheduled?.let { selected ->
+                                        previousFrame?.actionCandidates?.firstOrNull { it.target.identity() == selected.target.identity() }
+                                    }
+                                    val currentCandidate = scheduled?.let { selected ->
+                                        scan.actionCandidates.firstOrNull { it.target.identity() == selected.target.identity() }
+                                    }
+                                    if (previousCandidate != null &&
+                                        currentCandidate != null &&
+                                        previousCandidate.validation.safe &&
+                                        previousCandidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT &&
+                                        currentCandidate.validation.safe &&
+                                        currentCandidate.validation.stage == com.coolhiman.lordsassistant.target.TargetValidationStage.SAFE_TO_INTERACT
+                                    ) {
+                                        actionAuditLog.append(ActionAuditEvent(
+                                            timestampMs = now,
+                                            type = ActionAuditEventType.CANDIDATE_SELECTED,
+                                                captureSessionId = liveCaptureSessionId,
+                                            target = scheduled.target,
+                                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch
+                                        ))
+                                        val requestResult = actionOrchestrator.request(
+                                            automaticActionsEnabled = true,
+                                            selected = scheduled.target,
+                                            validation = previousCandidate.validation,
+                                            beforeObservation = previousCandidate.observation,
+                                            popupBefore = previousFrame?.popupState,
+                                            baselineMarchSignals = previousFrame?.marchSignals.orEmpty(),
+                                            captureSessionId = liveCaptureSessionId,
+                                            nowMs = now
+                                        )
                                         actionAuditLog.append(
                                             ActionAuditEvent(
                                                 timestampMs = now,
-                                                type = ActionAuditEventType.ACTION_REVALIDATED,
-                                            captureSessionId = liveCaptureSessionId,
-                                                attemptId = actionOrchestrator.session?.attemptId,
+                                                captureSessionId = liveCaptureSessionId,
+                                                type = if (requestResult.lifecycle.failure == ActionLifecycleFailure.ATTEMPT_ID_PERSISTENCE_FAILED) {
+                                                    ActionAuditEventType.ATTEMPT_ID_PERSISTENCE_FAILED
+                                                } else {
+                                                    ActionAuditEventType.ACTION_REQUESTED
+                                                },
+                                                attemptId = requestResult.session?.attemptId,
                                                 recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                                target = scheduled.target
+                                                target = scheduled.target,
+                                                detail = requestResult.lifecycle.failure?.name
                                             )
                                         )
-                                        val session = actionOrchestrator.session
-                                        val provenance = session?.let {
-                                            ActionDispatchProvenance(
-                                                attemptId = it.attemptId,
-                                                recoveryEpoch = it.recoveryEpoch,
-                                                startedAtMs = now,
-                                                captureSessionId = liveCaptureSessionId
-                                            )
-                                        }
-                                        if (provenance != null &&
-                                            provenance.matches(actionOrchestrator.session) &&
-                                            actionJournal.markInFlight(provenance)
-                                        ) {
-                                            actionAuditLog.append(ActionAuditEvent(
-                                                timestampMs = now,
-                                                type = ActionAuditEventType.DISPATCH_BARRIER_OPENED,
-                                            captureSessionId = liveCaptureSessionId,
-                                                attemptId = provenance.attemptId,
-                                                recoveryEpoch = provenance.recoveryEpoch,
-                                                target = scheduled.target
-                                            ))
-                                            // Keep scheduler in-flight state aligned with the
-                                            // durable dispatch barrier. This blocks another live
-                                            // selection until the guarded dispatch returns.
-                                            actionSchedulerAdapter.markDispatchStarted(now)
-                                            actionOrchestrator.dispatch(now) {
-                                                runCatching {
-                                                    LmAccessibilityService.instance?.tapRevalidated(
-                                                        selected = currentCandidate.target,
-                                                        latestObservation = currentCandidate.observation,
-                                                        latestValidation = currentCandidate.validation,
-                                                        latestAction = currentCandidate.actionButton
-                                                    ) == true
-                                                }.getOrDefault(false)
-                                            }.also { result ->
-                                                actionSchedulerAdapter.markActionFinished()
-                                                actionAuditLog.append(ActionAuditEvent(
-                                                    timestampMs = now,
-                                                    captureSessionId = liveCaptureSessionId,
-                                                    type = if (result.lifecycle.state == ActionLifecycleState.FAILED) ActionAuditEventType.DISPATCH_FAILED else ActionAuditEventType.DISPATCH_SUCCEEDED,
-                                                    attemptId = provenance.attemptId,
-                                                    recoveryEpoch = provenance.recoveryEpoch,
-                                                    target = scheduled.target,
-                                                    detail = result.lifecycle.state.name
-                                                ))
-                                                if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
-                                            }
-                                        } else if (provenance != null) {
+                                        actionOrchestrator.revalidate(
+                                            latestObservation = currentCandidate.observation,
+                                            latestValidation = currentCandidate.validation,
+                                            latestAction = currentCandidate.actionButton
+                                        )
+                                        if (actionOrchestrator.lifecycleSnapshot.state != ActionLifecycleState.REVALIDATED) {
                                             actionAuditLog.appendIfChanged(
                                                 ActionAuditEvent(
                                                     timestampMs = now,
-                                                    type = ActionAuditEventType.DISPATCH_BARRIER_FAILED,
-                                            captureSessionId = liveCaptureSessionId,
-                                                    attemptId = provenance.attemptId,
-                                                    recoveryEpoch = provenance.recoveryEpoch,
+                                                    type = ActionAuditEventType.REVALIDATION_FAILED,
+                                                captureSessionId = liveCaptureSessionId,
+                                                    attemptId = actionOrchestrator.session?.attemptId,
+                                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
                                                     target = scheduled.target,
-                                                    detail = "durable in-flight journal barrier could not be committed"
+                                                    detail = actionOrchestrator.lifecycleSnapshot.failure?.name
                                                 )
                                             )
-                                            actionOrchestrator.reset()
-                                            persistRecoveryEpoch()
-                                            actionJournal.clear()
-                                            // Durable epoch health remains the execution gate.
+                                        }
+                                        if (actionOrchestrator.lifecycleSnapshot.state == ActionLifecycleState.REVALIDATED) {
+                                            actionAuditLog.append(
+                                                ActionAuditEvent(
+                                                    timestampMs = now,
+                                                    type = ActionAuditEventType.ACTION_REVALIDATED,
+                                                captureSessionId = liveCaptureSessionId,
+                                                    attemptId = actionOrchestrator.session?.attemptId,
+                                                    recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                                    target = scheduled.target
+                                                )
+                                            )
+                                            val session = actionOrchestrator.session
+                                            val provenance = session?.let {
+                                                ActionDispatchProvenance(
+                                                    attemptId = it.attemptId,
+                                                    recoveryEpoch = it.recoveryEpoch,
+                                                    startedAtMs = now,
+                                                    captureSessionId = liveCaptureSessionId
+                                                )
+                                            }
+                                            if (provenance != null &&
+                                                provenance.matches(actionOrchestrator.session) &&
+                                                actionJournal.markInFlight(provenance)
+                                            ) {
+                                                actionAuditLog.append(ActionAuditEvent(
+                                                    timestampMs = now,
+                                                    type = ActionAuditEventType.DISPATCH_BARRIER_OPENED,
+                                                captureSessionId = liveCaptureSessionId,
+                                                    attemptId = provenance.attemptId,
+                                                    recoveryEpoch = provenance.recoveryEpoch,
+                                                    target = scheduled.target
+                                                ))
+                                                // Keep scheduler in-flight state aligned with the
+                                                // durable dispatch barrier. This blocks another live
+                                                // selection until the guarded dispatch returns.
+                                                actionSchedulerAdapter.markDispatchStarted(now)
+                                                actionOrchestrator.dispatch(now) {
+                                                    runCatching {
+                                                        LmAccessibilityService.instance?.tapRevalidated(
+                                                            selected = currentCandidate.target,
+                                                            latestObservation = currentCandidate.observation,
+                                                            latestValidation = currentCandidate.validation,
+                                                            latestAction = currentCandidate.actionButton
+                                                        ) == true
+                                                    }.getOrDefault(false)
+                                                }.also { result ->
+                                                    actionSchedulerAdapter.markActionFinished()
+                                                    actionAuditLog.append(ActionAuditEvent(
+                                                        timestampMs = now,
+                                                        captureSessionId = liveCaptureSessionId,
+                                                        type = if (result.lifecycle.state == ActionLifecycleState.FAILED) ActionAuditEventType.DISPATCH_FAILED else ActionAuditEventType.DISPATCH_SUCCEEDED,
+                                                        attemptId = provenance.attemptId,
+                                                        recoveryEpoch = provenance.recoveryEpoch,
+                                                        target = scheduled.target,
+                                                        detail = result.lifecycle.state.name
+                                                    ))
+                                                    if (result.lifecycle.state == ActionLifecycleState.FAILED) actionJournal.clear()
+                                                }
+                                            } else if (provenance != null) {
+                                                actionAuditLog.appendIfChanged(
+                                                    ActionAuditEvent(
+                                                        timestampMs = now,
+                                                        type = ActionAuditEventType.DISPATCH_BARRIER_FAILED,
+                                                captureSessionId = liveCaptureSessionId,
+                                                        attemptId = provenance.attemptId,
+                                                        recoveryEpoch = provenance.recoveryEpoch,
+                                                        target = scheduled.target,
+                                                        detail = "durable in-flight journal barrier could not be committed"
+                                                    )
+                                                )
+                                                actionOrchestrator.reset()
+                                                persistRecoveryEpoch()
+                                                actionJournal.clear()
+                                                // Durable epoch health remains the execution gate.
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            active == ActionLifecycleState.WAITING_FOR_RESULT -> {
-                                actionOrchestrator.observeMarch(scan.marchSignals, now)
-                                val verification = actionOrchestrator.verifyPostAction(
-                                    afterObservation = scan.selectedObservation,
-                                    popupAfter = scan.popupState,
-                                    nowMs = now
-                                )
-                                if (verification.lifecycle.state == ActionLifecycleState.UNKNOWN) {
-                                    val failure = verification.lifecycle.failure
-                                    actionAuditLog.appendIfChanged(
-                                        ActionAuditEvent(
+                                active == ActionLifecycleState.WAITING_FOR_RESULT -> {
+                                    actionOrchestrator.observeMarch(scan.marchSignals, now)
+                                    val verification = actionOrchestrator.verifyPostAction(
+                                        afterObservation = scan.selectedObservation,
+                                        popupAfter = scan.popupState,
+                                        nowMs = now
+                                    )
+                                    if (verification.lifecycle.state == ActionLifecycleState.UNKNOWN) {
+                                        val failure = verification.lifecycle.failure
+                                        actionAuditLog.appendIfChanged(
+                                            ActionAuditEvent(
+                                                timestampMs = now,
+                                                captureSessionId = liveCaptureSessionId,
+                                                type = if (failure == ActionLifecycleFailure.VERIFICATION_TIMEOUT) {
+                                                    ActionAuditEventType.VERIFICATION_TIMEOUT
+                                                } else {
+                                                    ActionAuditEventType.UNKNOWN_ENTERED
+                                                },
+                                                attemptId = actionOrchestrator.session?.attemptId,
+                                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                                                detail = failure?.name ?: "POST_ACTION_EVIDENCE_INCONCLUSIVE"
+                                            )
+                                        )
+                                    }
+                                    if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED ||
+                                        verification.lifecycle.state == ActionLifecycleState.FAILED
+                                    ) {
+                                        actionAuditLog.append(ActionAuditEvent(
                                             timestampMs = now,
                                             captureSessionId = liveCaptureSessionId,
-                                            type = if (failure == ActionLifecycleFailure.VERIFICATION_TIMEOUT) {
-                                                ActionAuditEventType.VERIFICATION_TIMEOUT
-                                            } else {
-                                                ActionAuditEventType.UNKNOWN_ENTERED
-                                            },
+                                            type = if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED) ActionAuditEventType.VERIFICATION_SUCCEEDED else ActionAuditEventType.VERIFICATION_FAILED,
                                             attemptId = actionOrchestrator.session?.attemptId,
                                             recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                            detail = failure?.name ?: "POST_ACTION_EVIDENCE_INCONCLUSIVE"
-                                        )
-                                    )
-                                }
-                                if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED ||
-                                    verification.lifecycle.state == ActionLifecycleState.FAILED
-                                ) {
-                                    actionAuditLog.append(ActionAuditEvent(
-                                        timestampMs = now,
-                                        captureSessionId = liveCaptureSessionId,
-                                        type = if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED) ActionAuditEventType.VERIFICATION_SUCCEEDED else ActionAuditEventType.VERIFICATION_FAILED,
-                                        attemptId = actionOrchestrator.session?.attemptId,
-                                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                                        detail = verification.lifecycle.state.name
-                                    ))
-                                    actionJournal.clear()
-                                    if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED) {
-                                        actionOrchestrator.session?.selected?.let { completedTarget ->
-                                            actionSchedulerAdapter.markTargetCompleted(completedTarget, now)
+                                            detail = verification.lifecycle.state.name
+                                        ))
+                                        actionJournal.clear()
+                                        if (verification.lifecycle.state == ActionLifecycleState.SUCCEEDED) {
+                                            actionOrchestrator.session?.selected?.let { completedTarget ->
+                                                actionSchedulerAdapter.markTargetCompleted(completedTarget, now)
+                                            }
                                         }
                                     }
                                 }
                             }
+                        } else if (active != ActionLifecycleState.IDLE && !recoveryQuarantine.active) {
+                            val resetResult = actionOrchestrator.reset()
+                            val persisted = persistRecoveryEpoch()
+                            if (resetResult.lifecycle.state == ActionLifecycleState.IDLE && persisted) {
+                                actionJournal.clear()
+                            }
                         }
-                    } else if (active != ActionLifecycleState.IDLE && !recoveryQuarantine.active) {
-                        val resetResult = actionOrchestrator.reset()
-                        val persisted = persistRecoveryEpoch()
-                        if (resetResult.lifecycle.state == ActionLifecycleState.IDLE && persisted) {
-                            actionJournal.clear()
+
+                        ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
+                            scan = scan,
+                            lifecycle = actionOrchestrator.lifecycleSnapshot,
+                            evidence = actionOrchestrator.lastPostActionEvidence,
+                            actionAttemptId = actionOrchestrator.session?.attemptId
+                                ?: actionJournal.readInFlight()?.attemptId,
+                            recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
+                            recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
+                            journalAttemptId = actionJournal.readInFlight()?.attemptId,
+                            journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
+                            journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
+                            journalCaptureSessionId = actionJournal.readInFlight()?.captureSessionId,
+                            reconciledInitialEpoch = reconciledInitialEpoch,
+                            restartQuarantine = recoveryQuarantine.active,
+                            timestampMs = now
+                        )
+
+                        val health = captureHealth.snapshot()
+                        val runtime = captureRuntime.snapshot()
+                        val memory = memoryPressurePolicy.evaluate(
+                            usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                            maxBytes = Runtime.getRuntime().maxMemory()
+                        )
+                        captureHealth.processingFinished(System.currentTimeMillis() - now)
+                        val diagnostics = CaptureSessionDiagnostics.snapshot(
+                            capture = captureHealth.snapshot(),
+                            runtime = runtime,
+                            latency = processingLatency.snapshot(),
+                            quality = captureQualityPolicy.assess(
+                                captureHealth.snapshot(),
+                                processingLatency.snapshot(),
+                                memory
+                            ),
+                            candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
+                        )
+                        captureDiagnosticsStore.save(diagnostics)
+                        OverlayService.instance?.showStatus(
+                            status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
+                                "\nCapture: " + diagnostics.averageProcessingMs.toLong() + "ms avg / " +
+                                diagnostics.dropRatePercent.toInt() + "% dropped / " +
+                                diagnostics.staleFrames + " stale" +
+                                "\nSession: #" + diagnostics.sessionId + " / restarts " + diagnostics.restartCount +
+                                " / stalls " + diagnostics.stallCount +
+                                " / viewport changes " + diagnostics.viewportChangeCount +
+                                " / memory " + memory.level.name +
+                                "\nOCR: " + diagnostics.averageOcrMs.toLong() + "ms avg / Scan: " +
+                                diagnostics.averageScannerMs.toLong() + "ms avg / Quality: " +
+                                diagnostics.quality.name
+                        )
+                        OverlayService.instance?.showTargets(scan.plan.ranked)
+                        previousScan = scan
+                        } finally {
+                            if (processingToken.compareAndSet(frameToken, frameToken + 1L)) {
+                                if (!bitmap.isRecycled) bitmap.recycle()
+                                busy.set(false)
+                            }
                         }
                     }
-
-                    ActionDiagnosticsStore.latest = ActionDiagnosticsSnapshot.fromScan(
-                        scan = scan,
-                        lifecycle = actionOrchestrator.lifecycleSnapshot,
-                        evidence = actionOrchestrator.lastPostActionEvidence,
-                        actionAttemptId = actionOrchestrator.session?.attemptId
-                            ?: actionJournal.readInFlight()?.attemptId,
-                        recoveryEpoch = actionOrchestrator.currentRecoveryEpoch,
-                        recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
-                        journalAttemptId = actionJournal.readInFlight()?.attemptId,
-                        journalRecoveryEpoch = actionJournal.readInFlight()?.recoveryEpoch,
-                        journalRecoveryEpochPersisted = actionJournal.readInFlight()?.recoveryEpochPersisted == true,
-                        journalCaptureSessionId = actionJournal.readInFlight()?.captureSessionId,
-                        reconciledInitialEpoch = reconciledInitialEpoch,
-                        restartQuarantine = recoveryQuarantine.active,
-                        timestampMs = now
-                    )
-
-                    val health = captureHealth.snapshot()
-                    val runtime = captureRuntime.snapshot()
-                    val memory = memoryPressurePolicy.evaluate(
-                        usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
-                        maxBytes = Runtime.getRuntime().maxMemory()
-                    )
-                    captureHealth.processingFinished(System.currentTimeMillis() - now)
-                    val diagnostics = CaptureSessionDiagnostics.snapshot(
-                        capture = captureHealth.snapshot(),
-                        runtime = runtime,
-                        latency = processingLatency.snapshot(),
-                        quality = captureQualityPolicy.assess(
-                            captureHealth.snapshot(),
-                            processingLatency.snapshot(),
-                            memory
-                        ),
-                        candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
-                    )
-                    captureDiagnosticsStore.save(diagnostics)
-                    OverlayService.instance?.showStatus(
-                        status + "\nAuto lifecycle: " + actionOrchestrator.lifecycleSnapshot.state.name +
-                            "\nCapture: " + diagnostics.averageProcessingMs.toLong() + "ms avg / " +
-                            diagnostics.dropRatePercent.toInt() + "% dropped / " +
-                            diagnostics.staleFrames + " stale" +
-                            "\nSession: #" + diagnostics.sessionId + " / restarts " + diagnostics.restartCount +
-                            " / stalls " + diagnostics.stallCount +
-                            " / viewport changes " + diagnostics.viewportChangeCount +
-                            " / memory " + memory.level.name +
-                            "\nOCR: " + diagnostics.averageOcrMs.toLong() + "ms avg / Scan: " +
-                            diagnostics.averageScannerMs.toLong() + "ms avg / Quality: " +
-                            diagnostics.quality.name
-                    )
-                    OverlayService.instance?.showTargets(scan.plan.ranked)
-                    previousScan = scan
-                    } finally {
-                        if (processingToken.compareAndSet(frameToken, frameToken + 1L)) {
-                            if (!bitmap.isRecycled) bitmap.recycle()
-                            busy.set(false)
-                        }
+                    if (!analysisStarted) {
+                        frameTimeoutFuture?.cancel(false)
+                        frameTimeoutFuture = null
+                        processingToken.compareAndSet(frameToken, frameToken + 1L)
+                        captureStage = "OCR BUSY"
+                        captureHealth.frameDropped()
+                        if (!bitmap.isRecycled) bitmap.recycle()
+                        busy.set(false)
+                        OverlayService.instance?.showStatus(
+                            "OCR BUSY • " + analyzer.diagnosticState()
+                        )
                     }
-                }
-                if (!analysisStarted) {
+                } catch (error: Throwable) {
                     frameTimeoutFuture?.cancel(false)
                     frameTimeoutFuture = null
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
-                    captureStage = "OCR BUSY"
+                    captureStage = "ERROR"
+                    captureRuntime.recordFailure(
+                        "Frame analyzer exception: " + (error.message ?: error.javaClass.simpleName).take(160)
+                    )
                     captureHealth.frameDropped()
                     if (!bitmap.isRecycled) bitmap.recycle()
                     busy.set(false)
-                    OverlayService.instance?.showStatus(
-                        "OCR BUSY • " + analyzer.diagnosticState()
-                    )
+                    OverlayService.instance?.showStatus("FRAME ANALYZER ERROR • retrying safely")
+                }
+            }, captureHandler)
+
+                    }
                 }
             } catch (error: Throwable) {
                 frameTimeoutFuture?.cancel(false)
                 frameTimeoutFuture = null
                 processingToken.compareAndSet(frameToken, frameToken + 1L)
-                captureStage = "ERROR"
                 captureRuntime.recordFailure(
-                    "Frame analyzer exception: " + (error.message ?: error.javaClass.simpleName).take(160)
+                    "Frame processing dispatch failed: " + (error.message ?: error.javaClass.simpleName).take(160)
                 )
                 captureHealth.frameDropped()
-                if (!bitmap.isRecycled) bitmap.recycle()
                 busy.set(false)
-                OverlayService.instance?.showStatus("FRAME ANALYZER ERROR • retrying safely")
+                OverlayService.instance?.showStatus("FRAME PROCESSING DISPATCH FAILED • retrying safely")
             }
+            return@setOnImageAvailableListener
         }, captureHandler)
 
         try {
@@ -1052,6 +1061,7 @@ class ScreenCaptureService : Service() {
         liveScanner.close()
         analyzer.close()
         frameTimeoutExecutor.shutdownNow()
+        captureProcessingExecutor.shutdownNow()
         captureThread.quitSafely()
         removeScannerHud()
         ActionDiagnosticsStore.latest = null
