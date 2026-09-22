@@ -126,7 +126,8 @@ class ScreenCaptureService : Service() {
     }
 
     private fun ensureScannerHud() {
-        if (!Settings.canDrawOverlays(this)) return
+        val accessibilityOverlayAvailable = LmAccessibilityService.instance != null
+        if (!Settings.canDrawOverlays(this) && !accessibilityOverlayAvailable) return
         if (scannerHud != null) return
         runCatching {
             val manager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -138,9 +139,13 @@ class ScreenCaptureService : Service() {
                 setPadding(18, 14, 18, 14)
                 elevation = 12f
             }
-            val type = if (android.os.Build.VERSION.SDK_INT >= 26)
+            val type = if (accessibilityOverlayAvailable) {
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            } else if (android.os.Build.VERSION.SDK_INT >= 26) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else WindowManager.LayoutParams.TYPE_PHONE
+            } else {
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
             val lp = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
