@@ -130,10 +130,10 @@ class ScreenCaptureService : Service() {
     }
 
     private fun ensureScannerHud() {
-        val accessibilityService = LmAccessibilityService.instance
-        if (accessibilityService != null) {
-            if (accessibilityService.showScannerHud("LM • SCANNER  ● STARTING\\nScreen scanner active")) return
-        }
+        // The scanner HUD belongs to the foreground capture service.
+        // AccessibilityService is reserved for guarded gesture dispatch;
+        // routing HUD ownership through it makes visibility depend on the
+        // user having explicitly enabled the accessibility service.
         if (!Settings.canDrawOverlays(this)) return
         if (scannerHud != null && scannerHud?.parent != null) return
         if (scannerHud != null && scannerHud?.parent == null) {
@@ -191,21 +191,17 @@ class ScreenCaptureService : Service() {
         quality: String
     ) {
         handler.post {
-            val accessibilityService = LmAccessibilityService.instance
             val hudText = "LM • SCANNER  " +
                 (if (stage == "ERROR" || stage == "STOPPED") "■" else "●") + " " + stage + "\n" +
                 "Session #" + sessionId + " • " + totalFrames + " frames\n" +
                 "Accepted " + acceptedFrames + " • Processed " + processedFrames + " • Dropped " + droppedFrames + "\n" +
                 "Quality: " + quality
-            if (accessibilityService?.showScannerHud(hudText) != true) {
-                ensureScannerHud()
-                scannerHud?.text = hudText
-            }
+            ensureScannerHud()
+            scannerHud?.post { scannerHud?.text = hudText }
         }
     }
 
     private fun removeScannerHud() {
-        LmAccessibilityService.instance?.hideScannerHud()
         val view = scannerHud
         scannerHud = null
         runCatching { if (view != null) scannerHudManager?.removeView(view) }
