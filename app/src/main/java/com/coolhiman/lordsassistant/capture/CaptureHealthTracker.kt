@@ -142,9 +142,14 @@ class CaptureWatchdog(
         require(stallTimeoutMs > 0L)
     }
 
-    private var active = false
-    private var lastFrameAtMs: Long? = null
-    private var stalled = false
+    // Frame arrivals are written by the ImageReader capture thread while the
+    // watchdog check normally runs from the main/service thread. These fields
+    // therefore need cross-thread visibility; without it, the watchdog can
+    // observe an old timestamp and falsely declare a healthy 60 FPS stream
+    // stalled after three seconds.
+    @Volatile private var active = false
+    @Volatile private var lastFrameAtMs: Long? = null
+    @Volatile private var stalled = false
 
     fun start(nowMs: Long) {
         active = true
