@@ -12,9 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       LM_DEBUG_KEYSTORE: ${{ github.workspace }}/signing/lm-companion-debug.keystore
-      LM_DEBUG_STORE_PASSWORD: ${{ secrets.LM_DEBUG_STORE_PASSWORD }}
-      LM_DEBUG_KEY_ALIAS: ${{ secrets.LM_DEBUG_KEY_ALIAS }}
-      LM_DEBUG_KEY_PASSWORD: ${{ secrets.LM_DEBUG_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
