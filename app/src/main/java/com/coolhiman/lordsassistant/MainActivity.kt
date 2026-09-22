@@ -100,14 +100,16 @@ class MainActivity : Activity() {
     }
 
     private fun requestCapture() {
-        // The scanner's diagnostics must remain visible while Lords Mobile is
-        // foreground. Start the overlay before handing the screen-capture
-        // permission dialog to Android, rather than making visibility depend
-        // on the user's separate overlay toggle.
-        if (Settings.canDrawOverlays(this)) {
-            store.setOverlayEnabled(true)
-            startOverlayServiceSafely()
+        // Scanner HUD is owned by the foreground capture service. Require the
+        // overlay permission before starting capture so a session can never
+        // start with an invisible diagnostic surface.
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Grant overlay permission before starting scanner", Toast.LENGTH_LONG).show()
+            startOverlayPermission()
+            return
         }
+        store.setOverlayEnabled(true)
+        startOverlayServiceSafely()
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         startActivityForResult(manager.createScreenCaptureIntent(), 9001)
     }
