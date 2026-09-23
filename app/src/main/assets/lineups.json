@@ -1,78 +1,122 @@
 {
-  "version": 2,
-  "note": "Community-reference lineups. Verify against the current game version; monster level can change optimal composition.",
+  "version": 3,
+  "updated": "2026-09-24",
+  "note": "Reference data only. Monster compositions can vary by monster level, hero ownership, gear, familiar setup and game-version balance changes. Verify the in-game recommended damage type before hunting.",
+  "source": "https://lordsmobile.igg.com/project/game_tool/index.php?action=play_content&cate=4",
   "monsters": {
     "Blackwing": {
-      "standard": [
+      "lv1_3": [
+        "Tracker",
         "Demon Slayer",
         "Scarlet Bolt",
-        "Trickster",
-        "Tracker",
-        "Black Crow"
-      ],
-      "alternative": [
         "Black Crow",
+        "Death Archer"
+      ],
+      "lv4_5": [
+        "Rose Knight",
+        "Demon Slayer",
+        "Scarlet Bolt",
+        "Black Crow",
+        "Death Archer"
+      ],
+      "standard": [
         "Tracker",
         "Demon Slayer",
-        "Trickster",
+        "Scarlet Bolt",
+        "Black Crow",
         "Death Archer"
       ]
     },
     "Frostwing": {
-      "standard": [
+      "lv1_3": [
+        "Tracker",
         "Demon Slayer",
         "Scarlet Bolt",
-        "Trickster",
-        "Tracker",
-        "Black Crow"
-      ],
-      "alternative": [
         "Black Crow",
-        "Tracker",
+        "Femme Fatale"
+      ],
+      "lv4_5": [
+        "Demon Slayer",
         "Scarlet Bolt",
-        "Trickster",
-        "Death Archer"
+        "Black Crow",
+        "Death Archer",
+        "Femme Fatale"
+      ],
+      "standard": [
+        "Tracker",
+        "Demon Slayer",
+        "Scarlet Bolt",
+        "Black Crow",
+        "Femme Fatale"
       ]
     },
     "Gryphon": {
-      "standard": [
-        "Black Crow",
+      "lv1_3": [
         "Tracker",
+        "Demon Slayer",
         "Scarlet Bolt",
-        "Trickster",
+        "Black Crow",
         "Death Archer"
       ],
-      "alternative": [
+      "lv4_5": [
+        "Femme Fatale",
         "Demon Slayer",
-        "Shade",
         "Scarlet Bolt",
         "Black Crow",
-        "Tracker"
+        "Death Archer"
+      ],
+      "standard": [
+        "Tracker",
+        "Demon Slayer",
+        "Scarlet Bolt",
+        "Black Crow",
+        "Death Archer"
       ]
     },
     "Hell Drider": {
-      "standard": [
+      "lv1_3": [
+        "Tracker",
         "Demon Slayer",
         "Scarlet Bolt",
-        "Trickster",
+        "Black Crow",
+        "Femme Fatale"
+      ],
+      "lv4_5": [
+        "Death Archer",
+        "Demon Slayer",
+        "Scarlet Bolt",
+        "Black Crow",
+        "Femme Fatale"
+      ],
+      "standard": [
         "Tracker",
-        "Black Crow"
+        "Demon Slayer",
+        "Scarlet Bolt",
+        "Black Crow",
+        "Femme Fatale"
       ]
     },
     "Noceros": {
+      "lv1_3": [
+        "Incinerator",
+        "Elementalist",
+        "Dream Witch",
+        "Petite Devil",
+        "Storm Fox"
+      ],
+      "lv4_5": [
+        "Incinerator",
+        "Elementalist",
+        "Dream Witch",
+        "Petite Devil",
+        "Twilight Priestess"
+      ],
       "f2p": [
         "Incinerator",
         "Sea Squire",
         "Bombin' Goblin",
         "Sage of Storms",
         "Snow Queen"
-      ],
-      "alternativeF2p": [
-        "Incinerator",
-        "Prima Donna",
-        "Snow Queen",
-        "Sage of Storms",
-        "Sea Squire"
       ],
       "p2p": [
         "Incinerator",
@@ -83,6 +127,13 @@
       ]
     },
     "Mecha Trojan": {
+      "lv1_5": [
+        "Incinerator",
+        "Elementalist",
+        "Dream Witch",
+        "Petite Devil",
+        "Storm Fox"
+      ],
       "f2p": [
         "Incinerator",
         "Prima Donna",
