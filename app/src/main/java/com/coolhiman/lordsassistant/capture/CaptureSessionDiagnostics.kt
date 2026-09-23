@@ -24,6 +24,7 @@ data class CaptureSessionDiagnosticsSnapshot(
     val droppedFrames: Long get() = capture.droppedFrames
     val staleFrames: Long get() = capture.staleFrames
     val fps: Double get() = capture.framesPerSecond
+    val acceptedFps: Double get() = capture.acceptedFramesPerSecond
     val dropRatePercent: Double get() = capture.dropRatePercent
     val averageProcessingMs: Double get() = capture.averageProcessingMs
     val averageOcrMs: Double get() = latency.averageOcrMs
