@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 
 data class VisionPipelineResult(
     val detection: DetectionFrame,
-    val fused: List<FusionCandidate>
+    val fused: List<FusionCandidate>,
+    val badgeDetections: Int = 0,
+    val openCvReady: Boolean = false
 )
 
 class VisionPipeline(
@@ -27,6 +29,11 @@ class VisionPipeline(
             popupState = popupState,
             coordinateResolver = coordinateResolver
         )
-        return VisionPipelineResult(detection, fused)
+        return VisionPipelineResult(
+            detection = detection,
+            fused = fused,
+            badgeDetections = tileDetector.lastBadgeDetections,
+            openCvReady = OpenCvRuntime.isLoaded()
+        )
     }
 }
