@@ -28,6 +28,10 @@ data class CaptureHealthSnapshot(
 
     val framesPerSecond: Double
         get() = if (sessionDurationMs <= 0L) 0.0 else totalFrames * 1000.0 / sessionDurationMs
+
+    /** Frames admitted to the single-flight analysis pipeline per second. */
+    val acceptedFramesPerSecond: Double
+        get() = if (sessionDurationMs <= 0L) 0.0 else acceptedFrames * 1000.0 / sessionDurationMs
 }
 
 class CaptureHealthTracker {
