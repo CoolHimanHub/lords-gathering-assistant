@@ -34,6 +34,7 @@ class OverlayService : Service() {
     private lateinit var wm: WindowManager
     private var card: LinearLayout? = null
     private var statusView: TextView? = null
+    private var healthView: TextView? = null
     private var timerView: TextView? = null
     private var markerView: TargetMarkerView? = null
 
@@ -56,11 +57,22 @@ class OverlayService : Service() {
             textSize = 11f
             setTextColor(Color.WHITE)
             setPadding(4, 2, 4, 4)
-            maxLines = 5
+            maxLines = 8
             ellipsize = android.text.TextUtils.TruncateAt.END
             layoutParams = LinearLayout.LayoutParams(cardWidth, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         statusView = status
+
+        val health = TextView(this).apply {
+            text = "CAPTURE HEALTH\nWaiting for scanner…"
+            textSize = 10f
+            setTextColor(0xFFB8BBC4.toInt())
+            setPadding(4, 2, 4, 5)
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(cardWidth, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        healthView = health
 
         val timerLabel = TextView(this).apply {
             text = "TEST TIMER • select 1–10 min"
@@ -148,6 +160,7 @@ class OverlayService : Service() {
         }
         container.addView(testActions)
         container.addView(status)
+        container.addView(health)
 
         var downX = 0f
         var downY = 0f
@@ -296,10 +309,9 @@ class OverlayService : Service() {
         quality: String
     ) {
         val state = if (stage.contains("ERROR") || stage.contains("STOPPED")) "■" else "●"
-        statusView?.post {
-            statusView?.text = "LM • SCANNER  $state $stage\n" +
-                "Session #$sessionId • $totalFrames frames\n" +
-                "Accepted $acceptedFrames • Processed $processedFrames • Dropped $droppedFrames\n" +
+        healthView?.post {
+            healthView?.text = "CAPTURE  $state $stage • Session #$sessionId\n" +
+                "Frames $totalFrames • Accepted $acceptedFrames • Processed $processedFrames • Dropped $droppedFrames\n" +
                 "Quality: $quality"
         }
     }
@@ -314,6 +326,7 @@ class OverlayService : Service() {
         markerView?.let { runCatching { wm.removeView(it) } }
         card = null
         statusView = null
+        healthView = null
         timerView = null
         markerView = null
         super.onDestroy()
