@@ -22,7 +22,7 @@ data class RealDeviceValidationSummary(
         } else {
             appendLine("Capture session: #${capture.sessionId} • state=${capture.sessionState.name.lowercase()} • quality=${capture.quality.name}")
             appendLine("Frames: ${capture.frames} total / ${capture.acceptedFrames} accepted / ${capture.droppedFrames} dropped / ${capture.staleFrames} stale")
-            appendLine("FPS: %.2f • drop rate: %.1f%%".format(capture.fps, capture.dropRatePercent))
+            appendLine("Input FPS: %.2f • accepted FPS: %.2f • input backpressure: %.1f%%".format(capture.fps, capture.acceptedFramesPerSecond, capture.dropRatePercent))
             appendLine("Latency: %.0f ms total avg • OCR %.0f ms • scan %.0f ms".format(
                 capture.averageProcessingMs, capture.averageOcrMs, capture.averageScannerMs
             ))
@@ -57,7 +57,7 @@ data class RealDeviceValidationSummary(
             val totalStalls = history.sumOf { it.stallCount }
             val totalViewportChanges = history.sumOf { it.viewportChangeCount }
             appendLine("Session-attributed rejections: " + if (sessionRejections.isEmpty()) "none" else sessionRejections.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" })
-            appendLine("Trend: %.2f%% rejections per 100 accepted frames • avg drop %.1f%% • stalls=%d • viewport changes=%d".format(
+            appendLine("Trend: %.2f%% rejections per 100 accepted frames • avg input backpressure %.1f%% • stalls=%d • viewport changes=%d".format(
                 rejectionDensity, averageDropRate, totalStalls, totalViewportChanges
             ))
         }
