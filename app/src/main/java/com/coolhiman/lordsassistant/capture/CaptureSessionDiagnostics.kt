@@ -16,6 +16,7 @@ data class CaptureSessionDiagnosticsSnapshot(
     val runtime: CaptureRuntimeSnapshot,
     val latency: ProcessingLatencySnapshot,
     val quality: CaptureQuality,
+    val memoryPressureLevel: MemoryPressureLevel = MemoryPressureLevel.NORMAL,
     /** Candidate rejection counts attributed to this capture session. */
     val candidateRejectionCounts: Map<String, Int> = emptyMap()
 ) {
@@ -37,6 +38,7 @@ data class CaptureSessionDiagnosticsSnapshot(
     val maxFrameGapMs: Long get() = capture.maxFrameGapMs
     val qualityReason: String
         get() = when {
+            memoryPressureLevel == MemoryPressureLevel.CRITICAL -> "MEMORY_CRITICAL"
             quality == CaptureQuality.INSUFFICIENT_DATA -> "INSUFFICIENT_FRAMES"
             capture.maxFrameGapMs >= 3000L -> "MAX_FRAME_GAP_" + capture.maxFrameGapMs + "MS"
             latency.averageTotalMs >= 1500.0 -> "PROCESSING_AVG_" + latency.averageTotalMs.toLong() + "MS"
@@ -48,7 +50,7 @@ data class CaptureSessionDiagnosticsSnapshot(
             else -> "DEGRADED"
         }
     val memorySafeForDiagnostics: Boolean
-        get() = qualityReason != "MEMORY_CRITICAL"
+        get() = memoryPressureLevel != MemoryPressureLevel.CRITICAL
     val sessionState: CaptureSessionState
         get() = when {
             runtime.sessionId <= 0L -> CaptureSessionState.NO_SESSION
@@ -63,12 +65,14 @@ object CaptureSessionDiagnostics {
         runtime: CaptureRuntimeSnapshot,
         latency: ProcessingLatencySnapshot,
         quality: CaptureQuality,
+        memoryPressureLevel: MemoryPressureLevel = MemoryPressureLevel.NORMAL,
         candidateRejectionCounts: Map<String, Int> = emptyMap()
     ): CaptureSessionDiagnosticsSnapshot = CaptureSessionDiagnosticsSnapshot(
         capture = capture,
         runtime = runtime,
         latency = latency,
         quality = quality,
+        memoryPressureLevel = memoryPressureLevel,
         candidateRejectionCounts = candidateRejectionCounts.toMap()
     )
 }
