@@ -39,8 +39,8 @@ class MainActivity : Activity() {
             insets
         }
         ViewCompat.requestApplyInsets(root)
-        root.addView(TextView(this).apply { text = "LM Companion  •  V1.0.1"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
-        root.addView(TextView(this).apply { text = "Resource + monster scanner / calibration console / compact overlay"; setTextColor(0xFFB8BBC4.toInt()); setPadding(0,0,0,14) })
+        root.addView(TextView(this).apply { text = "LM Companion  •  V2.0.0"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
+        root.addView(TextView(this).apply { text = "Resource + monster companion • live map intelligence • compact overlay"; setTextColor(0xFFB8BBC4.toInt()); setPadding(0,0,0,14) })
         root.addView(Switch(this).apply { text = "Always-on-top overlay"; setTextColor(Color.WHITE); isChecked=current.overlayEnabled; setOnCheckedChangeListener { _,checked -> if (checked && !Settings.canDrawOverlays(this@MainActivity)) { isChecked = false; store.setOverlayEnabled(false); Toast.makeText(this@MainActivity, "Grant overlay permission first", Toast.LENGTH_SHORT).show(); startOverlayPermission() } else { store.setOverlayEnabled(checked); if (checked) startOverlayServiceSafely() else stopService(Intent(this@MainActivity,OverlayService::class.java)) } } })
         root.addView(TextView(this).apply {
             text = "DEVICE READINESS"
@@ -65,7 +65,7 @@ class MainActivity : Activity() {
         root.addView(Button(this).apply { text="Grant overlay permission"; setOnClickListener { startOverlayPermission() } })
         root.addView(Button(this).apply { text="Enable gesture service"; setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } })
         root.addView(Button(this).apply { text="Start screen scanner"; setOnClickListener { requestCapture() } })
-        root.addView(TextView(this).apply { text="Workflow: screen → CV → OCR → coordinate → validation → overlay"; setTextColor(0xFFB8BBC4.toInt()); gravity=Gravity.CENTER_HORIZONTAL; setPadding(0,20,0,0) })
+        root.addView(TextView(this).apply { text="Workflow: capture → CV/OCR → K/X/Y → discovery → ranking → validation → guarded action"; setTextColor(0xFFB8BBC4.toInt()); gravity=Gravity.CENTER_HORIZONTAL; setPadding(0,20,0,0) })
         setContentView(ScrollView(this).apply { addView(root) })
 
         if (intent?.action == ACTION_START_CAPTURE) {
@@ -94,7 +94,7 @@ class MainActivity : Activity() {
             append("\nGesture service: ").append(if (LmAccessibilityService.instance != null) "CONNECTED" else "NOT CONNECTED")
             append("\nScreen capture: requested when scanner starts")
             append("\nAutomatic actions: ").append(if (automatic) "ENABLED (advanced)" else "OFF — safe default")
-            append("\nRuntime: V1.0.1 — live scan + capture health diagnostics")
+            append("\nRuntime: V2.0.0 — discovery, ranking, calibration and guarded actions")
         }
     }
 
