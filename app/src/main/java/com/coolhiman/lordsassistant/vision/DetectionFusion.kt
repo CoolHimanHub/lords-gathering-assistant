@@ -94,7 +94,12 @@ class DetectionFusion(
             val occupied = if (popupMatches && popupState?.occupied != null) {
                 popupState.occupied
             } else {
-                if (incoming == true) true else classification.occupied
+                when {
+                    incoming == true -> true
+                    classification.occupied != null -> classification.occupied
+                    tile.source == DetectionSource.LEVEL_BADGE -> false
+                    else -> null
+                }
             }
 
             val evidence = listOf(
