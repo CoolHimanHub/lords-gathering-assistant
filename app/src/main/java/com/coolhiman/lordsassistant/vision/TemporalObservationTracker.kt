@@ -5,6 +5,7 @@ import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
+import kotlin.math.hypot
 
 /**
  * Stabilizes world-map observations across frames.
@@ -16,7 +17,8 @@ import kotlin.math.max
  */
 class TemporalObservationTracker(
     private val confirmHits: Int = 2,
-    private val maxGapMs: Long = 2500L
+    private val maxGapMs: Long = 2500L,
+    private val maxScreenMatchDistancePx: Float = 90f
 ) {
     private data class Track(
         var observation: MapObservation,
@@ -36,7 +38,36 @@ class TemporalObservationTracker(
 
         for (observation in observations) {
             val key = observation.coordinate ?: continue
-            val old = tracks[key]
+            var old = tracks[key]
+
+            // Coordinate calibration can drift while the same visible node
+            // remains stationary. Re-associate by semantic identity + screen
+            // proximity before creating a new temporal track.
+            if (old == null && observation.screenPoint != null) {
+                val match = tracks.entries
+                    .asSequence()
+                    .filter { (_, track) ->
+                        nowMs - track.lastSeen <= maxGapMs &&
+                            track.observation.kind == observation.kind &&
+                            track.observation.level == observation.level &&
+                            track.observation.screenPoint != null
+                    }
+                    .map { entry ->
+                        val point = entry.value.observation.screenPoint!!
+                        val distance = hypot(
+                            (observation.screenPoint.x - point.x).toDouble(),
+                            (observation.screenPoint.y - point.y).toDouble()
+                        ).toFloat()
+                        entry to distance
+                    }
+                    .filter { it.second <= maxScreenMatchDistancePx }
+                    .minByOrNull { it.second }
+                if (match != null) {
+                    tracks.remove(match.first.key)
+                    old = match.first.value
+                    tracks[key] = old
+                }
+            }
             val strongOccupied = observation.occupied == true ||
                 observation.incomingTroops == true
 
