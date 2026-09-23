@@ -6,6 +6,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
+    private var virtualDisplay: VirtualDisplay? = null
     private var reader: ImageReader? = null
     private var scannerHud: TextView? = null
     private var scannerHudManager: WindowManager? = null
@@ -281,6 +283,8 @@ class ScreenCaptureService : Service() {
         frameTimeoutFuture?.cancel(false)
         frameTimeoutFuture = null
         reader = null
+        virtualDisplay?.release()
+        virtualDisplay = null
         projection?.stop()
         projection = null
         viewportGuard.reset()
@@ -1042,16 +1046,32 @@ class ScreenCaptureService : Service() {
         }, captureHandler)
 
         try {
-            projection?.createVirtualDisplay(
-            "LMCompanion",
-            metrics.widthPixels,
-            metrics.heightPixels,
-            metrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader!!.surface,
-            null,
-            null
-            )
+            // Keep a strong reference for the entire capture session. The virtual
+            // display owns the producer side of the ImageReader surface; dropping
+            // the returned object here leaves its lifetime implicit and can make
+            // a long-running projection stop producing frames unexpectedly.
+            virtualDisplay = projection?.createVirtualDisplay(
+                "LMCompanion",
+                metrics.widthPixels,
+                metrics.heightPixels,
+                metrics.densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader!!.surface,
+                object : VirtualDisplay.Callback() {
+                    override fun onPaused() {
+                        captureRuntime.recordFailure("VirtualDisplay paused")
+                    }
+                    override fun onResumed() {
+                        captureRuntime.recordFailure("VirtualDisplay resumed")
+                    }
+                    override fun onStopped() {
+                        if (captureSessionActive) {
+                            captureRuntime.recordFailure("VirtualDisplay stopped")
+                        }
+                    }
+                },
+                captureHandler
+            ) ?: throw IllegalStateException("VirtualDisplay creation returned null")
         } catch (_: Throwable) {
             captureRuntime.recordFailure("VirtualDisplay creation failed")
             stopCaptureResources(CaptureStopReason.CAPTURE_SETUP_FAILED)
