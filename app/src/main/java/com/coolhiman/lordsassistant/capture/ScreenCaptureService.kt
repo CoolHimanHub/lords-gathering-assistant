@@ -92,6 +92,9 @@ class ScreenCaptureService : Service() {
     private val captureWatchdogExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     // Bitmap conversion is the expensive CPU/memory boundary of capture. Keep it off the ImageReader callback thread so a slow allocation/GC cannot starve frame-arrival callbacks and trigger a false capture stall.
     private val captureProcessingExecutor: java.util.concurrent.ExecutorService = Executors.newSingleThreadExecutor()
+    private val testTimerExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private var testTimerFuture: ScheduledFuture<*>? = null
+    @Volatile private var testTimerSelectedMinutes: Int = 0
     private var frameTimeoutFuture: ScheduledFuture<*>? = null
     private var lastScanMs = 0L
     private val viewportGuard = ViewportGuard()
@@ -129,6 +132,8 @@ class ScreenCaptureService : Service() {
     }
 
     companion object {
+        @Volatile var instance: ScreenCaptureService? = null
+
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
         private const val MAX_FRAME_AGE_MS = 1500L
@@ -282,6 +287,45 @@ class ScreenCaptureService : Service() {
         )
     }
 
+    fun isCaptureSessionActive(): Boolean = captureSessionActive
+
+    fun configureTestTimer(minutes: Int) {
+        if (!captureSessionActive) return
+        val durationMinutes = minutes.coerceIn(1, 10)
+        testTimerSelectedMinutes = durationMinutes
+        testTimerFuture?.cancel(false)
+        val durationMs = durationMinutes * 60_000L
+        val deadlineMs = System.currentTimeMillis() + durationMs
+        captureRuntime.recordFailure("Test timer armed for $durationMinutes minute(s)")
+        OverlayService.instance?.showTestTimer(durationMs, durationMinutes, true)
+
+        testTimerFuture = testTimerExecutor.scheduleAtFixedRate({
+            if (!captureSessionActive) return@scheduleAtFixedRate
+            val remainingMs = (deadlineMs - System.currentTimeMillis()).coerceAtLeast(0L)
+            handler.post {
+                if (captureSessionActive) {
+                    OverlayService.instance?.showTestTimer(remainingMs, durationMinutes, true)
+                }
+            }
+            if (remainingMs <= 0L) {
+                testTimerFuture?.cancel(false)
+                handler.post {
+                    if (!captureSessionActive) return@post
+                    captureRuntime.recordFailure(
+                        "Test timer completed after $durationMinutes minute(s)"
+                    )
+                    persistCaptureDiagnostics()
+                    stopCaptureResources(CaptureStopReason.TEST_TIMER)
+                    OverlayService.instance?.showTestTimer(0L, durationMinutes, false)
+                    OverlayService.instance?.showStatus(
+                        "TEST COMPLETE • $durationMinutes min • diagnostics saved"
+                    )
+                    stopSelf()
+                }
+            }
+        }, 0L, 1L, TimeUnit.SECONDS)
+    }
+
     private fun stopCaptureResources(reason: CaptureStopReason = CaptureStopReason.USER_STOP) {
         // Mark the shutdown before releasing the producer resources. The
         // VirtualDisplay callback is asynchronous and may report onStopped()
@@ -295,6 +339,9 @@ class ScreenCaptureService : Service() {
         reader?.close()
         frameTimeoutFuture?.cancel(false)
         frameTimeoutFuture = null
+        testTimerFuture?.cancel(false)
+        testTimerFuture = null
+        testTimerSelectedMinutes = 0
         reader = null
         virtualDisplay?.release()
         virtualDisplay = null
@@ -328,6 +375,7 @@ class ScreenCaptureService : Service() {
         }
         captureStage = when (reason) {
             CaptureStopReason.USER_STOP -> "STOPPED"
+            CaptureStopReason.TEST_TIMER -> "TEST COMPLETE"
             else -> "ERROR"
         }
         // Keep the expected-release barrier through the synchronous teardown.
@@ -340,6 +388,7 @@ class ScreenCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         analyzer = FrameAnalyzer()
         captureDiagnosticsStore = CaptureSessionDiagnosticsStore(this)
         liveScanner = LiveMapScanner(this)
@@ -438,6 +487,9 @@ class ScreenCaptureService : Service() {
         captureWatchdog.start(captureStartedAt)
         handler.removeCallbacks(captureWatchdogRunnable)
         handler.postDelayed(captureWatchdogRunnable, 1000L)
+        OverlayService.consumeArmedTestDuration()?.let { minutes ->
+            configureTestTimer(minutes)
+        }
         captureWatchdogExecutor.scheduleAtFixedRate({
             if (!captureSessionActive) return@scheduleAtFixedRate
             val now = System.currentTimeMillis()
@@ -1158,11 +1210,13 @@ class ScreenCaptureService : Service() {
 
     override fun onDestroy() {
         stopCaptureResources(CaptureStopReason.SERVICE_DESTROYED)
+        instance = null
         liveScanner.close()
         analyzer.close()
         frameTimeoutExecutor.shutdownNow()
         captureWatchdogExecutor.shutdownNow()
         captureProcessingExecutor.shutdownNow()
+        testTimerExecutor.shutdownNow()
         captureThread.quitSafely()
         removeScannerHud()
         ActionDiagnosticsStore.latest = null
