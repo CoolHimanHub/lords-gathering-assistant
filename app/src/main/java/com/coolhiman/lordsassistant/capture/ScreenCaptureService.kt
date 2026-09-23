@@ -156,14 +156,9 @@ class ScreenCaptureService : Service() {
     }
 
     private fun ensureScannerHud() {
-        // Prefer the trusted accessibility overlay when the user has enabled
-        // the gesture service. Some games/device builds can hide ordinary
-        // TYPE_APPLICATION_OVERLAY windows. Fall back to SAW overlay otherwise.
-        val accessibilityService = LmAccessibilityService.instance
-        if (accessibilityService != null &&
-            accessibilityService.showScannerHud("LM • SCANNER  ● STARTING\\nScreen scanner active")
-        ) return
-
+        // OverlayService is the single user-facing scanner surface. Never
+        // create a second accessibility HUD: two stacked windows can hide the
+        // timer controls and make the game screen appear touch-blocked.
         if (!Settings.canDrawOverlays(this)) return
 
         val existing = scannerHud
@@ -240,8 +235,8 @@ class ScreenCaptureService : Service() {
                 "Session #" + sessionId + " • " + totalFrames + " frames\n" +
                 "Accepted " + acceptedFrames + " • Processed " + processedFrames + " • Dropped " + droppedFrames + "\n" +
                 "Quality: " + quality
-            val accessibilityService = LmAccessibilityService.instance
-            if (accessibilityService?.showScannerHud(hudText) != true) {
+            OverlayService.instance?.showStatus(hudText)
+            if (OverlayService.instance == null) {
                 ensureScannerHud()
                 scannerHud?.post { scannerHud?.text = hudText }
             }
@@ -249,7 +244,8 @@ class ScreenCaptureService : Service() {
     }
 
     private fun removeScannerHud() {
-        LmAccessibilityService.instance?.hideScannerHud()
+        // OverlayService owns the interactive scanner surface. Only remove the
+        // legacy non-touchable fallback created by this service.
         val view = scannerHud
         scannerHud = null
         runCatching { if (view != null) scannerHudManager?.removeView(view) }
@@ -288,6 +284,14 @@ class ScreenCaptureService : Service() {
     }
 
     fun isCaptureSessionActive(): Boolean = captureSessionActive
+
+    fun stopTestCapture() {
+        if (!captureSessionActive) return
+        captureRuntime.recordFailure("Test stopped by user")
+        persistCaptureDiagnostics()
+        stopCaptureResources(CaptureStopReason.USER_STOP)
+        stopSelf()
+    }
 
     fun configureTestTimer(minutes: Int) {
         if (!captureSessionActive) return
@@ -487,7 +491,7 @@ class ScreenCaptureService : Service() {
         captureWatchdog.start(captureStartedAt)
         handler.removeCallbacks(captureWatchdogRunnable)
         handler.postDelayed(captureWatchdogRunnable, 1000L)
-        OverlayService.consumeArmedTestDuration()?.let { minutes ->
+        OverlayService.consumeRequestedTestDuration()?.let { minutes ->
             configureTestTimer(minutes)
         }
         captureWatchdogExecutor.scheduleAtFixedRate({
