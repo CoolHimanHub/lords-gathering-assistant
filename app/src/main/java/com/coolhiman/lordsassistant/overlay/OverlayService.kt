@@ -21,11 +21,11 @@ class OverlayService : Service() {
     companion object {
         @Volatile var instance: OverlayService? = null
         @Volatile private var selectedTestDurationMinutes: Int = 5
-        @Volatile private var testTimerArmed: Boolean = false
+        @Volatile private var testRequested: Boolean = false
 
-        fun consumeArmedTestDuration(): Int? {
-            if (!testTimerArmed) return null
-            testTimerArmed = false
+        fun consumeRequestedTestDuration(): Int? {
+            if (!testRequested) return null
+            testRequested = false
             return selectedTestDurationMinutes
         }
     }
@@ -107,6 +107,25 @@ class OverlayService : Service() {
         container.addView(timerStatus)
         container.addView(timerRow(1, 5))
         container.addView(timerRow(6, 10))
+
+        val startTestButton = Button(this).apply {
+            text = "START TEST"
+            setOnClickListener { startTest() }
+        }
+        val stopTestButton = Button(this).apply {
+            text = "STOP TEST"
+            setOnClickListener { stopTest() }
+        }
+        val testActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(startTestButton, LinearLayout.LayoutParams(0, 44, 1f).apply {
+                setMargins(2, 2, 2, 2)
+            })
+            addView(stopTestButton, LinearLayout.LayoutParams(0, 44, 1f).apply {
+                setMargins(2, 2, 2, 2)
+            })
+        }
+        container.addView(testActions)
         container.addView(status)
 
         var downX = 0f
@@ -172,11 +191,9 @@ class OverlayService : Service() {
 
     private fun selectTestDuration(minutes: Int) {
         selectedTestDurationMinutes = minutes.coerceIn(1, 10)
-        testTimerArmed = true
         val active = ScreenCaptureService.instance?.isCaptureSessionActive() == true
         if (active) {
             ScreenCaptureService.instance?.configureTestTimer(selectedTestDurationMinutes)
-            testTimerArmed = false
             timerView?.post {
                 timerView?.text = "TEST: ${selectedTestDurationMinutes} min • RUNNING"
             }
@@ -185,20 +202,50 @@ class OverlayService : Service() {
             )
         } else {
             timerView?.post {
-                timerView?.text = "TEST: ${selectedTestDurationMinutes} min • ARMED"
+                timerView?.text = "TEST: ${selectedTestDurationMinutes} min • READY"
             }
             showStatus(
-                "LM • TEST TIMER\n${selectedTestDurationMinutes} min armed • start scanner"
+                "LM • TEST TIMER\n${selectedTestDurationMinutes} min selected • press START TEST"
             )
         }
     }
 
-    private fun timerStatusText(): String =
-        if (testTimerArmed) {
-            "TEST: ${selectedTestDurationMinutes} min • ARMED"
-        } else {
-            "TEST: none • select duration"
+    private fun startTest() {
+        val active = ScreenCaptureService.instance?.isCaptureSessionActive() == true
+        if (active) {
+            testRequested = false
+            ScreenCaptureService.instance?.configureTestTimer(selectedTestDurationMinutes)
+            timerView?.post {
+                timerView?.text = "TEST: ${selectedTestDurationMinutes} min • RUNNING"
+            }
+            showStatus("LM • TEST TIMER\n${selectedTestDurationMinutes} min test started")
+            return
         }
+
+        testRequested = true
+        timerView?.post {
+            timerView?.text = "TEST: ${selectedTestDurationMinutes} min • WAITING FOR CAPTURE"
+        }
+        val intent = Intent(this, com.coolhiman.lordsassistant.MainActivity::class.java).apply {
+            action = com.coolhiman.lordsassistant.MainActivity.ACTION_START_CAPTURE
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        runCatching { startActivity(intent) }.onFailure {
+            testRequested = false
+            showStatus("LM • TEST TIMER\nUnable to open capture permission")
+        }
+    }
+
+    private fun stopTest() {
+        testRequested = false
+        ScreenCaptureService.instance?.stopTestCapture()
+        timerView?.post {
+            timerView?.text = "TEST: ${selectedTestDurationMinutes} min • READY"
+        }
+    }
+
+    private fun timerStatusText(): String =
+        "TEST: ${selectedTestDurationMinutes} min • READY"
 
     fun showStatus(text: String) {
         statusView?.post { statusView?.text = text }
