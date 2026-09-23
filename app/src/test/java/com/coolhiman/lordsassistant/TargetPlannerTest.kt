@@ -18,4 +18,29 @@ class TargetPlannerTest {
         assertEquals(1, plan.ranked.size)
         assertEquals(100, plan.ranked.first().tile.coordinate.x)
     }
+    @Test
+    fun discoveryRankingRemainsVisibleWhenCameraIsNotStable() {
+        val target = MapObservation(
+            WorldCoordinate(355, 101, 100),
+            com.coolhiman.lordsassistant.model.ScreenPoint(120f, 120f),
+            "RESOURCE_BADGE",
+            3,
+            null,
+            false,
+            false,
+            TargetKind.RESOURCE,
+            0.80f
+        )
+        val plan = TargetPlanner().plan(
+            100,
+            100,
+            listOf(target),
+            UserPreferences(),
+            cameraStable = false
+        )
+        assertEquals(1, plan.rankedDiscoveries.size)
+        assertEquals(0, plan.ranked.size)
+    }
+
+
 }
