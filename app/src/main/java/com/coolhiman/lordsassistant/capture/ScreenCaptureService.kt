@@ -711,6 +711,10 @@ class ScreenCaptureService : Service() {
                                     reason.name.replace('_', ' ')
                                 })
                             }
+                            append("\nVision: ").append(scan.detectedTiles)
+                                .append(" tiles / ").append(scan.templateCount).append(" templates / ")
+                                .append(scan.actionButtonDetections).append(" action buttons / ")
+                                .append(scan.actionCandidates.size).append(" candidates")
                             append("\n").append(scan.processingMs).append("ms")
                             append("\nCapture quality: ").append(captureQuality.name)
                         }
