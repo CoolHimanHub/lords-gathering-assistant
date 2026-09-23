@@ -1015,3 +1015,12 @@ V0.10 guarded dispatch integration coverage:
 - Completed production audit provenance coverage for the live action lifecycle: selection, request/attempt persistence, revalidation, dispatch barrier, dispatch result, verification/timeout/UNKNOWN, scheduler blocking, and manual recovery now retain the originating capture-session ID alongside attempt/recovery provenance.
 - Added regression coverage proving the live adapter preserves scheduler in-flight blocking and cooldown across that dispatch lifecycle.
 - Added failure/recovery audit coverage for dispatch failure, verification timeout, UNKNOWN entry, recovery reset, and capture-session-scoped rejection counts.
+
+
+## V1.0.1 — Live scan / capture-health HUD separation
+
+- The floating overlay now keeps live vision diagnostics separate from capture-health telemetry.
+- Live scan information such as tile count, ranked targets, camera state, validation state, detected action, badges, OpenCV readiness, action buttons, candidates, and processing time is no longer overwritten by the periodic capture-health refresh.
+- Capture health remains visible in its own bounded read-only panel with session, frame, accepted/processed/dropped, and quality metrics.
+- The change is diagnostic/UI-only and does not alter target validation, scheduler admission, recovery policy, Accessibility dispatch, or automatic-action defaults.
+- App version is now 1.0.1 (versionCode 102).
