@@ -7,6 +7,7 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 data class PopupState(
     val kind: TargetKind? = null,
     val resource: ResourceType? = null,
+    val monsterName: String? = null,
     val level: Int? = null,
     val quantity: Long? = null,
     val occupied: Boolean? = null,
@@ -56,6 +57,7 @@ object PopupStateParser {
         return PopupState(
             kind = kind,
             resource = classification.resource,
+            monsterName = classification.monsterName,
             level = popupLevel.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: classification.level,
             quantity = parsedQuantity,
             occupied = occupied,
