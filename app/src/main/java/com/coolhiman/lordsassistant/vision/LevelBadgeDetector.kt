@@ -25,10 +25,15 @@ data class LevelBadge(
  */
 class LevelBadgeDetector(
     private val minArea: Double = 12.0,
-    private val maxArea: Double = 900.0
+    private val maxArea: Double = 2500.0
 ) {
+    @Volatile var lastDetectionCount: Int = 0
+        private set
     fun detect(bitmap: Bitmap): List<LevelBadge> {
-        if (bitmap.isRecycled || !OpenCvRuntime.ensureLoaded()) return emptyList()
+        if (bitmap.isRecycled || !OpenCvRuntime.ensureLoaded()) {
+            lastDetectionCount = 0
+            return emptyList()
+        }
         val src = Mat()
         val hsv = Mat()
         val blue = Mat()
@@ -42,13 +47,15 @@ class LevelBadgeDetector(
             Imgproc.cvtColor(src, hsv, Imgproc.COLOR_RGBA2RGB)
             Imgproc.cvtColor(hsv, hsv, Imgproc.COLOR_RGB2HSV)
 
-            Core.inRange(hsv, Scalar(95.0, 100.0, 90.0), Scalar(135.0, 255.0, 255.0), blue)
-            Core.inRange(hsv, Scalar(0.0, 110.0, 90.0), Scalar(12.0, 255.0, 255.0), red1)
-            Core.inRange(hsv, Scalar(165.0, 110.0, 90.0), Scalar(179.0, 255.0, 255.0), red2)
+            Core.inRange(hsv, Scalar(90.0, 65.0, 70.0), Scalar(140.0, 255.0, 255.0), blue)
+            Core.inRange(hsv, Scalar(0.0, 65.0, 70.0), Scalar(16.0, 255.0, 255.0), red1)
+            Core.inRange(hsv, Scalar(160.0, 65.0, 70.0), Scalar(179.0, 255.0, 255.0), red2)
             Core.bitwise_or(red1, red2, red)
 
-            detectMask(blue, TileClass.RESOURCE, bitmap.width, bitmap.height, contours, hierarchy) +
+            val detections = detectMask(blue, TileClass.RESOURCE, bitmap.width, bitmap.height, contours, hierarchy) +
                 detectMask(red, TileClass.MONSTER, bitmap.width, bitmap.height, contours, hierarchy)
+            lastDetectionCount = detections.size
+            detections
         } finally {
             hierarchy.release()
             contours.forEach { it.release() }
@@ -72,7 +79,7 @@ class LevelBadgeDetector(
             val r = Imgproc.boundingRect(contour)
             val w = r.width.toFloat()
             val h = r.height.toFloat()
-            if (w < 5f || h < 5f || w > 70f || h > 50f) return@mapNotNull null
+            if (w < 5f || h < 5f || w > 100f || h > 90f) return@mapNotNull null
             val aspect = w / max(1f, h)
             if (aspect < 0.45f || aspect > 3.8f) return@mapNotNull null
 
