@@ -103,6 +103,10 @@ class ScreenCaptureService : Service() {
     private val captureQualityPolicy = CaptureQualityPolicy()
     private lateinit var captureDiagnosticsStore: CaptureSessionDiagnosticsStore
     private var captureSessionActive = false
+    // Lifecycle classification for VirtualDisplay callbacks. Android can invoke
+    // VirtualDisplay.Callback.onStopped() as a consequence of our own release,
+    // so that callback must never overwrite the actual service stop reason.
+    @Volatile private var virtualDisplayReleaseExpected = false
     @Volatile private var captureStage = "STARTING"
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
@@ -278,6 +282,14 @@ class ScreenCaptureService : Service() {
     }
 
     private fun stopCaptureResources(reason: CaptureStopReason = CaptureStopReason.USER_STOP) {
+        // Mark the shutdown before releasing the producer resources. The
+        // VirtualDisplay callback is asynchronous and may report onStopped()
+        // after release(); without this barrier it can overwrite a real
+        // CAPTURE_STALLED/PROJECTION_STOPPED reason with the generic
+        // "VirtualDisplay stopped" message.
+        virtualDisplayReleaseExpected = true
+        captureSessionActive = false
+
         reader?.setOnImageAvailableListener(null, null)
         reader?.close()
         frameTimeoutFuture?.cancel(false)
@@ -313,11 +325,14 @@ class ScreenCaptureService : Service() {
             captureDiagnosticsStore.save(finalDiagnostics)
             captureDiagnosticsStore.archive(finalDiagnostics)
         }
-        captureSessionActive = false
         captureStage = when (reason) {
             CaptureStopReason.USER_STOP -> "STOPPED"
             else -> "ERROR"
         }
+        // Keep the expected-release barrier through the synchronous teardown.
+        // Any callback arriving after this point also sees captureSessionActive=false
+        // and therefore cannot be misclassified as an external stop.
+        virtualDisplayReleaseExpected = false
         removeScannerHud()
     }
 
@@ -436,11 +451,13 @@ class ScreenCaptureService : Service() {
         }, 1000L, 1000L, TimeUnit.MILLISECONDS)
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
-                if (captureSessionActive) {
-                    captureSessionActive = false
-                    stopCaptureResources(CaptureStopReason.PROJECTION_STOPPED)
-                    stopSelf()
-                }
+                if (!captureSessionActive) return
+                // This callback is the authoritative signal that the
+                // MediaProjection token was stopped by the system/user. Do not
+                // let our own teardown path generate the same message.
+                captureRuntime.recordFailure("MediaProjection stopped externally")
+                stopCaptureResources(CaptureStopReason.PROJECTION_STOPPED)
+                stopSelf()
             }
         }, handler)
 
@@ -1059,14 +1076,22 @@ class ScreenCaptureService : Service() {
                 reader!!.surface,
                 object : VirtualDisplay.Callback() {
                     override fun onPaused() {
-                        captureRuntime.recordFailure("VirtualDisplay paused")
+                        if (captureSessionActive) {
+                            captureRuntime.recordFailure("VirtualDisplay paused")
+                        }
                     }
                     override fun onResumed() {
-                        captureRuntime.recordFailure("VirtualDisplay resumed")
+                        if (captureSessionActive) {
+                            captureRuntime.recordFailure("VirtualDisplay resumed")
+                        }
                     }
                     override fun onStopped() {
-                        if (captureSessionActive) {
-                            captureRuntime.recordFailure("VirtualDisplay stopped")
+                        if (captureSessionActive && !virtualDisplayReleaseExpected) {
+                            // A stop not initiated by stopCaptureResources is
+                            // useful evidence of an external producer-side
+                            // transition. The watchdog remains fail-closed if
+                            // frame delivery does not recover.
+                            captureRuntime.recordFailure("VirtualDisplay stopped externally")
                         }
                     }
                 },
