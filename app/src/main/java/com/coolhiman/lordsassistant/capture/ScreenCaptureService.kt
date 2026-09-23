@@ -107,6 +107,7 @@ class ScreenCaptureService : Service() {
     // VirtualDisplay.Callback.onStopped() as a consequence of our own release,
     // so that callback must never overwrite the actual service stop reason.
     @Volatile private var virtualDisplayReleaseExpected = false
+    @Volatile private var externalVirtualDisplayStopObserved = false
     @Volatile private var captureStage = "STARTING"
     private val captureWatchdogRunnable = object : Runnable {
         override fun run() {
@@ -333,6 +334,7 @@ class ScreenCaptureService : Service() {
         // Any callback arriving after this point also sees captureSessionActive=false
         // and therefore cannot be misclassified as an external stop.
         virtualDisplayReleaseExpected = false
+        externalVirtualDisplayStopObserved = false
         removeScannerHud()
     }
 
@@ -439,13 +441,38 @@ class ScreenCaptureService : Service() {
             if (!captureSessionActive) return@scheduleAtFixedRate
             val now = System.currentTimeMillis()
             if (captureWatchdog.check(now)) {
+                val healthAtStall = captureHealth.snapshot()
+                val lastFrameAt = healthAtStall.lastFrameAtMs
+                val noFrameForMs = if (lastFrameAt == null) {
+                    -1L
+                } else {
+                    (now - lastFrameAt).coerceAtLeast(0L)
+                }
                 handler.post {
                     if (!captureSessionActive) return@post
-                    captureRuntime.recordStall()
-                    OverlayService.instance?.showStatus("CAPTURE STALLED • scanner stopped safely")
-                    persistCaptureDiagnostics()
-                    stopCaptureResources(CaptureStopReason.CAPTURE_STALLED)
-                    stopSelf()
+                    if (externalVirtualDisplayStopObserved) {
+                        captureRuntime.recordFailure(
+                            "VirtualDisplay stopped externally before watchdog shutdown"
+                        )
+                        OverlayService.instance?.showStatus(
+                            "VIRTUAL DISPLAY STOPPED • scanner stopped safely"
+                        )
+                        persistCaptureDiagnostics()
+                        stopCaptureResources(CaptureStopReason.PROJECTION_STOPPED)
+                        stopSelf()
+                    } else {
+                        captureRuntime.recordStall()
+                        captureRuntime.recordFailure(
+                            "Capture watchdog: no ImageReader frame for " +
+                                noFrameForMs + " ms"
+                        )
+                        OverlayService.instance?.showStatus(
+                            "CAPTURE STALLED • no frame for " + noFrameForMs + "ms • scanner stopped safely"
+                        )
+                        persistCaptureDiagnostics()
+                        stopCaptureResources(CaptureStopReason.CAPTURE_STALLED)
+                        stopSelf()
+                    }
                 }
             }
         }, 1000L, 1000L, TimeUnit.MILLISECONDS)
@@ -1087,11 +1114,20 @@ class ScreenCaptureService : Service() {
                     }
                     override fun onStopped() {
                         if (captureSessionActive && !virtualDisplayReleaseExpected) {
-                            // A stop not initiated by stopCaptureResources is
-                            // useful evidence of an external producer-side
-                            // transition. The watchdog remains fail-closed if
-                            // frame delivery does not recover.
+                            // This callback is the producer-side lifecycle
+                            // signal. Stop immediately rather than waiting for
+                            // the 3s watchdog; this preserves the real cause
+                            // when the callback wins the race with the watchdog.
+                            externalVirtualDisplayStopObserved = true
                             captureRuntime.recordFailure("VirtualDisplay stopped externally")
+                            handler.post {
+                                if (!captureSessionActive) return@post
+                                OverlayService.instance?.showStatus(
+                                    "VIRTUAL DISPLAY STOPPED • scanner stopped safely"
+                                )
+                                stopCaptureResources(CaptureStopReason.PROJECTION_STOPPED)
+                                stopSelf()
+                            }
                         }
                     }
                 },
