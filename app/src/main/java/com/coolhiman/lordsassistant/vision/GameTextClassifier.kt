@@ -6,6 +6,7 @@ import com.coolhiman.lordsassistant.model.TargetKind
 data class TextClassification(
     val kind: TargetKind? = null,
     val resource: ResourceType? = null,
+    val monsterName: String? = null,
     val level: Int? = null,
     val quantity: Long? = null,
     val occupied: Boolean? = null,
@@ -31,7 +32,10 @@ object GameTextClassifier {
         }
         val monster = listOf(
             "blackwing", "frostwing", "gryphon", "hell drider",
-            "noceros", "mecha trojan", "trojan horse", "cottageroar"
+            "noceros", "mecha trojan", "trojan horse", "cottageroar",
+            "grim reaper", "bon appeti", "queen bee", "saberfang",
+            "gargantua", "mega maggot", "jade wyrm", "snow beast",
+            "tidal titan", "terrorthorn", "gawrilla", "necrosis"
         ).firstOrNull { it in lower }
         val explicitLevel = levelRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
         val badgeLevel = text.trim().toIntOrNull()?.takeIf { it in 1..5 }
@@ -49,7 +53,7 @@ object GameTextClassifier {
         ).any { it in lower }) true else null
         return TextClassification(
             kind = if (monster != null) TargetKind.MONSTER else if (resource != null) TargetKind.RESOURCE else null,
-            resource = resource, level = level, quantity = quantity,
+            resource = resource, monsterName = monster?.replaceFirstChar { it.uppercase() }, level = level, quantity = quantity,
             occupied = occupied, incomingTroops = incoming
         )
     }
