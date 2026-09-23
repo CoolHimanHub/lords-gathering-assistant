@@ -16,9 +16,9 @@ data class CaptureSessionDiagnosticsSnapshot(
     val runtime: CaptureRuntimeSnapshot,
     val latency: ProcessingLatencySnapshot,
     val quality: CaptureQuality,
-    val memoryPressureLevel: MemoryPressureLevel = MemoryPressureLevel.NORMAL,
     /** Candidate rejection counts attributed to this capture session. */
-    val candidateRejectionCounts: Map<String, Int> = emptyMap()
+    val candidateRejectionCounts: Map<String, Int> = emptyMap(),
+    val memoryPressureLevel: MemoryPressureLevel = MemoryPressureLevel.NORMAL
 ) {
     val frames: Long get() = capture.totalFrames
     val acceptedFrames: Long get() = capture.acceptedFrames
@@ -65,8 +65,8 @@ object CaptureSessionDiagnostics {
         runtime: CaptureRuntimeSnapshot,
         latency: ProcessingLatencySnapshot,
         quality: CaptureQuality,
-        memoryPressureLevel: MemoryPressureLevel = MemoryPressureLevel.NORMAL,
-        candidateRejectionCounts: Map<String, Int> = emptyMap()
+        candidateRejectionCounts: Map<String, Int> = emptyMap(),
+        memoryPressureLevel: MemoryPressureLevel = MemoryPressureLevel.NORMAL
     ): CaptureSessionDiagnosticsSnapshot = CaptureSessionDiagnosticsSnapshot(
         capture = capture,
         runtime = runtime,
