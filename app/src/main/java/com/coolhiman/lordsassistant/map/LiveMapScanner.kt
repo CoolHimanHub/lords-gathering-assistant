@@ -22,6 +22,7 @@ import com.coolhiman.lordsassistant.vision.DetectionFusion
 import com.coolhiman.lordsassistant.vision.MarchAssociationDiagnostics
 import com.coolhiman.lordsassistant.vision.ObservationMapper
 import com.coolhiman.lordsassistant.vision.OrangeMarchDetector
+import com.coolhiman.lordsassistant.vision.OpenCvRuntime
 import com.coolhiman.lordsassistant.vision.PopupState
 import com.coolhiman.lordsassistant.vision.TemplateLibrary
 import com.coolhiman.lordsassistant.vision.TemplateTileDetector
