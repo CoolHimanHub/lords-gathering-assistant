@@ -125,6 +125,7 @@ class CaptureSessionDiagnosticsStore(context: Context) {
         put("averageScannerMs", snapshot.latency.averageScannerMs)
         put("averageTotalMs", snapshot.latency.averageTotalMs)
         put("quality", snapshot.quality.name)
+        put("memoryPressureLevel", snapshot.memoryPressureLevel.name)
         put("candidateRejectionCounts", JSONObject().apply {
             snapshot.candidateRejectionCounts.toSortedMap().forEach { (reason, count) -> put(reason, count) }
         })
@@ -174,6 +175,7 @@ class CaptureSessionDiagnosticsStore(context: Context) {
             runtime = runtime,
             latency = latency,
             quality = CaptureQuality.valueOf(json.optString("quality")),
+            memoryPressureLevel = runCatching { MemoryPressureLevel.valueOf(json.optString("memoryPressureLevel", MemoryPressureLevel.NORMAL.name)) }.getOrDefault(MemoryPressureLevel.NORMAL),
             candidateRejectionCounts = json.optJSONObject("candidateRejectionCounts")?.let { counts ->
                 buildMap {
                     counts.keys().forEach { key -> put(key, counts.optInt(key)) }
