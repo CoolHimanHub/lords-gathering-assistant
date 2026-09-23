@@ -34,7 +34,21 @@ data class CaptureSessionDiagnosticsSnapshot(
     val restartCount: Long get() = runtime.restartCount
     val stallCount: Long get() = runtime.stallCount
     val viewportChangeCount: Long get() = runtime.viewportChangeCount
-    val memorySafeForDiagnostics: Boolean get() = quality != CaptureQuality.UNSAFE
+    val maxFrameGapMs: Long get() = capture.maxFrameGapMs
+    val qualityReason: String
+        get() = when {
+            quality == CaptureQuality.INSUFFICIENT_DATA -> "INSUFFICIENT_FRAMES"
+            capture.maxFrameGapMs >= 3000L -> "MAX_FRAME_GAP_" + capture.maxFrameGapMs + "MS"
+            latency.averageTotalMs >= 1500.0 -> "PROCESSING_AVG_" + latency.averageTotalMs.toLong() + "MS"
+            capture.acceptedFramesPerSecond < 0.4 -> "ACCEPTED_FPS_" + "%.2f".format(capture.acceptedFramesPerSecond)
+            capture.maxFrameGapMs >= 2000L -> "FRAME_GAP_" + capture.maxFrameGapMs + "MS"
+            latency.averageTotalMs >= 750.0 -> "PROCESSING_AVG_" + latency.averageTotalMs.toLong() + "MS"
+            capture.acceptedFramesPerSecond < 0.8 -> "ACCEPTED_FPS_" + "%.2f".format(capture.acceptedFramesPerSecond)
+            quality == CaptureQuality.HEALTHY -> "CONTINUITY_AND_THROUGHPUT_OK"
+            else -> "DEGRADED"
+        }
+    val memorySafeForDiagnostics: Boolean
+        get() = qualityReason != "MEMORY_CRITICAL"
     val sessionState: CaptureSessionState
         get() = when {
             runtime.sessionId <= 0L -> CaptureSessionState.NO_SESSION
