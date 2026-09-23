@@ -79,6 +79,7 @@ class DetectionFusion(
                 classification = classification.copy(
                     kind = popupState.kind ?: classification.kind,
                     resource = popupState.resource ?: classification.resource,
+                    monsterName = popupState.monsterName ?: classification.monsterName,
                     level = popupState.level ?: classification.level,
                     quantity = popupState.quantity ?: classification.quantity,
                     occupied = popupState.occupied ?: classification.occupied,
