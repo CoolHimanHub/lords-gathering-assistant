@@ -33,7 +33,9 @@ object GameTextClassifier {
             "blackwing", "frostwing", "gryphon", "hell drider",
             "noceros", "mecha trojan", "trojan horse", "cottageroar"
         ).firstOrNull { it in lower }
-        val level = levelRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
+        val explicitLevel = levelRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
+        val badgeLevel = text.trim().toIntOrNull()?.takeIf { it in 1..5 }
+        val level = explicitLevel ?: badgeLevel
         val quantity = quantityRegex.findAll(text)
             .mapNotNull { it.groupValues[1].replace(",", "").toLongOrNull() }.maxOrNull()
         val occupied = when {
