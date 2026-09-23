@@ -410,6 +410,7 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
         captureSessionActive = true
+        externalVirtualDisplayStopObserved = false
         captureStage = "STARTING"
         ensureScannerHud()
         // Re-assert the diagnostic overlay from the already-running foreground
