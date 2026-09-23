@@ -714,7 +714,7 @@ class ScreenCaptureService : Service() {
                             append("\nVision: ").append(scan.detectedTiles)
                                 .append(" tiles / ").append(scan.templateCount).append(" templates / ")
                                 .append(scan.badgeDetections).append(" badges / OpenCV ")
-                                .append(if (scan.openCvReady) "READY" else "UNAVAILABLE")
+                                .append(if (scan.openCvReady) "READY" else scan.openCvDiagnostic)
                                 .append(" / ").append(scan.actionButtonDetections).append(" action buttons / ")
                                 .append(scan.actionCandidates.size).append(" candidates")
                             append("\n").append(scan.processingMs).append("ms")
