@@ -694,8 +694,10 @@ class ScreenCaptureService : Service() {
                             append("LIVE MAP  •  ")
                             append(scan.detectedTiles)
                             append(" tiles / ")
-                            append(scan.plan.ranked.size)
-                            append(" targets")
+                            append(scan.plan.discoveredTargetCount)
+                            append(" discovered / ")
+                            append(scan.plan.ranked.size + scan.plan.rankedMonsters.size)
+                            append(" ranked")
                             if (origin != null) {
                                 append("\nK").append(origin.kingdom)
                                 append(" X").append(origin.x)
@@ -706,6 +708,12 @@ class ScreenCaptureService : Service() {
                             append("\nCamera: ").append(scan.cameraState.name)
                             append("  Validation: ").append(scan.validation.stage.name)
                             append("\nAction: ").append(scan.actionButton?.kind?.name ?: "NOT DETECTED")
+                            if (scan.plan.rankedDiscoveries.isNotEmpty()) {
+                                val top = scan.plan.rankedDiscoveries.first().observation
+                                append("\nTop: ").append(top.kind?.name ?: "TARGET")
+                                    .append(" L").append(top.level ?: "?").append(" @ ")
+                                    .append(top.coordinate?.let { c -> "K" + c.kingdom + " X" + c.x + " Y" + c.y } ?: "screen")
+                            }
                             if (scan.validation.reasons.isNotEmpty()) {
                                 append("\nBlocked: ").append(scan.validation.reasons.joinToString(", ") { reason ->
                                     reason.name.replace('_', ' ')
