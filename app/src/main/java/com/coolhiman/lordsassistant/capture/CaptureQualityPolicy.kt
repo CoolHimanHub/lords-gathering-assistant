@@ -16,8 +16,9 @@ enum class CaptureQuality {
  */
 class CaptureQualityPolicy(
     private val minimumFrames: Long = 5L,
-    private val healthyFps: Double = 1.2,
-    private val degradedFps: Double = 0.8,
+    private val healthyAcceptedFps: Double = 1.2,
+    private val degradedAcceptedFps: Double = 0.8,
+    private val unsafeAcceptedFps: Double = 0.4,
     private val degradedDropRatePercent: Double = 20.0,
     private val unsafeDropRatePercent: Double = 50.0,
     private val degradedProcessingMs: Double = 750.0,
@@ -43,20 +44,19 @@ class CaptureQualityPolicy(
         if (capture.totalFrames < minimumFrames) return CaptureQuality.INSUFFICIENT_DATA
         if (memory.level == MemoryPressureLevel.CRITICAL) return CaptureQuality.UNSAFE
         if (
-            capture.dropRatePercent >= unsafeDropRatePercent ||
             capture.maxFrameGapMs >= unsafeGapMs ||
-            latency.averageTotalMs >= unsafeProcessingMs
+            latency.averageTotalMs >= unsafeProcessingMs ||
+            capture.acceptedFramesPerSecond < unsafeAcceptedFps
         ) return CaptureQuality.UNSAFE
 
         if (
             memory.level == MemoryPressureLevel.WARNING ||
-            capture.framesPerSecond < degradedFps ||
-            capture.dropRatePercent >= degradedDropRatePercent ||
+            capture.acceptedFramesPerSecond < degradedAcceptedFps ||
             capture.maxFrameGapMs >= degradedGapMs ||
             latency.averageTotalMs >= degradedProcessingMs
         ) return CaptureQuality.DEGRADED
 
-        return if (capture.framesPerSecond >= healthyFps) {
+        return if (capture.acceptedFramesPerSecond >= healthyAcceptedFps) {
             CaptureQuality.HEALTHY
         } else {
             CaptureQuality.DEGRADED
