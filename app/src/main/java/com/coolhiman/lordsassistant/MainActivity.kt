@@ -19,6 +19,9 @@ import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.overlay.OverlayService
 
 class MainActivity : Activity() {
+    companion object {
+        const val ACTION_START_CAPTURE = "com.coolhiman.lordsassistant.action.START_CAPTURE"
+    }
     private lateinit var store: PreferencesStore
     private lateinit var readinessStatus: TextView
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +67,20 @@ class MainActivity : Activity() {
         root.addView(Button(this).apply { text="Start screen scanner"; setOnClickListener { requestCapture() } })
         root.addView(TextView(this).apply { text="Workflow: screen → CV → OCR → coordinate → validation → overlay"; setTextColor(0xFFB8BBC4.toInt()); gravity=Gravity.CENTER_HORIZONTAL; setPadding(0,20,0,0) })
         setContentView(ScrollView(this).apply { addView(root) })
+
+        if (intent?.action == ACTION_START_CAPTURE) {
+            root.post { requestCapture() }
+        }
     }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent?.action == ACTION_START_CAPTURE) {
+            window.decorView.post { requestCapture() }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         readinessStatus.text = readinessText()
