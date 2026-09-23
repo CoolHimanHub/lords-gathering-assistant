@@ -13,7 +13,8 @@ enum class CaptureStopReason {
     VIEWPORT_CHANGED,
     CAPTURE_SETUP_FAILED,
     CAPTURE_ERROR,
-    SERVICE_DESTROYED
+    SERVICE_DESTROYED,
+    TEST_TIMER
 }
 
 data class CaptureRuntimeSnapshot(
