@@ -44,5 +44,7 @@ object OpenCvRuntime {
         }
     }
 
+    fun isLoaded(): Boolean = loaded
+
     fun error(): String? = loadError
 }
