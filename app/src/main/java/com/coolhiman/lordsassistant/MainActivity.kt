@@ -53,6 +53,7 @@ class MainActivity : Activity() {
             text = readinessText()
         }
         root.addView(readinessStatus)
+        root.addView(Switch(this).apply { text = "Developer diagnostics overlay"; setTextColor(Color.WHITE); isChecked = current.diagnosticsOverlay; setOnCheckedChangeListener { _, checked -> store.setDiagnosticsOverlay(checked); if (checked) Toast.makeText(this@MainActivity, "Restart overlay to apply diagnostics mode", Toast.LENGTH_SHORT).show() } })
         root.addView(TextView(this).apply { text="RESOURCE PREFERENCES"; setTextColor(0xFF8D91A0.toInt()); setPadding(0,18,0,4) })
         ResourceType.values().forEach { type -> root.addView(CheckBox(this).apply { text=type.name; setTextColor(Color.WHITE); isChecked=current.resourceTypes.contains(type); setOnCheckedChangeListener { _,checked -> store.setResourceEnabled(type,checked) } }) }
         val levelRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
