@@ -108,7 +108,11 @@ class CaptureSessionDiagnosticsTest {
         val latency = ProcessingLatencySnapshot(5L, 10L, 20L, 30L, 10L, 20L, 30L, 10.0, 20.0, 30.0)
 
         val snapshot = CaptureSessionDiagnostics.snapshot(
-            health, runtime, latency, CaptureQuality.UNSAFE
+            health,
+            runtime,
+            latency,
+            CaptureQuality.UNSAFE,
+            memoryPressureLevel = MemoryPressureLevel.CRITICAL
         )
 
         assertEquals(CaptureQuality.UNSAFE, snapshot.quality)
