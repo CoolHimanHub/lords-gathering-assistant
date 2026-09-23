@@ -22,7 +22,7 @@ data class RealDeviceValidationSummary(
         } else {
             appendLine("Capture session: #${capture.sessionId} • state=${capture.sessionState.name.lowercase()} • quality=${capture.quality.name}")
             appendLine("Frames: ${capture.frames} total / ${capture.acceptedFrames} accepted / ${capture.droppedFrames} dropped / ${capture.staleFrames} stale")
-            appendLine("Input FPS: %.2f • accepted FPS: %.2f • input backpressure: %.1f%%".format(capture.fps, capture.acceptedFramesPerSecond, capture.dropRatePercent))
+            appendLine("Input FPS: %.2f • accepted FPS: %.2f • input backpressure: %.1f%%".format(capture.fps, capture.acceptedFps, capture.dropRatePercent))
             appendLine("Latency: %.0f ms total avg • OCR %.0f ms • scan %.0f ms".format(
                 capture.averageProcessingMs, capture.averageOcrMs, capture.averageScannerMs
             ))
