@@ -11,13 +11,22 @@ import kotlin.math.hypot
 data class TargetPlan(
     val observations: List<MapObservation>,
     val ranked: List<RankedTarget>,
-    val rankedMonsters: List<RankedMonsterTarget> = emptyList()
-)
+    val rankedMonsters: List<RankedMonsterTarget> = emptyList(),
+    /** Discovery-only ranking. These entries are never action-authoritative. */
+    val rankedDiscoveries: List<RankedDiscoveryTarget> = emptyList()
+) {
+    val discoveredTargetCount: Int get() = rankedDiscoveries.size
+}
 
 data class RankedMonsterTarget(val target: MonsterTarget, val score: Double)
 
+data class RankedDiscoveryTarget(
+    val observation: MapObservation,
+    val score: Double
+)
+
 class TargetPlanner(
-    private val minimumConfidence: Float = 0.72f
+    private val minimumConfidence: Float = 0.62f
 ) {
     fun plan(
         originX: Int,
@@ -26,8 +35,6 @@ class TargetPlanner(
         preferences: UserPreferences,
         cameraStable: Boolean = true
     ): TargetPlan {
-        if (!cameraStable) return TargetPlan(observations, emptyList(), emptyList())
-
         val eligible = observations.filter { o ->
             o.coordinate != null &&
                 o.level != null &&
@@ -47,6 +54,21 @@ class TargetPlanner(
         }
         val rankedResources = TargetRanker.rank(originX, originY, resourceTiles, preferences)
 
+        // Discovery ranking deliberately does not depend on camera stability.
+        // It is informational only; action validation still requires a stable camera.
+        val rankedDiscoveries = eligible.mapNotNull { observation ->
+            val coordinate = observation.coordinate ?: return@mapNotNull null
+            val level = observation.level ?: return@mapNotNull null
+            val distance = hypot(
+                (coordinate.x - originX).toDouble(),
+                (coordinate.y - originY).toDouble()
+            )
+            RankedDiscoveryTarget(
+                observation = observation,
+                score = level * 100.0 + observation.confidence * 100.0 - distance * 10.0
+            )
+        }.sortedByDescending { it.score }
+
         val monsters = eligible.filter { it.kind == TargetKind.MONSTER && (it.level ?: 0) in preferences.monsterLevels }
         val rankedMonsters = monsters.mapNotNull { o ->
             val c = o.coordinate ?: return@mapNotNull null
@@ -60,6 +82,11 @@ class TargetPlanner(
             )
         }.sortedByDescending { it.score }
 
-        return TargetPlan(eligible, rankedResources, rankedMonsters)
+        return TargetPlan(
+            observations = eligible,
+            ranked = rankedResources,
+            rankedMonsters = rankedMonsters,
+            rankedDiscoveries = rankedDiscoveries
+        )
     }
 }
