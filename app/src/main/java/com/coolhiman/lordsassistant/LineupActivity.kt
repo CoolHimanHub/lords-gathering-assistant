@@ -55,9 +55,12 @@ class LineupActivity : Activity() {
         fun render(name: String) {
             val monster = monsters.getJSONObject(name)
             val sections = listOf(
+                "lv1_3" to "Official reference • Lv 1–3",
+                "lv4_5" to "Official reference • Lv 4–5",
+                "lv1_5" to "Official reference • Lv 1–5",
+                "f2p" to "Community F2P alternative",
+                "p2p" to "Community P2P alternative",
                 "standard" to "Standard",
-                "f2p" to "F2P",
-                "p2p" to "P2P",
                 "alternative" to "Alternative",
                 "alternativeF2p" to "Alternative F2P"
             )
