@@ -50,4 +50,21 @@ class TemporalObservationTrackerTest {
         assertEquals(false, tracker.update(listOf(free), 1200L).first().occupied)
     }
 
+    @Test
+    fun coordinateDriftStillConfirmsSameVisibleNode() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val first = observation()
+        val second = first.copy(
+            coordinate = WorldCoordinate(355, 11, 21),
+            screenPoint = ScreenPoint(104f, 97f)
+        )
+
+        assertEquals(0, tracker.update(listOf(first), 1000L).size)
+        val stable = tracker.update(listOf(second), 1100L).single()
+
+        assertEquals(second.coordinate, stable.coordinate)
+        assertEquals(second.screenPoint, stable.screenPoint)
+    }
+
+
 }
