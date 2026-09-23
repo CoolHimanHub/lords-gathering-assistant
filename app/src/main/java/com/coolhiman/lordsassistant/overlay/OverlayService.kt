@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.coolhiman.lordsassistant.capture.ScreenCaptureService
+import com.coolhiman.lordsassistant.data.PreferencesStore
 import com.coolhiman.lordsassistant.target.RankedTarget
 
 class OverlayService : Service() {
@@ -44,7 +45,8 @@ class OverlayService : Service() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
 
         val density = resources.displayMetrics.density
-        val cardWidth = (360f * density).toInt()
+        val cardWidth = (320f * density).toInt()
+        val diagnostics = PreferencesStore(this).load().diagnosticsOverlay
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -53,7 +55,7 @@ class OverlayService : Service() {
         }
 
         val status = TextView(this).apply {
-            text = "LM • SCANNER\nReady — open the game map"
+            text = "LM COMPANION • V2.0\nReady — open the Lords Mobile map"
             textSize = 11f
             setTextColor(Color.WHITE)
             setPadding(4, 2, 4, 4)
@@ -119,13 +121,13 @@ class OverlayService : Service() {
                 }
             }
 
-        // Keep the test controls at the top and keep the diagnostic status
-        // bounded. The floating window must never expand into a full-screen
-        // touch-blocking surface when a long diagnostic string is displayed.
-        container.addView(timerLabel)
-        container.addView(timerStatus)
-        container.addView(timerRow(1, 5))
-        container.addView(timerRow(6, 10))
+        // Developer controls stay available, but production mode keeps the overlay compact.
+        if (diagnostics) {
+            container.addView(timerLabel)
+            container.addView(timerStatus)
+            container.addView(timerRow(1, 5))
+            container.addView(timerRow(6, 10))
+        }
 
         fun actionButton(label: String, fill: Int): TextView = TextView(this).apply {
             text = label
@@ -158,9 +160,9 @@ class OverlayService : Service() {
                 setMargins(2, 2, 2, 2)
             })
         }
-        container.addView(testActions)
+        if (diagnostics) container.addView(testActions)
         container.addView(status)
-        container.addView(health)
+        if (diagnostics) container.addView(health)
 
         var downX = 0f
         var downY = 0f
