@@ -28,10 +28,9 @@ class CaptureQualityPolicy(
 ) {
     init {
         require(minimumFrames > 0L)
-        require(healthyFps > 0.0)
-        require(degradedFps > 0.0 && degradedFps < healthyFps)
-        require(degradedDropRatePercent in 0.0..100.0)
-        require(unsafeDropRatePercent >= degradedDropRatePercent && unsafeDropRatePercent <= 100.0)
+        require(healthyAcceptedFps > 0.0)
+        require(degradedAcceptedFps > 0.0 && degradedAcceptedFps < healthyAcceptedFps)
+        require(unsafeAcceptedFps > 0.0 && unsafeAcceptedFps < degradedAcceptedFps)
         require(degradedProcessingMs > 0.0 && unsafeProcessingMs >= degradedProcessingMs)
         require(degradedGapMs > 0L && unsafeGapMs >= degradedGapMs)
     }
