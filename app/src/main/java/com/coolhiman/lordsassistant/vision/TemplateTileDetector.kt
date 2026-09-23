@@ -11,10 +11,14 @@ class TemplateTileDetector(
     private val iouThreshold: Float = 0.35f,
     private val badgeDetector: LevelBadgeDetector = LevelBadgeDetector()
 ) {
+    @Volatile var lastBadgeDetections: Int = 0
+        private set
+
     fun detect(screen: Bitmap, templates: List<Pair<TileTemplate, Bitmap>>): DetectionFrame {
         val started = System.currentTimeMillis()
         val candidates = ArrayList<DetectedTile>()
 
+        lastBadgeDetections = 0
         for ((template, bitmap) in templates) {
             if (bitmap.isRecycled || bitmap.width <= 2 || bitmap.height <= 2) continue
             val match = matcher.match(screen, bitmap, threshold) ?: continue
@@ -27,7 +31,9 @@ class TemplateTileDetector(
             )
         }
 
-        for (badge in badgeDetector.detect(screen)) {
+        val badges = badgeDetector.detect(screen)
+        lastBadgeDetections = badges.size
+        for (badge in badges) {
             val cx = badge.bounds.centerX()
             val cy = badge.bounds.bottom + badge.bounds.height() * 0.65f
             val halfW = max(18f, badge.bounds.width() * 0.65f)
