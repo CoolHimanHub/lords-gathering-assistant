@@ -41,17 +41,23 @@ class OverlayService : Service() {
         instance = this
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
 
+        val density = resources.displayMetrics.density
+        val cardWidth = (360f * density).toInt()
+
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14, 10, 14, 10)
+            setPadding(12, 8, 12, 8)
             setBackgroundColor(0xDD16181D.toInt())
         }
 
         val status = TextView(this).apply {
             text = "LM • SCANNER\nReady — open the game map"
-            textSize = 12f
+            textSize = 11f
             setTextColor(Color.WHITE)
-            setPadding(4, 2, 4, 6)
+            setPadding(4, 2, 4, 4)
+            maxLines = 5
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(cardWidth, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         statusView = status
 
@@ -94,11 +100,14 @@ class OverlayService : Service() {
                 }
             }
 
-        container.addView(status)
+        // Keep the test controls at the top and keep the diagnostic status
+        // bounded. The floating window must never expand into a full-screen
+        // touch-blocking surface when a long diagnostic string is displayed.
         container.addView(timerLabel)
         container.addView(timerStatus)
         container.addView(timerRow(1, 5))
         container.addView(timerRow(6, 10))
+        container.addView(status)
 
         var downX = 0f
         var downY = 0f
@@ -132,10 +141,11 @@ class OverlayService : Service() {
         else WindowManager.LayoutParams.TYPE_PHONE
 
         val lp = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            cardWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
