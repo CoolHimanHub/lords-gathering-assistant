@@ -12,12 +12,15 @@ class PreferencesStore(context: Context) {
         }.toSet(),
         resourceLevels = (1..5).filter { prefs.getBoolean("resource_level_$it", true) }.toSet(),
         automaticActions = prefs.getBoolean("auto", false),
-        overlayEnabled = prefs.getBoolean("overlay", true)
+        overlayEnabled = prefs.getBoolean("overlay", true),
+        diagnosticsOverlay = prefs.getBoolean("diagnostics_overlay", false)
     )
     fun setAutomaticActions(enabled: Boolean) = prefs.edit().putBoolean("auto", enabled).apply()
     fun setOverlayEnabled(enabled: Boolean) = prefs.edit().putBoolean("overlay", enabled).apply()
+    fun setDiagnosticsOverlay(enabled: Boolean) = prefs.edit().putBoolean("diagnostics_overlay", enabled).apply()
     fun setResourceEnabled(type: ResourceType, enabled: Boolean) =
         prefs.edit().putBoolean("resource_${type.name}", enabled).apply()
     fun setResourceLevelEnabled(level: Int, enabled: Boolean) =
         prefs.edit().putBoolean("resource_level_$level", enabled).apply()
 }
+
