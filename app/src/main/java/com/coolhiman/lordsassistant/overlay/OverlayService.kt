@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.drawable.GradientDrawable
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.view.Gravity
@@ -76,14 +77,20 @@ class OverlayService : Service() {
         }
         timerView = timerStatus
 
-        fun timerButton(minutes: Int): Button = Button(this).apply {
+        fun timerButton(minutes: Int): TextView = TextView(this).apply {
             text = minutes.toString()
-            textSize = 10f
-            minWidth = 0
-            minimumWidth = 0
-            minHeight = 0
-            minimumHeight = 0
-            setPadding(2, 0, 2, 0)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, 0)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 8f
+                setColor(0xFF30343B.toInt())
+                setStroke(2, 0xFF707782.toInt())
+            }
+            isClickable = true
+            isFocusable = false
             setOnClickListener { selectTestDuration(minutes) }
         }
 
@@ -108,12 +115,26 @@ class OverlayService : Service() {
         container.addView(timerRow(1, 5))
         container.addView(timerRow(6, 10))
 
-        val startTestButton = Button(this).apply {
-            text = "START TEST"
+        fun actionButton(label: String, fill: Int): TextView = TextView(this).apply {
+            text = label
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 10f
+                setColor(fill)
+                setStroke(2, Color.WHITE)
+            }
+            isClickable = true
+            isFocusable = false
+        }
+
+        val startTestButton = actionButton("▶  START TEST", 0xFF176B3A.toInt()).apply {
             setOnClickListener { startTest() }
         }
-        val stopTestButton = Button(this).apply {
-            text = "STOP TEST"
+        val stopTestButton = actionButton("■  STOP TEST", 0xFF7A2424.toInt()).apply {
             setOnClickListener { stopTest() }
         }
         val testActions = LinearLayout(this).apply {
