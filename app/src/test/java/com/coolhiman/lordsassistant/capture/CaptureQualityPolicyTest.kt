@@ -76,7 +76,7 @@ class CaptureQualityPolicyTest {
     fun highDropsMakeSessionUnsafe() {
         assertEquals(
             CaptureQuality.HEALTHY,
-            policy.assess(capture(drops = 9L), latency(100.0), memory(MemoryPressureLevel.NORMAL))
+            policy.assess(capture(frames = 15L, drops = 9L), latency(100.0), memory(MemoryPressureLevel.NORMAL))
         )
     }
 
@@ -84,7 +84,7 @@ class CaptureQualityPolicyTest {
     fun lowAcceptedThroughputIsDegraded() {
         assertEquals(
             CaptureQuality.DEGRADED,
-            policy.assess(capture(frames = 10L, durationMs = 20_000L, drops = 9L), latency(100.0), memory(MemoryPressureLevel.NORMAL))
+            policy.assess(capture(frames = 10L, durationMs = 2_000L, drops = 9L), latency(100.0), memory(MemoryPressureLevel.NORMAL))
         )
     }
 
@@ -92,7 +92,7 @@ class CaptureQualityPolicyTest {
     fun veryLowAcceptedThroughputIsUnsafe() {
         assertEquals(
             CaptureQuality.UNSAFE,
-            policy.assess(capture(frames = 10L, durationMs = 30_000L, drops = 9L), latency(100.0), memory(MemoryPressureLevel.NORMAL))
+            policy.assess(capture(frames = 10L, durationMs = 3_000L, drops = 9L), latency(100.0), memory(MemoryPressureLevel.NORMAL))
         )
     }
 
