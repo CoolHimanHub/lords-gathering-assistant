@@ -1024,3 +1024,10 @@ V0.10 guarded dispatch integration coverage:
 - Capture health remains visible in its own bounded read-only panel with session, frame, accepted/processed/dropped, and quality metrics.
 - The change is diagnostic/UI-only and does not alter target validation, scheduler admission, recovery policy, Accessibility dispatch, or automatic-action defaults.
 - App version is now 1.0.1 (versionCode 102).
+
+
+## V2.0.0 product release
+
+The integrated V2.0.0 architecture, real-device evidence, safety model, limitations and release procedure are documented in [`docs/CASE_STUDY_V2.md`](docs/CASE_STUDY_V2.md).
+
+V2 distinguishes discovery from action authority: map objects can be surfaced while camera calibration settles, but automated interaction remains fail-closed until current-frame validation, calibration, camera continuity, march association and action-button evidence all pass.
