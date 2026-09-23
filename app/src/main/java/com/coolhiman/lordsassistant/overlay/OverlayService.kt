@@ -11,14 +11,29 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
+import com.coolhiman.lordsassistant.capture.ScreenCaptureService
 import com.coolhiman.lordsassistant.target.RankedTarget
 
 class OverlayService : Service() {
-    companion object { @Volatile var instance: OverlayService? = null }
+    companion object {
+        @Volatile var instance: OverlayService? = null
+        @Volatile private var selectedTestDurationMinutes: Int = 5
+        @Volatile private var testTimerArmed: Boolean = false
+
+        fun consumeArmedTestDuration(): Int? {
+            if (!testTimerArmed) return null
+            testTimerArmed = false
+            return selectedTestDurationMinutes
+        }
+    }
 
     private lateinit var wm: WindowManager
-    private var card: TextView? = null
+    private var card: LinearLayout? = null
+    private var statusView: TextView? = null
+    private var timerView: TextView? = null
     private var markerView: TargetMarkerView? = null
 
     override fun onCreate() {
@@ -26,30 +41,87 @@ class OverlayService : Service() {
         instance = this
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        val view = TextView(this).apply {
-            text = "LM  •  SCANNER\nReady — open the game map"
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(14, 10, 14, 10)
+            setBackgroundColor(0xDD16181D.toInt())
+        }
+
+        val status = TextView(this).apply {
+            text = "LM • SCANNER\nReady — open the game map"
             textSize = 12f
             setTextColor(Color.WHITE)
-            setBackgroundColor(0xCC16181D.toInt())
-            setPadding(18, 12, 18, 12)
+            setPadding(4, 2, 4, 6)
         }
+        statusView = status
+
+        val timerLabel = TextView(this).apply {
+            text = "TEST TIMER • select 1–10 min"
+            textSize = 10f
+            setTextColor(0xFFB8BBC4.toInt())
+            setPadding(4, 2, 4, 3)
+        }
+
+        val timerStatus = TextView(this).apply {
+            text = timerStatusText()
+            textSize = 11f
+            setTextColor(Color.WHITE)
+            setPadding(4, 1, 4, 5)
+        }
+        timerView = timerStatus
+
+        fun timerButton(minutes: Int): Button = Button(this).apply {
+            text = minutes.toString()
+            textSize = 10f
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            setPadding(2, 0, 2, 0)
+            setOnClickListener { selectTestDuration(minutes) }
+        }
+
+        fun timerRow(start: Int, end: Int): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                for (minute in start..end) {
+                    addView(
+                        timerButton(minute),
+                        LinearLayout.LayoutParams(0, 38, 1f).apply {
+                            setMargins(2, 1, 2, 1)
+                        }
+                    )
+                }
+            }
+
+        container.addView(status)
+        container.addView(timerLabel)
+        container.addView(timerStatus)
+        container.addView(timerRow(1, 5))
+        container.addView(timerRow(6, 10))
 
         var downX = 0f
         var downY = 0f
         var startX = 0
         var startY = 0
 
-        view.setOnTouchListener { v, event ->
-            val lp = v.layoutParams as WindowManager.LayoutParams
+        // Drag only the status/header area so the timer buttons remain tappable.
+        status.setOnTouchListener { _, event ->
+            val lp = container.layoutParams as? WindowManager.LayoutParams
+                ?: return@setOnTouchListener false
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = event.rawX; downY = event.rawY
-                    startX = lp.x; startY = lp.y; true
+                    downX = event.rawX
+                    downY = event.rawY
+                    startX = lp.x
+                    startY = lp.y
+                    true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     lp.x = startX + (event.rawX - downX).toInt()
                     lp.y = startY + (event.rawY - downY).toInt()
-                    wm.updateViewLayout(v, lp); true
+                    runCatching { wm.updateViewLayout(container, lp) }
+                    true
                 }
                 else -> false
             }
@@ -63,15 +135,16 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 24; y = 80
+            x = 24
+            y = 80
         }
 
-        card = view
-        wm.addView(view, lp)
+        card = container
+        wm.addView(container, lp)
 
         markerView = TargetMarkerView().also { marker ->
             val markerLp = WindowManager.LayoutParams(
@@ -87,7 +160,52 @@ class OverlayService : Service() {
         }
     }
 
-    fun showStatus(text: String) { card?.post { card?.text = text } }
+    private fun selectTestDuration(minutes: Int) {
+        selectedTestDurationMinutes = minutes.coerceIn(1, 10)
+        testTimerArmed = true
+        val active = ScreenCaptureService.instance?.isCaptureSessionActive() == true
+        if (active) {
+            ScreenCaptureService.instance?.configureTestTimer(selectedTestDurationMinutes)
+            timerView?.post {
+                timerView?.text = "TEST: ${selectedTestDurationMinutes} min • RUNNING"
+            }
+            showStatus(
+                "LM • TEST TIMER\n${selectedTestDurationMinutes} min selected • capture running"
+            )
+        } else {
+            timerView?.post {
+                timerView?.text = "TEST: ${selectedTestDurationMinutes} min • ARMED"
+            }
+            showStatus(
+                "LM • TEST TIMER\n${selectedTestDurationMinutes} min armed • start scanner"
+            )
+        }
+    }
+
+    private fun timerStatusText(): String =
+        if (testTimerArmed) {
+            "TEST: ${selectedTestDurationMinutes} min • ARMED"
+        } else {
+            "TEST: none • select duration"
+        }
+
+    fun showStatus(text: String) {
+        statusView?.post { statusView?.text = text }
+    }
+
+    fun showTestTimer(remainingMs: Long, selectedMinutes: Int, running: Boolean) {
+        val seconds = ((remainingMs + 999L) / 1000L).coerceAtLeast(0L)
+        val minutes = seconds / 60L
+        val remainder = seconds % 60L
+        val countdown = "%02d:%02d".format(minutes, remainder)
+        timerView?.post {
+            timerView?.text = if (running) {
+                "TEST: ${selectedMinutes} min • ${countdown} REMAINING"
+            } else {
+                "TEST: ${selectedMinutes} min • COMPLETE"
+            }
+        }
+    }
 
     fun showCaptureHealth(
         sessionId: Long,
@@ -99,10 +217,10 @@ class OverlayService : Service() {
         quality: String
     ) {
         val state = if (stage.contains("ERROR") || stage.contains("STOPPED")) "■" else "●"
-        card?.post {
-            card?.text = "LM • SCANNER  $state $stage\\n" +
-                "Session #$sessionId • $totalFrames frames\\n" +
-                "Accepted $acceptedFrames • Processed $processedFrames • Dropped $droppedFrames\\n" +
+        statusView?.post {
+            statusView?.text = "LM • SCANNER  $state $stage\n" +
+                "Session #$sessionId • $totalFrames frames\n" +
+                "Accepted $acceptedFrames • Processed $processedFrames • Dropped $droppedFrames\n" +
                 "Quality: $quality"
         }
     }
@@ -116,6 +234,8 @@ class OverlayService : Service() {
         card?.let { runCatching { wm.removeView(it) } }
         markerView?.let { runCatching { wm.removeView(it) } }
         card = null
+        statusView = null
+        timerView = null
         markerView = null
         super.onDestroy()
     }
