@@ -2,7 +2,7 @@ package com.coolhiman.lordsassistant.map
 
 import com.coolhiman.lordsassistant.model.MapObservation
 import kotlin.math.abs
-import kotlin.math.sqrt
+import kotlin.math.hypot
 
 enum class CameraState { STABLE, PANNING, UNSTABLE }
 
@@ -16,39 +16,39 @@ data class CameraAssessment(
     val continuityForActions: Boolean = false
 )
 
+/**
+ * Estimates camera motion from screen-space observations.
+ *
+ * World-coordinate association is useful when it is available, but it is not
+ * a safe continuity key during early calibration: small coordinate changes can
+ * make every visible node look "new" even when the camera is stationary.
+ * Matching by semantic identity + nearest screen point gives us a robust
+ * screen-space continuity signal without granting any action authority.
+ */
 class CameraStateTracker(
     private val minSharedTargets: Int = 3,
     private val panShiftPx: Float = 70f,
     private val unstableSpreadPx: Float = 90f,
-    private val unstableScaleChangePercent: Float = 8f
+    private val unstableScaleChangePercent: Float = 8f,
+    private val maxSemanticMatchDistancePx: Float = 220f
 ) {
-    private var previous = emptyMap<String, Pair<Float, Float>>()
+    private var previous = emptyList<MapObservation>()
     private var established = false
 
     fun update(observations: List<MapObservation>): CameraAssessment {
-        val current = observations.mapNotNull { o ->
-            val c = o.coordinate ?: return@mapNotNull null
-            val p = o.screenPoint ?: return@mapNotNull null
-            val key = "${c}:${o.kind}:${o.level}"
-            key to (p.x to p.y)
-        }.toMap()
-
-        val shifts = current.mapNotNull { (key, p) ->
-            val old = previous[key] ?: return@mapNotNull null
-            val dx = p.first - old.first
-            val dy = p.second - old.second
-            sqrt(dx * dx + dy * dy)
+        val matches = matchObservations(previous, observations)
+        val shifts = matches.map { (old, current) ->
+            hypot(
+                (current.screenPoint!!.x - old.screenPoint!!.x).toDouble(),
+                (current.screenPoint!!.y - old.screenPoint!!.y).toDouble()
+            ).toFloat()
         }
-        val scaleChangePercent = estimateScaleChange(current)
+        val scaleChangePercent = estimateScaleChange(matches)
         val hadPreviousFrame = established
-        previous = current
+        previous = observations
         established = true
 
         if (shifts.size < minSharedTargets) {
-            // The first frame has no continuity to validate and is therefore
-            // neutral. Once continuity exists, losing the minimum number of
-            // shared targets is not proof of stability; it is an unknown camera
-            // transition and must remain fail-closed for action eligibility.
             return CameraAssessment(
                 state = if (hadPreviousFrame) CameraState.UNSTABLE else CameraState.STABLE,
                 sharedTargets = shifts.size,
@@ -69,6 +69,7 @@ class CameraStateTracker(
             median >= panShiftPx -> CameraState.PANNING
             else -> CameraState.STABLE
         }
+
         return CameraAssessment(
             state = state,
             sharedTargets = shifts.size,
@@ -79,38 +80,98 @@ class CameraStateTracker(
         )
     }
 
+    private fun matchObservations(
+        old: List<MapObservation>,
+        current: List<MapObservation>
+    ): List<Pair<MapObservation, MapObservation>> {
+        if (old.isEmpty() || current.isEmpty()) return emptyList()
 
-    private fun estimateScaleChange(current: Map<String, Pair<Float, Float>>): Float {
-        val shared = current.keys.intersect(previous.keys).toList()
-        if (shared.size < minSharedTargets) return 0f
+        val unmatched = old.indices.toMutableSet()
+        val matches = mutableListOf<Pair<MapObservation, MapObservation>>()
+
+        // Prefer exact world identity when it exists.
+        for (now in current) {
+            val point = now.screenPoint ?: continue
+            val exact = unmatched.firstOrNull { index ->
+                val before = old[index]
+                before.coordinate != null &&
+                    before.coordinate == now.coordinate &&
+                    before.kind == now.kind &&
+                    before.level == now.level &&
+                    before.screenPoint != null
+            }
+            if (exact != null) {
+                matches += old[exact] to now
+                unmatched.remove(exact)
+            }
+        }
+
+        // Fall back to semantic + nearest screen-space matching. This keeps
+        // stationary cameras stable while calibration coordinates settle.
+        for (now in current) {
+            if (matches.any { it.second === now }) continue
+            val point = now.screenPoint ?: continue
+            val best = unmatched
+                .mapNotNull { index ->
+                    val before = old[index]
+                    val beforePoint = before.screenPoint ?: return@mapNotNull null
+                    if (!sameSemanticTarget(before, now)) return@mapNotNull null
+                    val distance = hypot(
+                        (point.x - beforePoint.x).toDouble(),
+                        (point.y - beforePoint.y).toDouble()
+                    ).toFloat()
+                    if (distance > maxSemanticMatchDistancePx) null else index to distance
+                }
+                .minByOrNull { it.second }
+                ?.first
+
+            if (best != null) {
+                matches += old[best] to now
+                unmatched.remove(best)
+            }
+        }
+
+        return matches
+    }
+
+    private fun sameSemanticTarget(a: MapObservation, b: MapObservation): Boolean {
+        if (a.kind != b.kind || a.level != b.level) return false
+        if (a.label != null && b.label != null && a.label != b.label) return false
+        return true
+    }
+
+    private fun estimateScaleChange(
+        matches: List<Pair<MapObservation, MapObservation>>
+    ): Float {
+        if (matches.size < minSharedTargets) return 0f
 
         val ratios = mutableListOf<Float>()
-        for (i in 0 until shared.size) {
-            for (j in i + 1 until shared.size) {
-                val a = shared[i]
-                val b = shared[j]
-                val oldA = previous[a]!!
-                val oldB = previous[b]!!
-                val newA = current[a]!!
-                val newB = current[b]!!
-                val oldDistance = sqrt(
-                    (oldA.first - oldB.first) * (oldA.first - oldB.first) +
-                    (oldA.second - oldB.second) * (oldA.second - oldB.second)
+        for (i in 0 until matches.size) {
+            for (j in i + 1 until matches.size) {
+                val oldA = matches[i].first.screenPoint ?: continue
+                val oldB = matches[j].first.screenPoint ?: continue
+                val newA = matches[i].second.screenPoint ?: continue
+                val newB = matches[j].second.screenPoint ?: continue
+
+                val oldDistance = hypot(
+                    (oldA.x - oldB.x).toDouble(),
+                    (oldA.y - oldB.y).toDouble()
                 )
-                if (oldDistance < 5f) continue
-                val newDistance = sqrt(
-                    (newA.first - newB.first) * (newA.first - newB.first) +
-                    (newA.second - newB.second) * (newA.second - newB.second)
+                if (oldDistance < 5.0) continue
+
+                val newDistance = hypot(
+                    (newA.x - newB.x).toDouble(),
+                    (newA.y - newB.y).toDouble()
                 )
-                ratios += (newDistance / oldDistance - 1f) * 100f
+                ratios += ((newDistance / oldDistance) - 1.0).toFloat() * 100f
             }
         }
         if (ratios.isEmpty()) return 0f
-        return kotlin.math.abs(ratios.sorted()[ratios.size / 2])
+        return abs(ratios.sorted()[ratios.size / 2])
     }
 
     fun reset() {
-        previous = emptyMap()
+        previous = emptyList()
         established = false
     }
 }
