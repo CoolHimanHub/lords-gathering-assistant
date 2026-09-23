@@ -2,8 +2,6 @@ package com.coolhiman.lordsassistant.vision
 
 import android.graphics.Bitmap
 import android.graphics.RectF
-import android.os.Handler
-import android.os.Looper
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -44,7 +42,10 @@ class FrameAnalyzer {
     // must not starve the executor responsible for completion callbacks.
     private val submissionExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val callbackExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    private val callbackHandler = Handler(Looper.getMainLooper())
+    // Scanner/action/diagnostic handling is deliberately isolated from both
+    // Android's main looper and ML Kit's completion executor. A slow UI queue
+    // must not turn a completed OCR task into a multi-second capture timeout.
+    private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val inFlight = AtomicBoolean(false)
     @Volatile private var stage = "IDLE"
@@ -75,7 +76,17 @@ class FrameAnalyzer {
         }
 
         fun deliver(result: FrameAnalysis) {
-            if (delivered.compareAndSet(false, true)) callbackHandler.post { callback(result) }
+            if (!delivered.compareAndSet(false, true)) return
+            try {
+                analysisExecutor.execute {
+                    callback(result)
+                }
+            } catch (error: Throwable) {
+                // The service is already fail-closed if delivery cannot be
+                // scheduled; do not allow an executor rejection to leave the
+                // analyzer's in-flight flag permanently asserted.
+                finish()
+            }
         }
 
         try {
@@ -184,8 +195,8 @@ class FrameAnalyzer {
     fun close() {
         submissionExecutor.shutdownNow()
         callbackExecutor.shutdownNow()
+        analysisExecutor.shutdownNow()
         inFlight.set(false)
-        callbackHandler.removeCallbacksAndMessages(null)
         recognizer.close()
     }
 }
