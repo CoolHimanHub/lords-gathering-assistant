@@ -166,6 +166,7 @@ class OverlayService : Service() {
         val active = ScreenCaptureService.instance?.isCaptureSessionActive() == true
         if (active) {
             ScreenCaptureService.instance?.configureTestTimer(selectedTestDurationMinutes)
+            testTimerArmed = false
             timerView?.post {
                 timerView?.text = "TEST: ${selectedTestDurationMinutes} min • RUNNING"
             }
