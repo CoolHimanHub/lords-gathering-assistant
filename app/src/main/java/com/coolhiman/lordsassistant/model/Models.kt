@@ -29,7 +29,8 @@ data class UserPreferences(
     val resourceLevels: Set<Int> = setOf(1, 2, 3, 4, 5),
     val monsterLevels: Set<Int> = setOf(1, 2, 3, 4, 5),
     val automaticActions: Boolean = false,
-    val overlayEnabled: Boolean = true
+    val overlayEnabled: Boolean = true,
+    val diagnosticsOverlay: Boolean = false
 ) {
     constructor(
         resourceTypes: Set<ResourceType>,
