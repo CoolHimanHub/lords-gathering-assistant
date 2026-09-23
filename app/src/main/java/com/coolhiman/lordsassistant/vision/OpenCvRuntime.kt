@@ -63,7 +63,11 @@ object OpenCvRuntime {
     private fun jniProbe(): Boolean {
         val probe = Mat()
         return try {
-            !probe.empty()
+            // Mat() is intentionally empty; invoke native accessors to verify
+            // that the Java-to-JNI binding is actually callable.
+            probe.rows()
+            probe.cols()
+            true
         } finally {
             probe.release()
         }
