@@ -47,6 +47,8 @@ data class LiveMapScanResult(
     val observations: List<MapObservation>,
     val plan: TargetPlan,
     val detectedTiles: Int,
+    val templateCount: Int = 0,
+    val actionButtonDetections: Int = 0,
     val processingMs: Long,
     val origin: WorldCoordinate?,
     val cameraState: CameraState = CameraState.STABLE,
@@ -78,7 +80,8 @@ class LiveMapScanner(context: Context) {
     private val cameraAnchorTracker = CameraAnchorTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
     private val targetStabilityTrackers = linkedMapOf<String, TargetStabilityTracker>()
-    private val templates = TemplateLibrary(DatasetStore(context)).loadTileTemplates()
+    private val templateLibrary = TemplateLibrary(DatasetStore(context))
+    private var templates = templateLibrary.loadTileTemplates()
     private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
 
     companion object {
@@ -107,6 +110,8 @@ class LiveMapScanner(context: Context) {
                 observations = snapshot,
                 plan = TargetPlan(snapshot, emptyList()),
                 detectedTiles = 0,
+                templateCount = templates.size,
+                actionButtonDetections = 0,
                 processingMs = System.currentTimeMillis() - started,
                 origin = null,
                 cameraState = CameraState.UNSTABLE
@@ -301,6 +306,8 @@ class LiveMapScanner(context: Context) {
             observations = snapshot,
             plan = plan,
             detectedTiles = result.detection.tiles.size,
+            templateCount = templates.size,
+            actionButtonDetections = detectedActionButtons.size,
             processingMs = System.currentTimeMillis() - started,
             origin = origin,
             cameraState = camera.state,
@@ -356,12 +363,20 @@ class LiveMapScanner(context: Context) {
      * never valid evidence for a new session.
      */
     fun resetCaptureSession() {
+        reloadTemplates()
         viewportGuard.reset()
         tracker.reset()
         cameraStateTracker.reset()
         cameraAnchorTracker.reset()
         targetStabilityTracker.reset()
         targetStabilityTrackers.clear()
+    }
+
+    private fun reloadTemplates() {
+        templates.forEach { (_, bitmap) ->
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+        templates = templateLibrary.loadTileTemplates()
     }
 
     fun close() {
