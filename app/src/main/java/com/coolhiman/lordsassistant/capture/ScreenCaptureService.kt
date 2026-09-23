@@ -1080,6 +1080,7 @@ class ScreenCaptureService : Service() {
                                 processingLatency.snapshot(),
                                 memory
                             ),
+                            memoryPressureLevel = memory.level,
                             candidateRejectionCounts = actionAuditLog.rejectionCountsForSession(runtime.sessionId)
                         )
                         captureDiagnosticsStore.save(diagnostics)
