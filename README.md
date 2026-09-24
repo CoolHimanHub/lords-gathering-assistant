@@ -1,3 +1,24 @@
+
+## V2.2.0 — Active map-grid learning
+
+The live scanner now has an explicit **LEARN GRID** mode in the diagnostics overlay.
+
+The learner uses a closed loop:
+
+`detect tile → tap tile centre → wait for popup → OCR K/X/Y + tile details → persist sample → update affine grid model → probe neighbouring cells`
+
+Important properties:
+
+- The popup's K/X/Y is treated as the source of truth for a probe.
+- Screen point + K/X/Y + resource/monster + level + quantity + occupancy/march state are persisted in app-private JSONL.
+- Verified probe pairs are also fed into the existing calibration store.
+- After enough verified samples, the learner predicts neighbouring tile centres and probes them, allowing it to learn empty terrain cells that semantic CV cannot detect.
+- If local calibration residual becomes too high, synthetic probing stops and the learner falls back to fresh visual seed points.
+- Grid probing is isolated from the Gather/Hunt/Attack action pipeline and is stopped at capture-session boundaries.
+- The existing guarded action path is unchanged.
+
+Lords Mobile's map is documented as a coordinate grid and tapping a map location opens a prompt with its location details; the app therefore learns the actual screen-to-grid mapping empirically instead of assuming a fixed pixel formula.
+
 # Lords Mobile Companion
 
 Native Android prototype for a compact, movable overlay companion.
