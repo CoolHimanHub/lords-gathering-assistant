@@ -30,6 +30,33 @@ object OcrBitmapPreprocessor {
         val height = (source.height * scale).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(source, width, height, true)
     }
+
+    /**
+     * The Lords Mobile map coordinate HUD is a small, high-value OCR region
+     * near the upper-middle of the landscape viewport. At 1024px full-frame OCR
+     * resolution it can be too small for ML Kit even when the player can read
+     * it clearly. Enlarge only that ROI for a fallback pass; the primary full
+     * frame remains the source of semantic/tile OCR regions.
+     */
+    fun prepareCoordinateHud(source: Bitmap): Bitmap? {
+        if (source.width < 32 || source.height < 32) return null
+
+        val left = (source.width * 0.35f).toInt().coerceAtLeast(0)
+        val top = 0
+        val right = (source.width * 0.75f).toInt().coerceAtMost(source.width)
+        val bottom = (source.height * 0.28f).toInt().coerceAtMost(source.height)
+        if (right <= left || bottom <= top) return null
+
+        val crop = Bitmap.createBitmap(source, left, top, right - left, bottom - top)
+        val enlarged = Bitmap.createScaledBitmap(
+            crop,
+            (crop.width * 2).coerceAtLeast(1),
+            (crop.height * 2).coerceAtLeast(1),
+            true
+        )
+        if (enlarged !== crop && !crop.isRecycled) crop.recycle()
+        return enlarged
+    }
 }
 
 class FrameAnalyzer {
@@ -63,6 +90,7 @@ class FrameAnalyzer {
             stage = "BUSY"
             return false
         }
+
         val startedAt = System.currentTimeMillis()
         val ocrBitmap = try {
             OcrBitmapPreprocessor.prepare(bitmap)
@@ -82,11 +110,26 @@ class FrameAnalyzer {
                     callback(result)
                 }
             } catch (error: Throwable) {
-                // The service is already fail-closed if delivery cannot be
-                // scheduled; do not allow an executor rejection to leave the
-                // analyzer's in-flight flag permanently asserted.
                 finish()
             }
+        }
+
+        fun cleanupCoordinateBitmap(coordinateBitmap: Bitmap?) {
+            if (coordinateBitmap != null && !coordinateBitmap.isRecycled) {
+                coordinateBitmap.recycle()
+            }
+        }
+
+        fun complete(
+            result: FrameAnalysis,
+            coordinateBitmap: Bitmap? = null
+        ) {
+            cleanupCoordinateBitmap(coordinateBitmap)
+            if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
+                ocrBitmap.recycle()
+            }
+            finish()
+            deliver(result)
         }
 
         try {
@@ -95,8 +138,10 @@ class FrameAnalyzer {
                     stage = "PREPARED"
                     lastFailure = null
                     stage = "SUBMITTING"
+
                     val task = recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
                     stage = "SUBMITTED"
+
                     task
                         .addOnSuccessListener(callbackExecutor) { result ->
                             val text = OcrParser.normalize(result.text)
@@ -109,39 +154,121 @@ class FrameAnalyzer {
                                     )
                                 }
                             }
-                            stage = "SUCCESS"
-                            deliver(
-                                FrameAnalysis(
-                                    text = text,
-                                    coordinate = OcrParser.parseCoordinate(text, regions, defaultKingdom),
-                                    classification = GameTextClassifier.classify(text),
-                                    textRegions = regions,
-                                    popup = PopupStateParser.parse(text, defaultKingdom),
-                                    ocrProcessingMs = System.currentTimeMillis() - startedAt
+                            val coordinate = OcrParser.parseCoordinate(text, regions, defaultKingdom)
+
+                            if (coordinate != null) {
+                                stage = "SUCCESS"
+                                complete(
+                                    FrameAnalysis(
+                                        text = text,
+                                        coordinate = coordinate,
+                                        classification = GameTextClassifier.classify(text),
+                                        textRegions = regions,
+                                        popup = PopupStateParser.parse(text, defaultKingdom),
+                                        ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                    )
                                 )
-                            )
+                                return@addOnSuccessListener
+                            }
+
+                            // Full-frame OCR produced useful semantic evidence but
+                            // missed the tiny coordinate HUD. Run a narrow enlarged
+                            // fallback only in that case. This does not replace or
+                            // alter the primary text regions used by map fusion.
+                            val coordinateBitmap = try {
+                                OcrBitmapPreprocessor.prepareCoordinateHud(ocrBitmap)
+                            } catch (_: Throwable) {
+                                null
+                            }
+
+                            if (coordinateBitmap == null) {
+                                stage = "SUCCESS_NO_COORDINATE"
+                                complete(
+                                    FrameAnalysis(
+                                        text = text,
+                                        coordinate = null,
+                                        classification = GameTextClassifier.classify(text),
+                                        textRegions = regions,
+                                        popup = PopupStateParser.parse(text, defaultKingdom),
+                                        ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                    )
+                                )
+                                return@addOnSuccessListener
+                            }
+
+                            stage = "COORDINATE_FALLBACK_SUBMITTING"
+                            try {
+                                recognizer.process(InputImage.fromBitmap(coordinateBitmap, 0))
+                                    .addOnSuccessListener(callbackExecutor) { coordinateResult ->
+                                        val coordinateText = OcrParser.normalize(coordinateResult.text)
+                                        val fallbackRegions = coordinateResult.textBlocks
+                                            .flatMap { it.lines }
+                                            .mapNotNull { line ->
+                                                line.boundingBox?.let {
+                                                    TextRegion(
+                                                        RectF(it),
+                                                        GameTextClassifier.classify(line.text),
+                                                        OcrParser.normalize(line.text)
+                                                    )
+                                                }
+                                            }
+                                        val fallbackCoordinate = OcrParser.parseCoordinate(
+                                            coordinateText,
+                                            fallbackRegions,
+                                            defaultKingdom
+                                        )
+                                        stage = if (fallbackCoordinate != null) {
+                                            "COORDINATE_FALLBACK_SUCCESS"
+                                        } else {
+                                            "COORDINATE_FALLBACK_NO_COORDINATE"
+                                        }
+                                        complete(
+                                            FrameAnalysis(
+                                                text = text,
+                                                coordinate = fallbackCoordinate,
+                                                classification = GameTextClassifier.classify(text),
+                                                textRegions = regions,
+                                                popup = PopupStateParser.parse(text, defaultKingdom),
+                                                ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                            ),
+                                            coordinateBitmap
+                                        )
+                                    }
+                                    .addOnFailureListener(callbackExecutor) { error ->
+                                        stage = "COORDINATE_FALLBACK_FAILURE"
+                                        lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
+                                        complete(
+                                            FrameAnalysis(
+                                                text = text,
+                                                coordinate = null,
+                                                classification = GameTextClassifier.classify(text),
+                                                textRegions = regions,
+                                                popup = PopupStateParser.parse(text, defaultKingdom),
+                                                ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                            ),
+                                            coordinateBitmap
+                                        )
+                                    }
+                            } catch (error: Throwable) {
+                                stage = "COORDINATE_FALLBACK_EXCEPTION"
+                                lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
+                                complete(
+                                    FrameAnalysis(
+                                        text = text,
+                                        coordinate = null,
+                                        classification = GameTextClassifier.classify(text),
+                                        textRegions = regions,
+                                        popup = PopupStateParser.parse(text, defaultKingdom),
+                                        ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                    ),
+                                    coordinateBitmap
+                                )
+                            }
                         }
                         .addOnFailureListener(callbackExecutor) { error ->
                             stage = "FAILURE"
                             lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
-                            deliver(
-                                FrameAnalysis(
-                                    "",
-                                    null,
-                                    TextClassification(),
-                                    emptyList(),
-                                    null,
-                                    System.currentTimeMillis() - startedAt
-                                )
-                            )
-                        }
-                        .addOnCompleteListener(callbackExecutor) {
-                            stage = "COMPLETE"
-                            if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
-                                ocrBitmap.recycle()
-                            }
-                            finish()
-                            deliver(
+                            complete(
                                 FrameAnalysis(
                                     "",
                                     null,
@@ -155,11 +282,7 @@ class FrameAnalyzer {
                 } catch (error: Throwable) {
                     stage = "SUBMISSION_EXCEPTION"
                     lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
-                    if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
-                        ocrBitmap.recycle()
-                    }
-                    finish()
-                    deliver(
+                    complete(
                         FrameAnalysis(
                             "",
                             null,
@@ -174,11 +297,7 @@ class FrameAnalyzer {
         } catch (error: Throwable) {
             stage = "EXECUTOR_REJECTED"
             lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
-            if (ocrBitmap !== bitmap && !ocrBitmap.isRecycled) {
-                ocrBitmap.recycle()
-            }
-            finish()
-            deliver(
+            complete(
                 FrameAnalysis(
                     "",
                     null,
