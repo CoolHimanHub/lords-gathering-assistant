@@ -154,7 +154,7 @@ class FrameAnalyzer {
                                     )
                                 }
                             }
-                            val coordinate = OcrParser.parseCoordinate(text, regions, defaultKingdom)
+                            val coordinate = OcrParser.parseHudCoordinate(text, regions, ocrBitmap.width, ocrBitmap.height, defaultKingdom)
 
                             if (coordinate != null) {
                                 stage = "SUCCESS"
