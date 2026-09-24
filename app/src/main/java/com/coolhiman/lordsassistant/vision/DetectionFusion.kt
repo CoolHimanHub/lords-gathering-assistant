@@ -37,9 +37,7 @@ class DetectionFusion(
         coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
     ): List<FusionCandidate> {
         return frame.tiles.map { tile ->
-            val text = textRegions.minByOrNull { distance(tile.bounds, it.bounds) }
-                ?.takeIf { distance(tile.bounds, it.bounds) <= maxTextDistancePx }
-
+            val text = selectTextForTile(tile, textRegions)
             val textClassification = text?.classification
             var classification = textClassification ?: TextClassification(
                 kind = when (tile.tileClass) {
