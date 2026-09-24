@@ -4,6 +4,7 @@ import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class PopupStateParserTest {
@@ -33,3 +34,22 @@ class PopupStateParserTest {
         assertEquals(true, state.occupied)
     }
 }
+
+    @Test
+    fun coordinateHudAloneIsNotPopup() {
+        val state = PopupStateParser.parse("X:200 Y:420", 1)
+        assertFalse(state.isPopup)
+        assertEquals(200, state.coordinate?.x)
+        assertEquals(420, state.coordinate?.y)
+    }
+
+    @Test
+    fun emptyTileRelocatePopupIsRecognized() {
+        val state = PopupStateParser.parse(
+            "X:200 Y:420 Relocate Bookmark",
+            1
+        )
+        assertTrue(state.isPopup)
+        assertEquals(200, state.coordinate?.x)
+        assertEquals(420, state.coordinate?.y)
+    }
