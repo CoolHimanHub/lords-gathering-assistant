@@ -7,9 +7,13 @@ import com.coolhiman.lordsassistant.model.TargetKind
 
 object ObservationMapper {
     fun map(candidate: FusionCandidate): MapObservation {
-        val kind = candidate.classification.kind ?: when (candidate.tile.tileClass) {
-            TileClass.RESOURCE -> TargetKind.RESOURCE
-            TileClass.MONSTER -> TargetKind.MONSTER
+        val kind = when {
+            candidate.ignored -> null
+            candidate.classification.kind != null -> candidate.classification.kind
+            else -> when (candidate.tile.tileClass) {
+                TileClass.RESOURCE -> TargetKind.RESOURCE
+                TileClass.MONSTER -> TargetKind.MONSTER
+            }
         }
         val label = candidate.classification.resource?.name ?: candidate.classification.monsterName ?: candidate.tile.label
         val evidence = buildSet {
