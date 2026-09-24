@@ -115,8 +115,19 @@ class DetectionFusionTest {
     fun ocrPreprocessorBoundsLargeFrameWithoutMutatingSource() {
         val source = Bitmap.createBitmap(1440, 2560, Bitmap.Config.ARGB_8888)
         val prepared = OcrBitmapPreprocessor.prepare(source)
-        assertEquals(720, prepared.width)
-        assertEquals(1280, prepared.height)
+        assertEquals(576, prepared.width)
+        assertEquals(1024, prepared.height)
+        assertTrue(prepared !== source)
+        prepared.recycle()
+        source.recycle()
+    }
+
+    @Test
+    fun ocrPreprocessorBoundsMediumFrameWithoutMutatingSource() {
+        val source = Bitmap.createBitmap(800, 1200, Bitmap.Config.ARGB_8888)
+        val prepared = OcrBitmapPreprocessor.prepare(source)
+        assertEquals(683, prepared.width)
+        assertEquals(1024, prepared.height)
         assertTrue(prepared !== source)
         prepared.recycle()
         source.recycle()
@@ -124,7 +135,7 @@ class DetectionFusionTest {
 
     @Test
     fun ocrPreprocessorKeepsSmallFrameForZeroCopyPath() {
-        val source = Bitmap.createBitmap(800, 1200, Bitmap.Config.ARGB_8888)
+        val source = Bitmap.createBitmap(800, 1000, Bitmap.Config.ARGB_8888)
         val prepared = OcrBitmapPreprocessor.prepare(source)
         assertTrue(prepared === source)
         source.recycle()
