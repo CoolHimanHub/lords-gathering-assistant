@@ -161,6 +161,31 @@ class OverlayService : Service() {
             })
         }
         if (diagnostics) container.addView(testActions)
+
+        if (diagnostics) {
+            val gridStart = actionButton("◎  LEARN GRID", 0xFF245C78.toInt()).apply {
+                setOnClickListener {
+                    ScreenCaptureService.instance?.startGridLearning()
+                        ?: showStatus("GRID LEARN • start scanner first")
+                }
+            }
+            val gridStop = actionButton("■  STOP GRID", 0xFF5E3A22.toInt()).apply {
+                setOnClickListener {
+                    ScreenCaptureService.instance?.stopGridLearning()
+                }
+            }
+            val gridRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(gridStart, LinearLayout.LayoutParams(0, 44, 1f).apply {
+                    setMargins(2, 2, 2, 2)
+                })
+                addView(gridStop, LinearLayout.LayoutParams(0, 44, 1f).apply {
+                    setMargins(2, 2, 2, 2)
+                })
+            }
+            container.addView(gridRow)
+        }
+
         container.addView(status)
         if (diagnostics) container.addView(health)
 
