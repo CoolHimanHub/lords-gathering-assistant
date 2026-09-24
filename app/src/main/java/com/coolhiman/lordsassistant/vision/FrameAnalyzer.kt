@@ -113,7 +113,7 @@ class FrameAnalyzer {
                             deliver(
                                 FrameAnalysis(
                                     text = text,
-                                    coordinate = OcrParser.parseCoordinate(text, defaultKingdom),
+                                    coordinate = OcrParser.parseCoordinate(text, regions, defaultKingdom),
                                     classification = GameTextClassifier.classify(text),
                                     textRegions = regions,
                                     popup = PopupStateParser.parse(text, defaultKingdom),
