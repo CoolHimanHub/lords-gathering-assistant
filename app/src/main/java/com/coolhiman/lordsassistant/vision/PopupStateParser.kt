@@ -36,7 +36,14 @@ object PopupStateParser {
         } ?: xy.find(text)?.let {
             WorldCoordinate(defaultKingdom, it.groupValues[1].toInt(), it.groupValues[2].toInt())
         }
-        val popupWords = listOf("gather", "attack", "occupier", "unoccupied", "occupy", "hunt")
+        // Tile-selection popups are not limited to action targets. Empty terrain
+        // can expose bookmark/relocate/share controls, and those popups are
+        // valuable grid-learning evidence even though they are not actionable.
+        val popupWords = listOf(
+            "gather", "attack", "occupier", "unoccupied", "occupy", "hunt",
+            "relocate", "migrate", "bookmark", "create bookmark", "pin", "share",
+            "transfer", "terrain", "location"
+        )
         // X/Y alone is the persistent map HUD, so it must not be treated as a popup.
         // A popup is established by its action/state vocabulary or a named target + level.
         val isPopup = popupWords.any { it in lower } ||
