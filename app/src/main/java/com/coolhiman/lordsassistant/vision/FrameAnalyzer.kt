@@ -20,7 +20,7 @@ data class FrameAnalysis(
 )
 
 object OcrBitmapPreprocessor {
-    const val MAX_DIMENSION = 1280
+    const val MAX_DIMENSION = 1024
 
     fun prepare(source: Bitmap): Bitmap {
         val largest = maxOf(source.width, source.height)
