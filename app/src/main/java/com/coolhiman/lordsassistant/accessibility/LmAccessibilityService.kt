@@ -237,5 +237,56 @@ class LmAccessibilityService : AccessibilityService() {
         return tapValidated(latestAction!!.point, validation)
     }
 
+    /**
+     * Explicit grid-learning probe. This is intentionally separate from the
+     * action path: it only accepts points inside the map viewport and is called
+     * by the user-started GridLearningController. It never taps a Gather/Hunt/
+     * Attack control and it refuses HUD/control bands.
+     */
+    fun tapGridProbe(
+        point: ScreenPoint,
+        screenWidth: Int,
+        screenHeight: Int,
+        onResult: (Boolean) -> Unit = {}
+    ) {
+        fun safe(): Boolean {
+            if (screenWidth <= 0 || screenHeight <= 0) return false
+            val x = point.x
+            val y = point.y
+            if (x < screenWidth * 0.10f || x > screenWidth * 0.90f) return false
+            if (y < screenHeight * 0.16f || y > screenHeight * 0.82f) return false
+            if (y < screenHeight * 0.30f && x in (screenWidth * 0.34f)..(screenWidth * 0.76f)) return false
+            return true
+        }
+        if (!safe()) {
+            onResult(false)
+            return
+        }
+        mainHandler.post {
+            if (!safe()) {
+                onResult(false)
+                return@post
+            }
+            val path = Path().apply { moveTo(point.x, point.y) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
+                .build()
+            val dispatched = runCatching {
+                dispatchGesture(gesture, object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        onResult(true)
+                    }
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        onResult(false)
+                    }
+                }, mainHandler)
+            }.getOrElse {
+                onResult(false)
+                false
+            }
+            if (!dispatched) onResult(false)
+        }
+    }
+
     override fun onDestroy() { hideScannerHud(); instance = null; super.onDestroy() }
 }
