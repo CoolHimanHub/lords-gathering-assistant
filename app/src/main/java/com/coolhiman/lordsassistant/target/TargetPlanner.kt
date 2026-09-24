@@ -26,7 +26,9 @@ data class RankedDiscoveryTarget(
 )
 
 class TargetPlanner(
-    private val minimumConfidence: Float = 0.62f
+    private val minimumConfidence: Float = 0.62f,
+    /** Badge/template detections are already gated by the vision layer; discovery may use that lower bound. */
+    private val minimumDiscoveryConfidence: Float = 0.55f
 ) {
     fun plan(
         originX: Int,
@@ -55,7 +57,7 @@ class TargetPlanner(
                 o.screenPoint != null &&
                 o.occupied != true &&
                 o.incomingTroops != true &&
-                o.confidence >= minimumConfidence
+                o.confidence >= minimumDiscoveryConfidence
         }
 
         val resources = eligible.filter { it.kind == TargetKind.RESOURCE }
