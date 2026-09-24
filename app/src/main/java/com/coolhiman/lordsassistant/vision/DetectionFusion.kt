@@ -124,6 +124,30 @@ class DetectionFusion(
         }
     }
 
+    private fun selectTextForTile(tile: DetectedTile, textRegions: List<TextRegion>): TextRegion? {
+        val compatible = textRegions
+            .map { it to distance(tile.bounds, it.bounds) }
+            .filter { (region, d) ->
+                d <= maxTextDistancePx && when (tile.tileClass) {
+                    TileClass.RESOURCE -> region.classification.kind == TargetKind.RESOURCE ||
+                        region.classification.resource != null
+                    TileClass.MONSTER -> region.classification.kind == TargetKind.MONSTER ||
+                        region.classification.monsterName != null
+                }
+            }
+            .minByOrNull { it.second }
+
+        if (compatible != null) return compatible.first
+
+        // Structure/UI labels may be very close to a badge, but must never
+        // override target semantics at the broader OCR association radius.
+        return textRegions
+            .map { it to distance(tile.bounds, it.bounds) }
+            .filter { (region, d) -> region.classification.ignored && d <= 70f }
+            .minByOrNull { it.second }
+            ?.first
+    }
+
     private fun distance(a: RectF, b: RectF): Float {
         return hypot(
             (a.centerX() - b.centerX()).toDouble(),
