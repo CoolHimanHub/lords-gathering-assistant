@@ -46,12 +46,12 @@ class TargetPlanner(
                 o.confidence >= minimumConfidence
         }
         val discoveryEligible = observations.filter { o ->
-            // Discovery is allowed to exist before affine calibration has
-            // produced a world coordinate. A semantic badge + level is still
-            // a real frame-local discovery; it simply cannot become an
-            // action-ranked target until a coordinate is available.
-            o.level != null &&
-                o.kind != null &&
+            // Discovery is allowed to exist before affine calibration or OCR
+            // level enrichment has completed. A frame-local semantic badge is
+            // still useful evidence even when its level is unknown. It can
+            // never become an action-ranked target until the strict path has
+            // coordinate + level + known-free state.
+            o.kind != null &&
                 o.screenPoint != null &&
                 o.occupied != true &&
                 o.incomingTroops != true &&
@@ -73,7 +73,7 @@ class TargetPlanner(
         // It is informational only; action validation still requires a stable camera.
         val rankedDiscoveries = discoveryEligible.mapNotNull { observation ->
             val coordinate = observation.coordinate
-            val level = observation.level ?: return@mapNotNull null
+            val level = observation.level ?: 0
             val distanceScore = coordinate?.let {
                 val distance = hypot(
                     (it.x - originX).toDouble(),
