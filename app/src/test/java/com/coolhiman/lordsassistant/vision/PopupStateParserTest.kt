@@ -3,8 +3,8 @@ package com.coolhiman.lordsassistant.vision
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PopupStateParserTest {
@@ -33,7 +33,6 @@ class PopupStateParserTest {
         )
         assertEquals(true, state.occupied)
     }
-}
 
     @Test
     fun coordinateHudAloneIsNotPopup() {
@@ -53,3 +52,4 @@ class PopupStateParserTest {
         assertEquals(200, state.coordinate?.x)
         assertEquals(420, state.coordinate?.y)
     }
+}
