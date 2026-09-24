@@ -183,16 +183,23 @@ class LiveMapScanner(context: Context) {
         val snapshot = mapMemory.snapshot()
         // MapMemory is intentionally keyed by world coordinate, so an
         // uncalibrated frame-local semantic target cannot live there yet.
-        // Feed current-frame observations into planning alongside memory so
-        // discovery remains visible before calibration; strict action ranking
-        // still requires coordinate/occupancy/incoming state in TargetPlanner.
-        val planningObservations = snapshot + stateAware.filter { current ->
-            current.coordinate == null || snapshot.none { remembered ->
-                remembered.coordinate == current.coordinate &&
-                    remembered.kind == current.kind &&
-                    remembered.level == current.level
+        // Feed the raw current-frame semantic observations alongside temporal
+        // state and memory. Temporal tracking intentionally drops coordinate-less
+        // observations, so using only stateAware here made discovery stay at zero
+        // even while the HUD reported dozens of semantic detections. Discovery
+        // remains informational; strict action ranking is separately camera-gated
+        // and still requires coordinate/level/known-free state.
+        val planningObservations = (snapshot + observations + stateAware)
+            .distinctBy { current ->
+                listOf(
+                    current.coordinate,
+                    current.screenPoint?.x,
+                    current.screenPoint?.y,
+                    current.kind,
+                    current.level,
+                    current.label
+                )
             }
-        }
         // Discovery ranking is frame-local and does not require the OCR
         // coordinate origin. The previous null-origin branch returned an empty
         // TargetPlan, which made the HUD report "N semantic" while discovery
