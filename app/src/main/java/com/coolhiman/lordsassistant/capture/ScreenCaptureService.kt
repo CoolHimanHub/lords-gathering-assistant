@@ -136,7 +136,7 @@ class ScreenCaptureService : Service() {
 
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
-        private const val MAX_FRAME_AGE_MS = 1500L
+        private const val MAX_FRAME_AGE_MS = 1000L
         private const val FRAME_ANALYSIS_TIMEOUT_MS = 5000L
     }
 
@@ -560,7 +560,7 @@ class ScreenCaptureService : Service() {
             val now = System.currentTimeMillis()
             captureHealth.frameArrived(now)
             captureWatchdog.frameArrived(now)
-            if (now - lastScanMs < 500L || !busy.compareAndSet(false, true)) {
+            if (now - lastScanMs < 300L || !busy.compareAndSet(false, true)) {
                 source.acquireLatestImage()?.close()
                 captureHealth.frameDropped()
                 return@setOnImageAvailableListener
