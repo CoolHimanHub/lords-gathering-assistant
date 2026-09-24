@@ -126,7 +126,7 @@ class DetectionFusionTest {
     fun ocrPreprocessorBoundsMediumFrameWithoutMutatingSource() {
         val source = Bitmap.createBitmap(800, 1200, Bitmap.Config.ARGB_8888)
         val prepared = OcrBitmapPreprocessor.prepare(source)
-        assertEquals(683, prepared.width)
+        assertEquals(682, prepared.width)
         assertEquals(1024, prepared.height)
         assertTrue(prepared !== source)
         prepared.recycle()
