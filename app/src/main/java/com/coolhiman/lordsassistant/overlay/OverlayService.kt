@@ -55,7 +55,7 @@ class OverlayService : Service() {
         }
 
         val status = TextView(this).apply {
-            text = "LM COMPANION • V2.0\nReady — open the Lords Mobile map"
+            text = "LM COMPANION • V2.1\nReady — open the Lords Mobile map"
             textSize = 11f
             setTextColor(Color.WHITE)
             setPadding(4, 2, 4, 4)
