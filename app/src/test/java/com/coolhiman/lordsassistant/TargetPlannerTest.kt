@@ -64,6 +64,25 @@ class TargetPlannerTest {
     }
 
     @Test
+    fun discoverySurfacesSemanticBadgeWhenLevelIsUnknown() {
+        val target = MapObservation(
+            coordinate = null,
+            screenPoint = com.coolhiman.lordsassistant.model.ScreenPoint(640f, 360f),
+            label = "RESOURCE_BADGE",
+            level = null,
+            quantity = null,
+            occupied = null,
+            incomingTroops = null,
+            kind = TargetKind.RESOURCE,
+            confidence = 0.80f
+        )
+        val plan = TargetPlanner().plan(100, 100, listOf(target), UserPreferences())
+        assertEquals(1, plan.rankedDiscoveries.size)
+        assertEquals(null, plan.rankedDiscoveries.first().observation.level)
+        assertEquals(0, plan.ranked.size)
+    }
+
+    @Test
     fun discoverySurfacesBadgeTargetWhenStateIsUnknown() {
         val target = MapObservation(
             WorldCoordinate(355, 101, 100),
