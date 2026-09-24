@@ -10,7 +10,9 @@ data class TextClassification(
     val level: Int? = null,
     val quantity: Long? = null,
     val occupied: Boolean? = null,
-    val incomingTroops: Boolean? = null
+    val incomingTroops: Boolean? = null,
+    /** True when OCR identifies a map structure/UI object rather than a gather/hunt target. */
+    val ignored: Boolean = false
 )
 
 object GameTextClassifier {
@@ -30,6 +32,10 @@ object GameTextClassifier {
             "energon" in lower -> ResourceType.ENERGON
             else -> null
         }
+        val ignored = listOf(
+            "relay tower", "guild castle", "wonder", "watchtower", "sanctuary",
+            "castle", "fortress", "wall", "tower"
+        ).any { it in lower }
         val monster = listOf(
             "blackwing", "frostwing", "gryphon", "hell drider",
             "noceros", "mecha trojan", "trojan horse", "cottageroar",
@@ -54,7 +60,7 @@ object GameTextClassifier {
         return TextClassification(
             kind = if (monster != null) TargetKind.MONSTER else if (resource != null) TargetKind.RESOURCE else null,
             resource = resource, monsterName = monster?.replaceFirstChar { it.uppercase() }, level = level, quantity = quantity,
-            occupied = occupied, incomingTroops = incoming
+            occupied = occupied, incomingTroops = incoming, ignored = ignored
         )
     }
 }
