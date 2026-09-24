@@ -46,6 +46,8 @@ data class LiveActionCandidate(
 
 data class LiveMapScanResult(
     val observations: List<MapObservation>,
+    /** Current-frame observations including screen points for active grid learning. */
+    val frameObservations: List<MapObservation> = emptyList(),
     val plan: TargetPlan,
     val detectedTiles: Int,
     val templateCount: Int = 0,
@@ -113,6 +115,7 @@ class LiveMapScanner(context: Context) {
             val snapshot = mapMemory.snapshot()
             return LiveMapScanResult(
                 observations = snapshot,
+                frameObservations = emptyList(),
                 plan = TargetPlan(snapshot, emptyList()),
                 detectedTiles = 0,
                 templateCount = templates.size,
@@ -352,6 +355,7 @@ class LiveMapScanner(context: Context) {
 
         return LiveMapScanResult(
             observations = snapshot,
+            frameObservations = observations,
             plan = plan,
             detectedTiles = result.detection.tiles.size,
             templateCount = templates.size,
