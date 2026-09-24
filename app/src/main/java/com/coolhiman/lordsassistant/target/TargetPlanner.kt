@@ -72,7 +72,7 @@ class TargetPlanner(
         // Discovery ranking deliberately does not depend on camera stability.
         // It is informational only; action validation still requires a stable camera.
         val rankedDiscoveries = discoveryEligible.mapNotNull { observation ->
-            val coordinate = observation.coordinate ?: return@mapNotNull null
+            val coordinate = observation.coordinate
             val level = observation.level ?: return@mapNotNull null
             val distanceScore = coordinate?.let {
                 val distance = hypot(
