@@ -181,10 +181,28 @@ class LiveMapScanner(context: Context) {
         val origin = ocrCoordinate
         val preferences = preferencesStore.load()
         val snapshot = mapMemory.snapshot()
+        // MapMemory is intentionally keyed by world coordinate, so an
+        // uncalibrated frame-local semantic target cannot live there yet.
+        // Feed current-frame observations into planning alongside memory so
+        // discovery remains visible before calibration; strict action ranking
+        // still requires coordinate/occupancy/incoming state in TargetPlanner.
+        val planningObservations = snapshot + stateAware.filter { current ->
+            current.coordinate == null || snapshot.none { remembered ->
+                remembered.coordinate == current.coordinate &&
+                    remembered.kind == current.kind &&
+                    remembered.level == current.level
+            }
+        }
         val plan = if (origin != null) {
-            planner.plan(origin.x, origin.y, snapshot, preferences, camera.state == CameraState.STABLE)
+            planner.plan(
+                origin.x,
+                origin.y,
+                planningObservations,
+                preferences,
+                camera.state == CameraState.STABLE
+            )
         } else {
-            TargetPlan(snapshot, emptyList())
+            TargetPlan(planningObservations, emptyList())
         }
 
         val resourceCandidate = plan.ranked.firstOrNull()
