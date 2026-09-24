@@ -42,5 +42,23 @@ class TargetPlannerTest {
         assertEquals(0, plan.ranked.size)
     }
 
+    
+    @Test
+    fun discoverySurfacesBadgeTargetWhenStateIsUnknown() {
+        val target = MapObservation(
+            WorldCoordinate(355, 101, 100),
+            com.coolhiman.lordsassistant.model.ScreenPoint(120f, 120f),
+            "RESOURCE_BADGE",
+            4,
+            null,
+            null,
+            null,
+            TargetKind.RESOURCE,
+            0.80f
+        )
+        val plan = TargetPlanner().plan(100, 100, listOf(target), UserPreferences())
+        assertEquals(1, plan.rankedDiscoveries.size)
+        assertEquals(0, plan.ranked.size)
+    }
 
 }
