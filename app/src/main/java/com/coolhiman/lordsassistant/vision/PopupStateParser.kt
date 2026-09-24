@@ -42,7 +42,7 @@ object PopupStateParser {
         val popupWords = listOf(
             "gather", "attack", "occupier", "unoccupied", "occupy", "hunt",
             "relocate", "migrate", "bookmark", "create bookmark", "pin", "share",
-            "transfer", "terrain", "location"
+            "transfer"
         )
         // X/Y alone is the persistent map HUD, so it must not be treated as a popup.
         // A popup is established by its action/state vocabulary or a named target + level.
