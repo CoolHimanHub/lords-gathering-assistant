@@ -21,6 +21,7 @@ data class FusionCandidate(
     val occupied: Boolean?,
     val incomingTroops: Boolean?,
     val confidence: Double,
+    val ignored: Boolean = false,
     val marchAssociation: MarchAssociationDiagnostics = MarchAssociationDiagnostics(MarchAssociationStatus.NO_MARCH)
 )
 
@@ -39,7 +40,8 @@ class DetectionFusion(
             val text = textRegions.minByOrNull { distance(tile.bounds, it.bounds) }
                 ?.takeIf { distance(tile.bounds, it.bounds) <= maxTextDistancePx }
 
-            var classification = text?.classification ?: TextClassification(
+            val textClassification = text?.classification
+            var classification = textClassification ?: TextClassification(
                 kind = when (tile.tileClass) {
                     TileClass.RESOURCE -> TargetKind.RESOURCE
                     TileClass.MONSTER -> TargetKind.MONSTER
@@ -111,7 +113,16 @@ class DetectionFusion(
             ).filter { it > 0.0 }
             val confidence = evidence.average().coerceIn(0.0, 1.0)
 
-            FusionCandidate(tile, classification, coordinate, occupied, incoming, confidence, marchAssociation)
+            FusionCandidate(
+                tile = tile,
+                classification = classification,
+                coordinate = coordinate,
+                occupied = occupied,
+                incomingTroops = incoming,
+                confidence = confidence,
+                ignored = textClassification?.ignored == true,
+                marchAssociation = marchAssociation
+            )
         }
     }
 
