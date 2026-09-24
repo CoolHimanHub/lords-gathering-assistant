@@ -9,7 +9,8 @@ class TemplateTileDetector(
     private val matcher: TemplateMatcher = TemplateMatcher(),
     private val threshold: Double = 0.84,
     private val iouThreshold: Float = 0.35f,
-    private val badgeDetector: LevelBadgeDetector = LevelBadgeDetector()
+    private val badgeDetector: LevelBadgeDetector = LevelBadgeDetector(),
+    private val visualClassifier: VisualTileClassifier = VisualTileClassifier()
 ) {
     @Volatile var lastBadgeDetections: Int = 0
         private set
@@ -38,11 +39,23 @@ class TemplateTileDetector(
             val cy = badge.bounds.bottom + badge.bounds.height() * 0.65f
             val halfW = max(18f, badge.bounds.width() * 0.65f)
             val halfH = max(18f, badge.bounds.height() * 0.65f)
+            val bounds = RectF(cx - halfW, cy - halfH, cx + halfW, cy + halfH)
+            val visual = visualClassifier.classify(screen, badge.bounds, badge.tileClass)
+            val semanticLabel = visual.resource?.name ?: if (badge.tileClass == TileClass.RESOURCE) {
+                "RESOURCE_BADGE"
+            } else {
+                "MONSTER_BADGE"
+            }
+            val semanticConfidence = if (visual.resource != null) {
+                ((badge.confidence + visual.confidence) / 2.0).coerceIn(0.0, 0.95)
+            } else {
+                badge.confidence
+            }
             candidates += DetectedTile(
-                if (badge.tileClass == TileClass.RESOURCE) "RESOURCE_BADGE" else "MONSTER_BADGE",
+                semanticLabel,
                 badge.tileClass, null,
-                RectF(cx - halfW, cy - halfH, cx + halfW, cy + halfH),
-                badge.confidence, null, DetectionSource.LEVEL_BADGE
+                bounds,
+                semanticConfidence, visual.resource?.let { "visual:$it" }, DetectionSource.LEVEL_BADGE
             )
         }
 
