@@ -21,6 +21,7 @@ import android.view.WindowManager
 import android.widget.TextView
 import android.util.DisplayMetrics
 import com.coolhiman.lordsassistant.map.LiveMapScanner
+import com.coolhiman.lordsassistant.map.GridLearningController
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
 import com.coolhiman.lordsassistant.target.ActionDiagnosticsSnapshot
@@ -58,6 +59,7 @@ class ScreenCaptureService : Service() {
     private var scannerHudManager: WindowManager? = null
     private lateinit var analyzer: FrameAnalyzer
     private lateinit var liveScanner: LiveMapScanner
+    private lateinit var gridLearningController: GridLearningController
     private lateinit var actionOrchestrator: ActionOrchestrator
     private lateinit var actionSchedulerAdapter: LiveActionSchedulerAdapter
     private lateinit var actionJournal: ActionExecutionJournal
@@ -286,11 +288,29 @@ class ScreenCaptureService : Service() {
 
     fun isCaptureSessionActive(): Boolean = captureSessionActive
 
+    fun startGridLearning() {
+        if (!captureSessionActive) {
+            OverlayService.instance?.showStatus("GRID LEARN • start screen scanner first")
+            return
+        }
+        gridLearningController.start()
+        OverlayService.instance?.showStatus("GRID LEARN • ACTIVE • probing map tiles only")
+    }
+
+    fun stopGridLearning() {
+        if (::gridLearningController.isInitialized) gridLearningController.stop()
+        OverlayService.instance?.showStatus("GRID LEARN • STOPPED • samples saved")
+    }
+
+    fun isGridLearningActive(): Boolean =
+        ::gridLearningController.isInitialized && gridLearningController.isActive()
+
     fun stopTestCapture() {
         if (!captureSessionActive) return
         captureRuntime.recordFailure("Test stopped by user")
         persistCaptureDiagnostics()
         stopCaptureResources(CaptureStopReason.USER_STOP)
+        if (::gridLearningController.isInitialized) gridLearningController.stop()
         stopSelf()
     }
 
@@ -398,6 +418,7 @@ class ScreenCaptureService : Service() {
         analyzer = FrameAnalyzer()
         captureDiagnosticsStore = CaptureSessionDiagnosticsStore(this)
         liveScanner = LiveMapScanner(this)
+        gridLearningController = GridLearningController(this)
         recoveryEpochStore = ActionRecoveryEpochStore(this)
         actionAttemptIdStore = ActionAttemptIdStore(this)
         actionJournal = ActionExecutionJournal(this)
@@ -679,6 +700,14 @@ class ScreenCaptureService : Service() {
                             textRegions = result.textRegions,
                             popupState = result.popup
                         )
+                        gridLearningController.onFrame(
+                            width = bitmap.width,
+                            height = bitmap.height,
+                            frameObservations = scan.frameObservations,
+                            popupState = scan.popupState,
+                            actionButtonDetections = scan.actionButtonDetections,
+                            nowMs = now
+                        )
                         val scanProcessingMs = System.currentTimeMillis() - scanStartedAt
                         val totalProcessingMs = System.currentTimeMillis() - frameStartedAt
                         processingLatency.record(result.ocrProcessingMs, scanProcessingMs, totalProcessingMs)
@@ -728,6 +757,9 @@ class ScreenCaptureService : Service() {
                                 .append(scan.actionCandidates.size).append(" candidates")
                             append("\n").append(scan.processingMs).append("ms")
                             append("\nCapture quality: ").append(captureQuality.name)
+                            if (gridLearningController.isActive()) {
+                                append("\n").append(gridLearningController.statusLine())
+                            }
                         }
                         val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
 
