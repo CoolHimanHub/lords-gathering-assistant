@@ -35,11 +35,22 @@ class TargetPlanner(
         preferences: UserPreferences,
         cameraStable: Boolean = true
     ): TargetPlan {
+        // Action ranking remains strict: occupancy and incoming-march state must
+        // be explicitly known to be false. Discovery is intentionally broader so
+        // a badge-only frame can be surfaced without authorizing interaction.
         val eligible = observations.filter { o ->
             o.coordinate != null &&
                 o.level != null &&
                 o.occupied == false &&
                 o.incomingTroops == false &&
+                o.confidence >= minimumConfidence
+        }
+        val discoveryEligible = observations.filter { o ->
+            o.coordinate != null &&
+                o.level != null &&
+                o.kind != null &&
+                o.occupied != true &&
+                o.incomingTroops != true &&
                 o.confidence >= minimumConfidence
         }
 
@@ -56,7 +67,7 @@ class TargetPlanner(
 
         // Discovery ranking deliberately does not depend on camera stability.
         // It is informational only; action validation still requires a stable camera.
-        val rankedDiscoveries = eligible.mapNotNull { observation ->
+        val rankedDiscoveries = discoveryEligible.mapNotNull { observation ->
             val coordinate = observation.coordinate ?: return@mapNotNull null
             val level = observation.level ?: return@mapNotNull null
             val distance = hypot(
