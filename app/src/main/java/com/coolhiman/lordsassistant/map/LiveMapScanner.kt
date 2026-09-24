@@ -316,7 +316,11 @@ class LiveMapScanner(context: Context) {
             plan = plan,
             detectedTiles = result.detection.tiles.size,
             templateCount = templates.size,
-            semanticTargetDetections = stateAware.count { it.kind != null },
+            // Semantic discovery is frame-local and must not disappear merely
+            // because temporal tracking has no calibrated world coordinate yet.
+            // Coordinates remain mandatory for ranking/action, but badge/OCR
+            // semantics are useful diagnostic evidence before calibration.
+            semanticTargetDetections = observations.count { it.kind != null },
             badgeDetections = result.badgeDetections,
             openCvReady = result.openCvReady,
             openCvDiagnostic = OpenCvRuntime.diagnostic(),
