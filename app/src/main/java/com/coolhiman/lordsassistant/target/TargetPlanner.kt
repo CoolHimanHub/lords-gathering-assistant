@@ -46,9 +46,13 @@ class TargetPlanner(
                 o.confidence >= minimumConfidence
         }
         val discoveryEligible = observations.filter { o ->
-            o.coordinate != null &&
-                o.level != null &&
+            // Discovery is allowed to exist before affine calibration has
+            // produced a world coordinate. A semantic badge + level is still
+            // a real frame-local discovery; it simply cannot become an
+            // action-ranked target until a coordinate is available.
+            o.level != null &&
                 o.kind != null &&
+                o.screenPoint != null &&
                 o.occupied != true &&
                 o.incomingTroops != true &&
                 o.confidence >= minimumConfidence
@@ -70,13 +74,16 @@ class TargetPlanner(
         val rankedDiscoveries = discoveryEligible.mapNotNull { observation ->
             val coordinate = observation.coordinate ?: return@mapNotNull null
             val level = observation.level ?: return@mapNotNull null
-            val distance = hypot(
-                (coordinate.x - originX).toDouble(),
-                (coordinate.y - originY).toDouble()
-            )
+            val distanceScore = coordinate?.let {
+                val distance = hypot(
+                    (it.x - originX).toDouble(),
+                    (it.y - originY).toDouble()
+                )
+                -distance * 10.0
+            } ?: 0.0
             RankedDiscoveryTarget(
                 observation = observation,
-                score = level * 100.0 + observation.confidence * 100.0 - distance * 10.0
+                score = level * 100.0 + observation.confidence * 100.0 + distanceScore
             )
         }.sortedByDescending { it.score }
 
