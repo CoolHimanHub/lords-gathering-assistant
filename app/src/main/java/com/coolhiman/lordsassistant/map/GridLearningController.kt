@@ -121,8 +121,12 @@ class GridLearningController(private val context: Context) {
         }
 
         if (sessionSamples >= MAX_SESSION_PROBES) return
-        // Do not probe while a tile popup or action control is already present.
-        if (currentPopup != null || actionButtonDetections > 0) return
+        // A popup may remain open after a successful probe. Lords Mobile can
+        // replace that popup when another map cell is tapped, so learning may
+        // continue without requiring a manual close. We only permit the next
+        // probe in the upper map-safe band while a popup is visible; detected
+        // action controls still hard-stop probing.
+        if (actionButtonDetections > 0) return
         if (nowMs - lastTapMs < MIN_TAP_INTERVAL_MS) return
 
         // Seed the learner from current semantic tile centers. The observation
@@ -143,6 +147,7 @@ class GridLearningController(private val context: Context) {
         if (selected == null) return
 
         val point = selected.point
+        if (currentPopup != null && point.y > height * 0.58f) return
         if (lastCandidate != null && distance(lastCandidate, point) <= POINT_DEDUP_PX) {
             candidateFrames++
         } else {
