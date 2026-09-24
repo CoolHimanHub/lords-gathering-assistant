@@ -43,6 +43,26 @@ class TargetPlannerTest {
     }
 
     
+
+    @Test
+    fun discoverySurfacesSemanticTargetBeforeCoordinateCalibration() {
+        val target = MapObservation(
+            coordinate = null,
+            screenPoint = com.coolhiman.lordsassistant.model.ScreenPoint(480f, 320f),
+            label = "RESOURCE_BADGE",
+            level = 5,
+            quantity = null,
+            occupied = null,
+            incomingTroops = null,
+            kind = TargetKind.RESOURCE,
+            confidence = 0.90f
+        )
+        val plan = TargetPlanner().plan(100, 100, listOf(target), UserPreferences())
+        assertEquals(1, plan.rankedDiscoveries.size)
+        assertEquals(null, plan.rankedDiscoveries.first().observation.coordinate)
+        assertEquals(0, plan.ranked.size)
+    }
+
     @Test
     fun discoverySurfacesBadgeTargetWhenStateIsUnknown() {
         val target = MapObservation(
