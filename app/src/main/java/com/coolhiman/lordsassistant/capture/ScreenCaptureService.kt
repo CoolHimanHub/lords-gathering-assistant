@@ -359,6 +359,7 @@ class ScreenCaptureService : Service() {
         // "VirtualDisplay stopped" message.
         virtualDisplayReleaseExpected = true
         captureSessionActive = false
+        if (::gridLearningController.isInitialized) gridLearningController.stop()
 
         reader?.setOnImageAvailableListener(null, null)
         reader?.close()
@@ -502,6 +503,7 @@ class ScreenCaptureService : Service() {
         // continuity, or target stability satisfy current-session safety checks.
         previousScan = null
         lastScanMs = 0L
+        if (::gridLearningController.isInitialized) gridLearningController.stop()
         actionSchedulerAdapter.resetForCaptureSession()
         liveScanner.resetCaptureSession()
 
