@@ -141,5 +141,26 @@ class DetectionFusionTest {
         source.recycle()
     }
 
+
+    @Test
+    fun nearbyStructureLabelDoesNotOverrideResourceBadgeWhenTooFar() {
+        val tile = DetectedTile(
+            "RESOURCE_BADGE", TileClass.RESOURCE, 4, RectF(100f, 100f, 130f, 130f), 0.9
+        )
+        val relay = TextRegion(
+            RectF(160f, 100f, 250f, 125f),
+            GameTextClassifier.classify("Relay Tower 420"),
+            "Relay Tower 420"
+        )
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(tile), 1),
+            listOf(relay),
+            emptyList()
+        ) { _, _ -> WorldCoordinate(1, 200, 300) }
+
+        assertEquals(TargetKind.RESOURCE, result.single().classification.kind)
+        assertEquals(false, result.single().ignored)
+    }
+
 }
 
