@@ -34,4 +34,30 @@ class OcrParserTest {
             OcrParser.parseCoordinate("K-7 X.249 Y=399", defaultKingdom = 0)
         )
     }
+
+    @Test
+    fun hudCoordinateBeatsChatCoordinateFromFullFrameOcr() {
+        val regions = listOf(
+            TextRegion(RectF(120f, 20f, 520f, 45f), TextClassification(), "Basic Threshold 9 (K:2000 X:242 Y:406)"),
+            TextRegion(RectF(515f, 82f, 610f, 112f), TextClassification(), "X:366"),
+            TextRegion(RectF(620f, 82f, 715f, 112f), TextClassification(), "Y:836")
+        )
+
+        assertEquals(
+            WorldCoordinate(0, 366, 836),
+            OcrParser.parseHudCoordinate("", regions, 1024, 576, defaultKingdom = 0)
+        )
+    }
+
+    @Test
+    fun hudParserRejectsChatCoordinateOutsideHudBand() {
+        val regions = listOf(
+            TextRegion(RectF(500f, 20f, 700f, 45f), TextClassification(), "K:2000 X:242 Y:406")
+        )
+
+        assertEquals(
+            null,
+            OcrParser.parseHudCoordinate("", regions, 1024, 576, defaultKingdom = 0)
+        )
+    }
 }
