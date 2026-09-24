@@ -25,4 +25,10 @@ class GameTextClassifierTest {
         assertEquals(4, result.level)
         assertNull(result.resource)
     }
+    @Test
+    fun marksRelayTowerAsNonTarget() {
+        val result = GameTextClassifier.classify("Relay Tower 400 Lv.4")
+        assertEquals(true, result.ignored)
+        assertNull(result.kind)
+    }
 }
