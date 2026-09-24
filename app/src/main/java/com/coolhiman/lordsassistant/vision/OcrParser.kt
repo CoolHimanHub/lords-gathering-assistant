@@ -95,7 +95,7 @@ object OcrParser {
 
         hudRegions.asSequence()
             .mapNotNull { region ->
-                coordinate.find(region.text)?.let {
+                kingdom.find(region.text)?.let {
                     val k = it.groupValues[1].toInt()
                     val x = it.groupValues[2].toInt()
                     val y = it.groupValues[3].toInt()
