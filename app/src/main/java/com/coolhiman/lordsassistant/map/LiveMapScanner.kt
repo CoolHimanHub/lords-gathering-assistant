@@ -193,16 +193,30 @@ class LiveMapScanner(context: Context) {
                     remembered.level == current.level
             }
         }
+        // Discovery ranking is frame-local and does not require the OCR
+        // coordinate origin. The previous null-origin branch returned an empty
+        // TargetPlan, which made the HUD report "N semantic" while discovery
+        // stayed at zero even when badges/monster/resource semantics were
+        // successfully detected. Use a neutral origin only for the
+        // informational discovery score; never expose that neutral origin to
+        // the strict action-ranking path.
+        val plannedWithDiscovery = planner.plan(
+            origin?.x ?: 0,
+            origin?.y ?: 0,
+            planningObservations,
+            preferences,
+            camera.state == CameraState.STABLE
+        )
         val plan = if (origin != null) {
-            planner.plan(
-                origin.x,
-                origin.y,
-                planningObservations,
-                preferences,
-                camera.state == CameraState.STABLE
-            )
+            plannedWithDiscovery
         } else {
-            TargetPlan(planningObservations, emptyList())
+            // No K/X/Y authority: preserve discovery evidence but fail closed
+            // for action ranking. Action candidates already require coordinate,
+            // calibration, stability and validation independently.
+            plannedWithDiscovery.copy(
+                ranked = emptyList(),
+                rankedMonsters = emptyList()
+            )
         }
 
         val resourceCandidate = plan.ranked.firstOrNull()
