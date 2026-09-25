@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.graphics.PixelFormat
 import android.os.IBinder
@@ -24,11 +25,21 @@ class OverlayService : Service() {
         @Volatile var instance: OverlayService? = null
         @Volatile private var selectedTestDurationMinutes: Int = 5
         @Volatile private var testRequested: Boolean = false
+        @Volatile private var interactiveBounds: Rect? = null
 
         fun consumeRequestedTestDuration(): Int? {
             if (!testRequested) return null
             testRequested = false
             return selectedTestDurationMinutes
+        }
+
+        /** Bounds of the touchable diagnostics card. Automated map probes must never enter it. */
+        fun isPointInsideInteractiveOverlay(x: Float, y: Float, marginPx: Float = 12f): Boolean {
+            val bounds = interactiveBounds ?: return false
+            return x >= bounds.left - marginPx &&
+                x <= bounds.right + marginPx &&
+                y >= bounds.top - marginPx &&
+                y <= bounds.bottom + marginPx
         }
     }
 
@@ -218,6 +229,7 @@ class OverlayService : Service() {
                     lp.x = startX + (event.rawX - downX).toInt()
                     lp.y = startY + (event.rawY - downY).toInt()
                     runCatching { wm.updateViewLayout(container, lp) }
+                    refreshInteractiveBounds()
                     true
                 }
                 else -> false
@@ -243,6 +255,7 @@ class OverlayService : Service() {
 
         card = container
         wm.addView(container, lp)
+        container.post { refreshInteractiveBounds() }
 
         markerView = TargetMarkerView().also { marker ->
             val markerLp = WindowManager.LayoutParams(
@@ -365,7 +378,21 @@ class OverlayService : Service() {
         markerView?.post { markerView?.setTargets(targets.take(12)) }
     }
 
+    private fun refreshInteractiveBounds() {
+        val view = card ?: return
+        if (view.width <= 0 || view.height <= 0) return
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        interactiveBounds = Rect(
+            location[0],
+            location[1],
+            location[0] + view.width,
+            location[1] + view.height
+        )
+    }
+
     override fun onDestroy() {
+        interactiveBounds = null
         instance = null
         card?.let { runCatching { wm.removeView(it) } }
         markerView?.let { runCatching { wm.removeView(it) } }
