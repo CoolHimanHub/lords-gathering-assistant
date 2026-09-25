@@ -179,7 +179,21 @@ class CameraInvariantWorldModel(
             ((screen.x - model.offsetX) / model.scale).toFloat(),
             ((screen.y - model.offsetY) / model.scale).toFloat()
         )
-        return baseCalibration.inverse(
+        return resolveDetailed(screen, kingdom, model, maxResidualPx)?.coordinate
+    }
+
+    fun resolveDetailed(
+        screen: ScreenPoint,
+        kingdom: Int,
+        model: CameraModel,
+        maxResidualPx: Double = 35.0
+    ): CalibrationResolution? {
+        if (!model.isUsable(maxAnchorResidualPx)) return null
+        val normalized = ScreenPoint(
+            ((screen.x - model.offsetX) / model.scale).toFloat(),
+            ((screen.y - model.offsetY) / model.scale).toFloat()
+        )
+        return baseCalibration.inverseDetailed(
             normalized,
             kingdom,
             maxResidualPx.coerceAtMost(maxAnchorResidualPx)
