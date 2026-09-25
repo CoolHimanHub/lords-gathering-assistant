@@ -88,7 +88,8 @@ class DetectionFusion(
                 popupState = popupState,
                 allTiles = frame.tiles,
                 coordinateResolver = coordinateResolver,
-                coordinateEvidenceResolver = coordinateEvidenceResolver
+                coordinateEvidenceResolver = coordinateEvidenceResolver,
+                textRegions = textRegions
             )
 
             if (popupMatches) {
@@ -159,7 +160,8 @@ class DetectionFusion(
         popupState: PopupState?,
         allTiles: List<DetectedTile>,
         coordinateResolver: (Float, Float) -> WorldCoordinate?,
-        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)?
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)?,
+        textRegions: List<TextRegion>
     ): Boolean {
         if (popupState?.isPopup != true || popupState.coordinate == null || coordinate != popupState.coordinate) {
             return false
@@ -171,14 +173,18 @@ class DetectionFusion(
 
         val popup = popupState
         fun semanticMatch(other: DetectedTile): Boolean {
-            val kind = when (other.tileClass) {
+            val detected = selectTextForTile(other, textRegions)?.classification
+            val kind = detected?.kind ?: when (other.tileClass) {
                 TileClass.RESOURCE -> TargetKind.RESOURCE
                 TileClass.MONSTER -> TargetKind.MONSTER
             }
             val kindMatch = popup.kind == null || popup.kind == kind
-            val level = other.level
+            val level = detected?.level ?: other.level
             val levelMatch = popup.level == null || level == null || popup.level == level
-            return kindMatch && levelMatch
+            val resourceMatch = popup.resource == null || detected?.resource == null || popup.resource == detected.resource
+            val monsterMatch = popup.monsterName == null || detected?.monsterName == null ||
+                popup.monsterName.equals(detected.monsterName, ignoreCase = true)
+            return kindMatch && levelMatch && resourceMatch && monsterMatch
         }
 
         val matchingTiles = allTiles.count { other ->
