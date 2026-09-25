@@ -7,12 +7,20 @@ import kotlin.math.abs
 /**
  * Learns screen <-> world coordinates from observations.
  *
- * We intentionally use an affine model rather than assuming a fixed
- * isometric pixel formula. Pan and zoom are represented by the six
- * coefficients and can be recalibrated whenever the camera changes.
+ * The calibration is deliberately affine rather than assuming a fixed
+ * isometric pixel formula. A small robust fitting layer prevents one bad
+ * popup/anchor pair from moving the transform used to generate the next
+ * synthetic probe.
  */
 class AffineGridCalibrator {
-    companion object { private const val MIN_GEOMETRY_SCORE = 0.05 }
+    companion object {
+        private const val MIN_GEOMETRY_SCORE = 0.05
+        private const val MAX_ROBUST_OUTLIERS = 2
+        private const val MIN_OUTLIER_RESIDUAL_PX = 30.0
+        private const val OUTLIER_RATIO = 2.5
+        private const val REQUIRED_RMS_IMPROVEMENT = 0.65
+    }
+
     private val samples = ArrayDeque<Pair<WorldCoordinate, ScreenPoint>>(32)
 
     fun addSample(world: WorldCoordinate, screen: ScreenPoint) {
@@ -27,11 +35,50 @@ class AffineGridCalibrator {
     fun fit(): Calibration? {
         if (samples.size < 3) return null
 
-        // Reject calibration sets with effectively one-dimensional geometry.
-        // Such samples can produce a mathematically solvable but unstable
-        // inverse transform and are especially dangerous after camera changes.
-        val xs = samples.map { it.first.x.toDouble() }
-        val ys = samples.map { it.first.y.toDouble() }
+        var working = samples.toList()
+        var fit = fitLeastSquares(working) ?: return null
+
+        // Probe coordinates come from the game popup, but the screen point is
+        // still an observation. A single mis-tap, OCR association error, or
+        // stale frame can therefore become a high-leverage affine outlier.
+        // Iteratively discard only a very clear outlier when doing so produces
+        // a substantial RMS improvement. The raw samples remain durable; only
+        // the active model excludes the suspect point.
+        repeat(MAX_ROBUST_OUTLIERS) {
+            if (working.size < 5) return@repeat
+
+            val residuals = working.map { (world, screen) ->
+                val predicted = fit.predict(world)
+                kotlin.math.hypot(
+                    predicted.x.toDouble() - screen.x,
+                    predicted.y.toDouble() - screen.y
+                )
+            }
+            val worstIndex = residuals.indices.maxByOrNull { residuals[it] } ?: return@repeat
+            val worst = residuals[worstIndex]
+            val threshold = maxOf(MIN_OUTLIER_RESIDUAL_PX, fit.rmsErrorPx * OUTLIER_RATIO)
+            if (worst <= threshold) return@repeat
+
+            val candidate = working.filterIndexed { index, _ -> index != worstIndex }
+            val candidateFit = fitLeastSquares(candidate) ?: return@repeat
+            if (candidateFit.rmsErrorPx > fit.rmsErrorPx * REQUIRED_RMS_IMPROVEMENT) {
+                return@repeat
+            }
+
+            working = candidate
+            fit = candidateFit
+        }
+
+        return fit
+    }
+
+    private fun fitLeastSquares(
+        source: List<Pair<WorldCoordinate, ScreenPoint>>
+    ): Calibration? {
+        if (source.size < 3) return null
+
+        val xs = source.map { it.first.x.toDouble() }
+        val ys = source.map { it.first.y.toDouble() }
         val xSpan = xs.maxOrNull()!! - xs.minOrNull()!!
         val ySpan = ys.maxOrNull()!! - ys.minOrNull()!!
         if (xSpan <= 0.0 || ySpan <= 0.0) return null
@@ -41,7 +88,7 @@ class AffineGridCalibrator {
         var covXX = 0.0
         var covYY = 0.0
         var covXY = 0.0
-        samples.forEach {
+        source.forEach {
             val dx = it.first.x - meanX
             val dy = it.first.y - meanY
             covXX += dx * dx
@@ -50,19 +97,14 @@ class AffineGridCalibrator {
         }
         val covarianceDet = covXX * covYY - covXY * covXY
         if (covarianceDet < 1e-6) return null
-        // Normalized 2-D spread. Values near zero mean the samples are nearly
-        // collinear even if both coordinate spans are non-zero. Such a set can
-        // fit an affine transform numerically while making the inverse highly
-        // sensitive to tiny screen errors.
         val geometryScore = covarianceDet / (covXX * covYY).coerceAtLeast(1e-12)
         if (geometryScore < MIN_GEOMETRY_SCORE) return null
 
-        // Solve A*x=b for x coefficients using normal equations.
         val a = Array(3) { DoubleArray(3) }
         val bx = DoubleArray(3)
         val by = DoubleArray(3)
 
-        samples.forEach { (w, p) ->
+        source.forEach { (w, p) ->
             val row = doubleArrayOf(w.x.toDouble(), w.y.toDouble(), 1.0)
             for (i in 0..2) {
                 for (j in 0..2) a[i][j] += row[i] * row[j]
@@ -75,7 +117,7 @@ class AffineGridCalibrator {
         val cy = solve3(a, by) ?: return null
 
         var error = 0.0
-        samples.forEach { (w, p) ->
+        source.forEach { (w, p) ->
             val px = cx[0] * w.x + cx[1] * w.y + cx[2]
             val py = cy[0] * w.x + cy[1] * w.y + cy[2]
             error += (px - p.x) * (px - p.x) + (py - p.y) * (py - p.y)
@@ -84,7 +126,7 @@ class AffineGridCalibrator {
         return Calibration(
             screenX = cx,
             screenY = cy,
-            rmsErrorPx = kotlin.math.sqrt(error / samples.size),
+            rmsErrorPx = kotlin.math.sqrt(error / source.size),
             minWorldX = xs.minOrNull()!!.toInt(),
             maxWorldX = xs.maxOrNull()!!.toInt(),
             minWorldY = ys.minOrNull()!!.toInt(),
@@ -96,7 +138,9 @@ class AffineGridCalibrator {
     }
 
     private fun solve3(input: Array<DoubleArray>, rhs: DoubleArray): DoubleArray? {
-        val m = Array(3) { i -> DoubleArray(4) { j -> if (j < 3) input[i][j] else rhs[i] } }
+        val m = Array(3) { i ->
+            DoubleArray(4) { j -> if (j < 3) input[i][j] else rhs[i] }
+        }
 
         for (col in 0..2) {
             var pivot = col
@@ -104,7 +148,9 @@ class AffineGridCalibrator {
                 if (abs(m[row][col]) > abs(m[pivot][col])) pivot = row
             }
             if (abs(m[pivot][col]) < 1e-8) return null
-            val tmp = m[col]; m[col] = m[pivot]; m[pivot] = tmp
+            val tmp = m[col]
+            m[col] = m[pivot]
+            m[pivot] = tmp
 
             val divisor = m[col][col]
             for (j in col..3) m[col][j] /= divisor
