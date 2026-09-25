@@ -13,6 +13,7 @@ object ObservationMapper {
         occupied = candidate.occupied,
         incomingTroops = candidate.incomingTroops,
         kind = candidate.classification.kind,
-        confidence = candidate.confidence.toFloat().coerceIn(0f, 1f)
+        confidence = candidate.confidence.toFloat().coerceIn(0f, 1f),
+        coordinateConfidence = candidate.coordinateConfidence
     )
 }
