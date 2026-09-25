@@ -54,7 +54,9 @@ class DetectionFusionTest {
         )
         val result = DetectionFusion(maxMarchDistancePx = 80f).fuse(
             DetectionFrame(listOf(tile), 1),
-            emptyList(),
+            listOf(
+                TextRegion(RectF(100f, 100f, 140f, 140f), GameTextClassifier.classify("WOOD LV 3"), "WOOD LV 3")
+            ),
             listOf(MarchSignal(155f, 120f, 50.0, 0.8f)),
             popupState = popup,
             coordinateResolver = { _, _ -> WorldCoordinate(1, 200, 300) }
@@ -81,7 +83,9 @@ class DetectionFusionTest {
         )
         val result = DetectionFusion().fuse(
             DetectionFrame(listOf(tile), 1),
-            emptyList(),
+            listOf(
+                TextRegion(RectF(100f, 100f, 140f, 140f), GameTextClassifier.classify("WOOD LV 3"), "WOOD LV 3")
+            ),
             emptyList(),
             popupState = popup,
             coordinateResolver = { _, _ -> WorldCoordinate(1, 200, 300) },
