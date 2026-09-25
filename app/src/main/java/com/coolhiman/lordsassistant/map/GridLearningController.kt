@@ -51,6 +51,12 @@ class GridLearningController(private val context: Context) {
 
     @Synchronized
     fun start() {
+        // A new explicit learning run establishes a fresh screen->world
+        // calibration for the current viewport. Durable probe history remains
+        // in GridLearningStore; stale screen-space calibration must not leak
+        // into this run.
+        calibrationStore.clear()
+        calibrator.clear()
         active = true
         pending = null
         pendingSinceMs = 0L
@@ -65,7 +71,6 @@ class GridLearningController(private val context: Context) {
         frontier.clear()
         attemptedScreen.clear()
         candidateQueue = null
-        calibrator.clear()
     }
 
     @Synchronized
