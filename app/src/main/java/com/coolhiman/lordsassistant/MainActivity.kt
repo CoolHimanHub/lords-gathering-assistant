@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private var projectionResultCode: Int? = null
     private var projectionData: Intent? = null
     private var captureButton: Button? = null
+    @Volatile private var captureStartInProgress = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PreferencesStore(this)
@@ -92,6 +93,22 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         readinessStatus.text = readinessText()
+        refreshCaptureButtonState()
+    }
+
+    private fun refreshCaptureButtonState() {
+        val active = ScreenCaptureService.instance?.isCaptureSessionActive() == true
+        captureButton?.post {
+            if (active) {
+                captureButton?.text = "Scanner running"
+                captureButton?.isEnabled = false
+            } else if (!captureStartInProgress) {
+                projectionResultCode = null
+                projectionData = null
+                captureButton?.text = "Prepare screen capture"
+                captureButton?.isEnabled = true
+            }
+        }
     }
 
     private fun readinessText(): String {
@@ -126,6 +143,13 @@ class MainActivity : Activity() {
     }
 
     private fun requestCapture() {
+        if (ScreenCaptureService.instance?.isCaptureSessionActive() == true) {
+            captureButton?.text = "Scanner running"
+            captureButton?.isEnabled = false
+            Toast.makeText(this, "Scanner is already running", Toast.LENGTH_SHORT).show()
+            return
+        }
+        captureStartInProgress = true
         // "Prepare screen capture" is the explicit user intent to start a
         // capture session. App Cast supplies the required MediaProjection
         // consent; once consent returns successfully, startPendingCapture()
@@ -168,9 +192,10 @@ class MainActivity : Activity() {
             }
         )
         captureButton?.post {
-            captureButton?.text = "Scanner running"
+            captureButton?.text = "Scanner starting…"
             captureButton?.isEnabled = false
         }
+        window.decorView.postDelayed({ refreshCaptureButtonState() }, 1200L)
     }
 
     @Suppress("DEPRECATION")
@@ -179,6 +204,7 @@ class MainActivity : Activity() {
         if (requestCode != 9001) return
 
         if (resultCode != RESULT_OK || data == null) {
+            captureStartInProgress = false
             projectionResultCode = null
             projectionData = null
             captureButton?.text = "Prepare screen capture"
@@ -198,6 +224,12 @@ class MainActivity : Activity() {
             Toast.LENGTH_SHORT
         ).show()
         startPendingCapture()
+        window.decorView.postDelayed({ refreshCaptureButtonState() }, 1500L)
+    }
+
+    override fun onDestroy() {
+        captureStartInProgress = false
+        super.onDestroy()
     }
 
 }
