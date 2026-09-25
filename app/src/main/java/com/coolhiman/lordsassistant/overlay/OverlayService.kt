@@ -35,6 +35,10 @@ class OverlayService : Service() {
 
         /** Bounds of the touchable diagnostics card. Automated map probes must never enter it. */
         fun isPointInsideInteractiveOverlay(x: Float, y: Float, marginPx: Float = 12f): Boolean {
+            // Fail closed while the overlay exists but its bounds have not yet
+            // been published. A learning gesture must never be dispatched
+            // during that initialization window.
+            if (instance != null && interactiveBounds == null) return true
             val bounds = interactiveBounds ?: return false
             return x >= bounds.left - marginPx &&
                 x <= bounds.right + marginPx &&
@@ -67,7 +71,7 @@ class OverlayService : Service() {
         }
 
         val status = TextView(this).apply {
-            text = "LM COMPANION • V2.2.6\nReady — open the Lords Mobile map"
+            text = "LM COMPANION • V2.2.9\nReady — open the Lords Mobile map"
             textSize = 11f
             setTextColor(Color.WHITE)
             setPadding(4, 2, 4, 4)
