@@ -5,8 +5,7 @@ import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 
-object ObservationMapper {
-    fun map(candidate: FusionCandidate): MapObservation {
+fun mapObservation(candidate: FusionCandidate): MapObservation {
         val kind = when {
             candidate.ignored -> null
             candidate.classification.kind != null -> candidate.classification.kind
@@ -34,5 +33,4 @@ object ObservationMapper {
             evidence = evidence,
             coordinateConfidence = candidate.coordinateConfidence
         )
-    }
 }
