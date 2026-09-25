@@ -169,14 +169,15 @@ class DetectionFusion(
             coordinateEvidenceResolver?.invoke(other.centerX, other.centerY)?.coordinate
                 ?: coordinateResolver(other.centerX, other.centerY)
 
+        val popup = popupState
         fun semanticMatch(other: DetectedTile): Boolean {
             val kind = when (other.tileClass) {
                 TileClass.RESOURCE -> TargetKind.RESOURCE
                 TileClass.MONSTER -> TargetKind.MONSTER
             }
-            val kindMatch = popupState.kind == null || popupState.kind == kind
+            val kindMatch = popup.kind == null || popup.kind == kind
             val level = other.level
-            val levelMatch = popupState.level == null || level == null || popupState.level == level
+            val levelMatch = popup.level == null || level == null || popup.level == level
             return kindMatch && levelMatch
         }
 
