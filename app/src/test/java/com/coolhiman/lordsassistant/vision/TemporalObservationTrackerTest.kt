@@ -54,6 +54,25 @@ class TemporalObservationTrackerTest {
     }
 
     @Test
+    fun differentTargetLabelDoesNotReuseCoordinateDriftedTrack() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val wood = observation().copy(
+            label = "WOOD",
+            coordinate = WorldCoordinate(355, 10, 20),
+            screenPoint = ScreenPoint(100f, 100f)
+        )
+        val stone = wood.copy(
+            label = "STONE",
+            coordinate = WorldCoordinate(355, 11, 21),
+            screenPoint = ScreenPoint(104f, 97f)
+        )
+
+        assertEquals(0, tracker.update(listOf(wood), 1000L).size)
+        assertEquals(0, tracker.update(listOf(stone), 1100L).size)
+        assertEquals(1, tracker.update(listOf(stone), 1200L).size)
+    }
+
+    @Test
     fun highConfidenceUnknownDoesNotBecomeOccupied() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         val unknown = observation(0.95f).copy(occupied = null, incomingTroops = null)
