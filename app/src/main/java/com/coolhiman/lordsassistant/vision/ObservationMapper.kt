@@ -31,6 +31,7 @@ fun mapObservation(candidate: FusionCandidate): MapObservation {
             kind = kind,
             confidence = candidate.confidence.toFloat().coerceIn(0f, 1f),
             evidence = evidence,
+            timestampMs = System.currentTimeMillis(),
             coordinateConfidence = candidate.coordinateConfidence
         )
 }
