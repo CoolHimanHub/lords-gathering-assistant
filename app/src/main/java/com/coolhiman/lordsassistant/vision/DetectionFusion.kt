@@ -94,7 +94,7 @@ class DetectionFusion(
             )
 
             if (popupMatches) {
-                val confirmedPopup = popupState ?: return@mapNotNull null
+                val confirmedPopup = requireNotNull(popupState)
                 coordinateConfidence = CoordinateConfidence.observed(
                     calibrationUsable = coordinateConfidence.calibrationUsable,
                     cameraStable = coordinateConfidence.cameraStable,
