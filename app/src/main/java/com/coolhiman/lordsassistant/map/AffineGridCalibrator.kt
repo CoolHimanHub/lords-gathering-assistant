@@ -81,7 +81,9 @@ class AffineGridCalibrator {
             minWorldX = xs.minOrNull()!!.toInt(),
             maxWorldX = xs.maxOrNull()!!.toInt(),
             minWorldY = ys.minOrNull()!!.toInt(),
-            maxWorldY = ys.maxOrNull()!!.toInt()
+            maxWorldY = ys.maxOrNull()!!.toInt(),
+            worldSpanX = xSpan,
+            worldSpanY = ySpan
         )
     }
 
@@ -116,7 +118,9 @@ data class Calibration(
     val minWorldX: Int = Int.MIN_VALUE,
     val maxWorldX: Int = Int.MAX_VALUE,
     val minWorldY: Int = Int.MIN_VALUE,
-    val maxWorldY: Int = Int.MAX_VALUE
+    val maxWorldY: Int = Int.MAX_VALUE,
+    val worldSpanX: Double = 0.0,
+    val worldSpanY: Double = 0.0
 ) {
     fun predict(world: WorldCoordinate): ScreenPoint =
         ScreenPoint(
