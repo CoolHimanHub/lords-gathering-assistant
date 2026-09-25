@@ -94,19 +94,20 @@ class DetectionFusion(
             )
 
             if (popupMatches) {
+                val confirmedPopup = popupState ?: return@mapNotNull null
                 coordinateConfidence = CoordinateConfidence.observed(
                     calibrationUsable = coordinateConfidence.calibrationUsable,
                     cameraStable = coordinateConfidence.cameraStable,
                     residualPx = coordinateConfidence.residualPx
                 )
                 classification = classification.copy(
-                    kind = popup.kind ?: classification.kind,
-                    resource = popup.resource ?: classification.resource,
-                    monsterName = popup.monsterName ?: classification.monsterName,
-                    level = popup.level ?: classification.level,
-                    quantity = popup.quantity ?: classification.quantity,
-                    occupied = popup.occupied ?: classification.occupied,
-                    incomingTroops = popup.incomingTroops ?: classification.incomingTroops
+                    kind = confirmedPopup.kind ?: classification.kind,
+                    resource = confirmedPopup.resource ?: classification.resource,
+                    monsterName = confirmedPopup.monsterName ?: classification.monsterName,
+                    level = confirmedPopup.level ?: classification.level,
+                    quantity = confirmedPopup.quantity ?: classification.quantity,
+                    occupied = confirmedPopup.occupied ?: classification.occupied,
+                    incomingTroops = confirmedPopup.incomingTroops ?: classification.incomingTroops
                 )
             }
 
