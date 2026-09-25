@@ -9,8 +9,8 @@ android {
         applicationId = "com.coolhiman.lordsassistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 241
-        versionName = "2.4.1"
+        versionCode = 250
+        versionName = "2.5.0"
     }
 
     val stableKeystorePath = System.getenv("LM_DEBUG_KEYSTORE")
