@@ -50,6 +50,27 @@ class AffineGridCalibratorTest {
     }
 
     @Test
+    fun inverseDetailedReportsLocalResidualNotGlobalRms() {
+        val calibrator = AffineGridCalibrator()
+        val samples = listOf(
+            WorldCoordinate(355, 10, 20) to ScreenPoint(400f, 300f),
+            WorldCoordinate(355, 11, 20) to ScreenPoint(414f, 292f),
+            WorldCoordinate(355, 10, 21) to ScreenPoint(422f, 314f),
+            WorldCoordinate(355, 11, 21) to ScreenPoint(436f, 306f)
+        )
+        samples.forEach { (world, screen) -> calibrator.addSample(world, screen) }
+
+        val fit = calibrator.fit()
+        assertNotNull(fit)
+        val resolved = fit!!.inverseDetailed(ScreenPoint(414.8f, 291.4f), 355)
+
+        assertNotNull(resolved)
+        assertEquals(WorldCoordinate(355, 11, 20), resolved!!.coordinate)
+        assertEquals(1.0, resolved.residualPx, 0.01)
+        assertTrue(resolved.residualPx != fit.rmsErrorPx)
+    }
+
+    @Test
     fun rejectsOneDimensionalSamples() {
         val calibrator = AffineGridCalibrator()
         calibrator.addSample(WorldCoordinate(355, 10, 20), ScreenPoint(400f, 300f))
