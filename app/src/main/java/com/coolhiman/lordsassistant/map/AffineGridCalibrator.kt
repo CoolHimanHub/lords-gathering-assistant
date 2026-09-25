@@ -183,7 +183,14 @@ data class Calibration(
             (screenY[0] * world.x + screenY[1] * world.y + screenY[2]).toFloat()
         )
 
-    fun inverse(screen: ScreenPoint, kingdom: Int, maxResidualPx: Double = 35.0): WorldCoordinate? {
+    fun inverse(screen: ScreenPoint, kingdom: Int, maxResidualPx: Double = 35.0): WorldCoordinate? =
+        inverseDetailed(screen, kingdom, maxResidualPx)?.coordinate
+
+    fun inverseDetailed(
+        screen: ScreenPoint,
+        kingdom: Int,
+        maxResidualPx: Double = 35.0
+    ): CalibrationResolution? {
         val det = screenX[0] * screenY[1] - screenX[1] * screenY[0]
         if (abs(det) < 1e-8) return null
         val sx = screen.x.toDouble() - screenX[2]
@@ -202,9 +209,14 @@ data class Calibration(
             predicted.x.toDouble() - screen.x,
             predicted.y.toDouble() - screen.y
         )
-        return candidate.takeIf { residual <= maxResidualPx }
+        return if (residual <= maxResidualPx) {
+            CalibrationResolution(candidate, residual)
+        } else {
+            null
+        }
     }
 
     fun isUsable(maxRmsPx: Double = 35.0, minGeometryScore: Double = 0.05): Boolean =
         rmsErrorPx <= maxRmsPx && geometryScore >= minGeometryScore
 }
+\n\ndata class CalibrationResolution(\n    val coordinate: WorldCoordinate,\n    val residualPx: Double\n)\n
