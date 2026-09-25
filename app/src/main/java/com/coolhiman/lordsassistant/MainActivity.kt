@@ -42,7 +42,7 @@ class MainActivity : Activity() {
             insets
         }
         ViewCompat.requestApplyInsets(root)
-        root.addView(TextView(this).apply { text = "LM Companion  •  V2.1.0"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
+        root.addView(TextView(this).apply { text = "LM Companion  •  V2.2.4"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
         root.addView(TextView(this).apply { text = "Resource + monster companion • live map intelligence • compact overlay"; setTextColor(0xFFB8BBC4.toInt()); setPadding(0,0,0,14) })
         root.addView(Switch(this).apply { text = "Always-on-top overlay"; setTextColor(Color.WHITE); isChecked=current.overlayEnabled; setOnCheckedChangeListener { _,checked -> if (checked && !Settings.canDrawOverlays(this@MainActivity)) { isChecked = false; store.setOverlayEnabled(false); Toast.makeText(this@MainActivity, "Grant overlay permission first", Toast.LENGTH_SHORT).show(); startOverlayPermission() } else { store.setOverlayEnabled(checked); if (checked) startOverlayServiceSafely() else stopService(Intent(this@MainActivity,OverlayService::class.java)) } } })
         root.addView(TextView(this).apply {
@@ -102,7 +102,7 @@ class MainActivity : Activity() {
             append("\nGesture service: ").append(if (LmAccessibilityService.instance != null) "CONNECTED" else "NOT CONNECTED")
             append("\nScreen capture: requested when scanner starts")
             append("\nAutomatic actions: ").append(if (automatic) "ENABLED (advanced)" else "OFF — safe default")
-            append("\nRuntime: V2.1.0 — discovery, ranking, calibration and guarded actions")
+            append("\nRuntime: V2.2.4 — discovery, grid learning, calibration and guarded actions")
         }
     }
 
@@ -126,9 +126,10 @@ class MainActivity : Activity() {
     }
 
     private fun requestCapture() {
-        // The MediaProjection chooser ("App cast") only grants permission.
-        // Do NOT start the scanner from its result callback. The user must
-        // explicitly press START SCANNER after choosing the app/window.
+        // "Prepare screen capture" is the explicit user intent to start a
+        // capture session. App Cast supplies the required MediaProjection
+        // consent; once consent returns successfully, startPendingCapture()
+        // completes that same user-requested scanner start.
         if (LmAccessibilityService.instance == null) {
             Toast.makeText(
                 this,
@@ -188,14 +189,15 @@ class MainActivity : Activity() {
         projectionResultCode = resultCode
         projectionData = data
         captureButton?.post {
-            captureButton?.text = "START SCANNER"
-            captureButton?.isEnabled = true
+            captureButton?.text = "Starting scanner…"
+            captureButton?.isEnabled = false
         }
         Toast.makeText(
             this,
-            "App cast ready. Press START SCANNER to begin.",
-            Toast.LENGTH_LONG
+            "App cast approved. Starting scanner…",
+            Toast.LENGTH_SHORT
         ).show()
+        startPendingCapture()
     }
 
 }
