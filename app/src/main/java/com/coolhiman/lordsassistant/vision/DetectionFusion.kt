@@ -175,7 +175,11 @@ class DetectionFusion(
 
         val popup = popupState
         fun semanticMatch(other: DetectedTile): Boolean {
-            val detected = selectTextForTile(other, textRegions)?.classification
+            val selectedText = selectTextForTile(other, textRegions)
+            val selectedTextOwnerCount = if (selectedText == null) 0 else {
+                allTiles.count { candidate -> selectTextForTile(candidate, textRegions) == selectedText }
+            }
+            val detected = selectedText?.takeIf { selectedTextOwnerCount == 1 }?.classification
             val kind = detected?.kind ?: when (other.tileClass) {
                 TileClass.RESOURCE -> TargetKind.RESOURCE
                 TileClass.MONSTER -> TargetKind.MONSTER
