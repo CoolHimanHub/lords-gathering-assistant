@@ -81,8 +81,15 @@ class DetectionFusion(
                 }
             val coordinate = resolution?.coordinate
             var coordinateConfidence = resolution?.confidence ?: CoordinateConfidence.none()
-            val popupMatches = popupState?.isPopup == true &&
-                popupState.coordinate != null && coordinate == popupState.coordinate
+            val popupMatches = popupMatchesExactly(
+                tile = tile,
+                classification = classification,
+                coordinate = coordinate,
+                popupState = popupState,
+                allTiles = frame.tiles,
+                coordinateResolver = coordinateResolver,
+                coordinateEvidenceResolver = coordinateEvidenceResolver
+            )
 
             if (popupMatches) {
                 coordinateConfidence = CoordinateConfidence.observed(
@@ -137,6 +144,47 @@ class DetectionFusion(
                 marchAssociation = marchAssociation
             )
         }
+    }
+
+    /**
+     * Popup K/X/Y is global OCR evidence, so a coordinate match alone is not
+     * sufficient when two detected tiles collapse onto the same rounded world
+     * coordinate. Require a unique semantic match among all tiles that resolve
+     * to that coordinate; otherwise leave every candidate calibrated-only.
+     */
+    private fun popupMatchesExactly(
+        tile: DetectedTile,
+        classification: TextClassification,
+        coordinate: WorldCoordinate?,
+        popupState: PopupState?,
+        allTiles: List<DetectedTile>,
+        coordinateResolver: (Float, Float) -> WorldCoordinate?,
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)?
+    ): Boolean {
+        if (popupState?.isPopup != true || popupState.coordinate == null || coordinate != popupState.coordinate) {
+            return false
+        }
+
+        fun resolved(other: DetectedTile): WorldCoordinate? =
+            coordinateEvidenceResolver?.invoke(other.centerX, other.centerY)?.coordinate
+                ?: coordinateResolver(other.centerX, other.centerY)
+
+        fun semanticMatch(other: DetectedTile): Boolean {
+            val kind = when (other.tileClass) {
+                TileClass.RESOURCE -> TargetKind.RESOURCE
+                TileClass.MONSTER -> TargetKind.MONSTER
+            }
+            val kindMatch = popupState.kind == null || popupState.kind == kind
+            val level = other.level
+            val levelMatch = popupState.level == null || level == null || popupState.level == level
+            return kindMatch && levelMatch
+        }
+
+        val matchingTiles = allTiles.count { other ->
+            resolved(other) == popupState.coordinate && semanticMatch(other)
+        }
+
+        return matchingTiles == 1 && semanticMatch(tile)
     }
 
     private fun selectTextForTile(tile: DetectedTile, textRegions: List<TextRegion>): TextRegion? {
