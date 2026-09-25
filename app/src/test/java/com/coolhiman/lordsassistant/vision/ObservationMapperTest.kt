@@ -32,7 +32,7 @@ class ObservationMapperTest {
         )
 
         val observation = try {
-            ObservationMapper.map(candidate)
+            mapObservation(candidate)
         } catch (error: IllegalAccessError) {
             System.err.println("MAPPER_LINKAGE_ERROR: ${error.message}")
             error.printStackTrace(System.err)
