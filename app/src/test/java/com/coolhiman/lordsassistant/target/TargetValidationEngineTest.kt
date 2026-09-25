@@ -1,5 +1,6 @@
 package com.coolhiman.lordsassistant.target
 
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.ObservationEvidence
@@ -19,6 +20,26 @@ class TargetValidationEngineTest {
         MapObservation(coordinate, ScreenPoint(100f, 200f), "WOOD", 3, 720000, occupied, incoming, TargetKind.RESOURCE, 0.95f, evidence)
 
     private fun popup() = PopupState(kind = TargetKind.RESOURCE, resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD, level = 3, quantity = 720000, occupied = false, incomingTroops = false, coordinate = coordinate, isPopup = true)
+
+    @Test
+    fun calibratedCoordinateIsNeverActionSafe() {
+        val calibrated = observation().copy(
+            coordinateConfidence = CoordinateConfidence.calibrated(true, true, residualPx = 4.0)
+        )
+        val r = engine.validate(calibrated, true, true, popup(), actionKind = ActionKind.GATHER)
+        assertFalse(r.safe)
+        assertTrue(TargetBlockReason.COORDINATE_AUTHORITY_INVALID in r.reasons)
+    }
+
+    @Test
+    fun inferredCoordinateIsNeverActionSafe() {
+        val inferred = observation().copy(
+            coordinateConfidence = CoordinateConfidence.inferred(true, true, residualPx = 4.0)
+        )
+        val r = engine.validate(inferred, true, true, popup(), actionKind = ActionKind.GATHER)
+        assertFalse(r.safe)
+        assertTrue(TargetBlockReason.COORDINATE_AUTHORITY_INVALID in r.reasons)
+    }
 
     @Test fun freeConfirmedMatchingPopupIsSafe() {
         val r = engine.validate(observation(), true, true, popup(), actionKind = ActionKind.GATHER)
