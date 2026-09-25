@@ -179,7 +179,7 @@ class LiveMapScanner(context: Context) {
         // Planning/action safety still requires CameraState.STABLE below.
         if (fittedCameraModel?.isUsable() == true) {
             result = analyze(fittedCameraModel)
-            observations = result.fused.map(ObservationMapper::map)
+            observations = result.fused.map(::mapObservation)
         }
 
         // Persist the final coordinate pass as the baseline for the next
