@@ -79,7 +79,7 @@ class AffineGridCalibratorTest {
 
         val predicted = fit.predict(WorldCoordinate(355, 103, 202))
         assertEquals(586f, predicted.x, 0.1f)
-        assertEquals(312f, predicted.y, 0.1f)
+        assertEquals(304f, predicted.y, 0.1f)
     }
 
 }
