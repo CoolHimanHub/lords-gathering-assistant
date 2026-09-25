@@ -31,13 +31,7 @@ class ObservationMapperTest {
             confidence = 0.95
         )
 
-        val observation = try {
-            mapObservation(candidate)
-        } catch (error: IllegalAccessError) {
-            System.err.println("MAPPER_LINKAGE_ERROR: ${error.message}")
-            error.printStackTrace(System.err)
-            throw AssertionError("Mapper linkage failure: ${error.message}", error)
-        }
+        val observation = mapObservation(candidate)
 
         assertEquals("Blackwing", observation.label)
         assertEquals(TargetKind.MONSTER, observation.kind)
