@@ -2,6 +2,7 @@ package com.coolhiman.lordsassistant.vision
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import com.coolhiman.lordsassistant.map.CoordinateResolution
 
 data class VisionPipelineResult(
     val detection: DetectionFrame,
@@ -20,7 +21,8 @@ class VisionPipeline(
         textRegions: List<TextRegion> = emptyList(),
         marchSignals: List<MarchSignal> = emptyList(),
         popupState: PopupState? = null,
-        coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null }
+        coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null },
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null
     ): VisionPipelineResult {
         val detection = tileDetector.detect(bitmap, templates)
         val levelEnrichedDetection = enrichBadgeLevels(detection, textRegions)
@@ -29,7 +31,8 @@ class VisionPipeline(
             textRegions = textRegions,
             marchSignals = marchSignals,
             popupState = popupState,
-            coordinateResolver = coordinateResolver
+            coordinateResolver = coordinateResolver,
+            coordinateEvidenceResolver = coordinateEvidenceResolver
         )
         return VisionPipelineResult(
             detection = levelEnrichedDetection,
