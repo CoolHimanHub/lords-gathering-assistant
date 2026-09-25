@@ -16,12 +16,23 @@ class MapMemory(
     fun upsert(observation: MapObservation) {
         val key = observation.coordinate ?: return
         val previous = observations[key]
-        if (previous == null ||
-            observation.confidence >= previous.confidence ||
-            observation.timestampMs - previous.timestampMs > 5_000
-        ) {
+        if (previous == null || shouldReplace(previous, observation)) {
             observations[key] = observation
         }
+    }
+
+    private fun shouldReplace(previous: MapObservation, incoming: MapObservation): Boolean {
+        if (incoming.timestampMs < previous.timestampMs) return false
+
+        // Coordinate authority belongs to the current frame. A fresh
+        // calibrated frame must replace an older OBSERVED frame so memory
+        // cannot advertise stale action authority after revisiting a target.
+        if (incoming.coordinateConfidence.authority != previous.coordinateConfidence.authority) {
+            return true
+        }
+
+        if (incoming.confidence > previous.confidence) return true
+        return incoming.timestampMs > previous.timestampMs
     }
 
     fun upsertAll(items: Iterable<MapObservation>) {
