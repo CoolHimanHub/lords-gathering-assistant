@@ -37,8 +37,8 @@ class DetectionFusion(
         textRegions: List<TextRegion>,
         marchSignals: List<MarchSignal>,
         popupState: PopupState? = null,
-        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null },
-        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
+        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
     ): List<FusionCandidate> {
         return frame.tiles.map { tile ->
             val text = selectTextForTile(tile, textRegions)
