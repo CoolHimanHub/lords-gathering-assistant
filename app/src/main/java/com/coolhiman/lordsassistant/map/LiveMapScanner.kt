@@ -423,6 +423,10 @@ class LiveMapScanner(context: Context) {
      * never valid evidence for a new session.
      */
     fun resetCaptureSession() {
+        // Screen-space calibration belongs to the current capture viewport.
+        // Preserve durable probe history, but never reuse transform samples
+        // from a previous capture session for coordinate resolution/actions.
+        calibrationStore.clear()
         reloadTemplates()
         viewportGuard.reset()
         tracker.reset()
