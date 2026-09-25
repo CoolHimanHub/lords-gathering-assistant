@@ -1,14 +1,14 @@
 package com.coolhiman.lordsassistant.target
 
 /**
- * Defines the final scanner-to-scheduler eligibility boundary.
+ * Final scanner-to-scheduler eligibility boundary.
  *
- * A live candidate may be visually detected and still remain diagnostic-only.
- * Automatic scheduling requires current-frame camera continuity, safe validation,
- * and a finite planner position/score.
+ * Visual detection and calibrated coordinates remain diagnostic-only until the
+ * target's world coordinate is directly observed and all action gates pass.
  */
 enum class LiveActionCandidateRejectionReason {
     CAMERA_CONTINUITY_INVALID,
+    COORDINATE_NOT_ACTION_AUTHORITATIVE,
     VALIDATION_UNSAFE,
     VALIDATION_NOT_SAFE_TO_INTERACT,
     PLANNER_RANK_INVALID,
@@ -20,6 +20,8 @@ object LiveActionCandidatePolicy {
         when {
             !candidate.cameraContinuityValid ->
                 LiveActionCandidateRejectionReason.CAMERA_CONTINUITY_INVALID
+            !candidate.observation.coordinateConfidence.actionAuthoritative ->
+                LiveActionCandidateRejectionReason.COORDINATE_NOT_ACTION_AUTHORITATIVE
             !candidate.validation.safe ->
                 LiveActionCandidateRejectionReason.VALIDATION_UNSAFE
             candidate.validation.stage != TargetValidationStage.SAFE_TO_INTERACT ->
