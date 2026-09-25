@@ -52,7 +52,7 @@ class OcrParserTest {
     @Test
     fun hudParserRejectsChatCoordinateOutsideHudBand() {
         val regions = listOf(
-            TextRegion(RectF(500f, 20f, 700f, 45f), TextClassification(), "K:2000 X:242 Y:406")
+            TextRegion(RectF(120f, 20f, 420f, 45f), TextClassification(), "K:2000 X:242 Y:406")
         )
 
         assertEquals(
