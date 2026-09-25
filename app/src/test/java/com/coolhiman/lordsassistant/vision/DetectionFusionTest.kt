@@ -132,6 +132,41 @@ class DetectionFusionTest {
     }
 
     @Test
+    fun popupResourceIdentityDoesNotUpgradeDifferentResourceAtSameCoordinate() {
+        val first = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f, 100f, 140f, 140f), 0.9
+        )
+        val second = DetectedTile(
+            "STONE", TileClass.RESOURCE, 3, RectF(150f, 100f, 190f, 140f), 0.9
+        )
+        val popup = PopupState(
+            kind = TargetKind.RESOURCE,
+            resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD,
+            level = 3,
+            coordinate = WorldCoordinate(1, 200, 300),
+            isPopup = true
+        )
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(first, second), 1),
+            listOf(
+                TextRegion(RectF(100f, 100f, 140f, 140f), GameTextClassifier.classify("WOOD LV 3"), "WOOD LV 3"),
+                TextRegion(RectF(150f, 100f, 190f, 140f), GameTextClassifier.classify("STONE LV 3"), "STONE LV 3")
+            ),
+            emptyList(),
+            popupState = popup,
+            coordinateEvidenceResolver = { _, _ ->
+                CoordinateResolution(
+                    WorldCoordinate(1, 200, 300),
+                    CoordinateConfidence.calibrated(true, true, 4.0)
+                )
+            }
+        )
+
+        assertEquals(CoordinateAuthority.OBSERVED, result[0].coordinateConfidence.authority)
+        assertEquals(CoordinateAuthority.CALIBRATED, result[1].coordinateConfidence.authority)
+    }
+
+    @Test
     fun calibratedCoordinateRemainsCalibratedWithoutPopupEvidence() {
         val tile = DetectedTile(
             "WOOD", TileClass.RESOURCE, 3, RectF(100f,100f,140f,140f), 0.9
