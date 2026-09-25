@@ -144,6 +144,12 @@ class LiveMapScanner(context: Context) {
             popupState = popupState,
             coordinateResolver = { x, y ->
                 resolver.resolve(com.coolhiman.lordsassistant.model.ScreenPoint(x, y), cameraModel)
+            },
+            coordinateEvidenceResolver = { x, y ->
+                resolver.resolveDetailed(
+                    com.coolhiman.lordsassistant.model.ScreenPoint(x, y),
+                    cameraModel
+                )
             }
         )
 
@@ -261,12 +267,11 @@ class LiveMapScanner(context: Context) {
                 calibrationUsable = calibrationValid,
                 cameraStable = camera.state == CameraState.STABLE
             )
-            observations.any { it.coordinate != null } -> CoordinateConfidence.calibrated(
-                calibrationUsable = calibrationValid,
-                cameraStable = camera.state == CameraState.STABLE,
-                residualPx = calibrationStore.fit(kingdom)?.rmsErrorPx
-            )
-            else -> CoordinateConfidence.none()
+            observations.firstOrNull { it.coordinateConfidence.authority == CoordinateAuthority.OBSERVED }
+                ?.coordinateConfidence
+                ?: observations.firstOrNull { it.coordinateConfidence.authority == CoordinateAuthority.CALIBRATED }
+                    ?.coordinateConfidence
+                ?: CoordinateConfidence.none()
         }
         val detectedActionButtons = ActionButtonDetector.detect(
             textRegions = textRegions,
