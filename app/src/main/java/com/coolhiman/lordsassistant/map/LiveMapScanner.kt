@@ -20,7 +20,7 @@ import com.coolhiman.lordsassistant.target.ActionKind
 import com.coolhiman.lordsassistant.target.ActionTargetSnapshot
 import com.coolhiman.lordsassistant.vision.DetectionFusion
 import com.coolhiman.lordsassistant.vision.MarchAssociationDiagnostics
-import com.coolhiman.lordsassistant.vision.ObservationMapper
+import com.coolhiman.lordsassistant.vision.mapObservation
 import com.coolhiman.lordsassistant.vision.OrangeMarchDetector
 import com.coolhiman.lordsassistant.vision.OpenCvRuntime
 import com.coolhiman.lordsassistant.vision.PopupState
@@ -159,7 +159,7 @@ class LiveMapScanner(context: Context) {
         // semantic observations provide candidate anchors for the current
         // camera state; no new coordinate is trusted yet.
         var result = analyze()
-        var observations = result.fused.map(ObservationMapper::map)
+        var observations = result.fused.map(::mapObservation)
 
         // The anchor tracker deliberately operates before temporal target
         // stabilization: it is only estimating camera geometry from repeated
