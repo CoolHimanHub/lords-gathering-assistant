@@ -29,6 +29,7 @@ class GridLearningController(private val context: Context) {
     private var lastTapMs = 0L
     private var lastWidth = 0
     private var lastHeight = 0
+    private var lastCameraStable = false
     private var sessionSamples = 0
     private val learnedCoordinates = linkedSetOf<String>()
     private val queuedWorld = linkedSetOf<String>()
@@ -57,6 +58,7 @@ class GridLearningController(private val context: Context) {
         candidateFrames = 0
         lastTapMs = 0L
         sessionSamples = 0
+        lastCameraStable = false
         learnedCoordinates.clear()
         queuedWorld.clear()
         frontier.clear()
@@ -92,6 +94,7 @@ class GridLearningController(private val context: Context) {
         if (!active || width <= 0 || height <= 0) return
         lastWidth = width
         lastHeight = height
+        lastCameraStable = cameraStable
 
         val currentPopup = popupState?.takeIf { it.isPopup && it.coordinate != null }
         val currentPending = pending
@@ -286,7 +289,7 @@ class GridLearningController(private val context: Context) {
         return "GRID LEARN • probes=" + sessionSamples +
             " • saved=" + store.sampleCount() +
             " • frontier=" + frontier.size +
-            " • camera=" + if (calibrator.fit() == null) "BOOTSTRAP" else "CALIBRATED" +
+            " • camera=" + if (lastCameraStable) "STABLE" else "UNSTABLE" +
             " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms
     }
 
