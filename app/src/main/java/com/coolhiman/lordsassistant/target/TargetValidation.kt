@@ -12,7 +12,7 @@ enum class TargetValidationStage {
 
 enum class TargetBlockReason {
     NO_TARGET, TARGET_CHANGED, TARGET_UNSTABLE, CAMERA_UNSTABLE, CALIBRATION_INVALID, STATE_UNKNOWN, MARCH_AMBIGUOUS,
-    OCCUPIED, INCOMING_TROOPS, KIND_UNKNOWN, LEVEL_UNKNOWN, POPUP_MISSING,
+    OCCUPIED, INCOMING_TROOPS, KIND_UNKNOWN, LEVEL_UNKNOWN, COORDINATE_AUTHORITY_INVALID, POPUP_MISSING,
     POPUP_MISMATCH, POPUP_KIND_MISMATCH, POPUP_RESOURCE_MISMATCH,
     POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID, ACTION_MISMATCH
 }
@@ -76,6 +76,9 @@ class TargetValidationEngine {
             reasons += TargetBlockReason.MARCH_AMBIGUOUS
         }
         if (!calibrationValid) reasons += TargetBlockReason.CALIBRATION_INVALID
+        if (!observation.coordinateConfidence.actionAuthoritative) {
+            reasons += TargetBlockReason.COORDINATE_AUTHORITY_INVALID
+        }
         if (observation.coordinate == null) reasons += TargetBlockReason.TARGET_CHANGED
         if (observation.kind == null) reasons += TargetBlockReason.KIND_UNKNOWN
         if (observation.level == null) reasons += TargetBlockReason.LEVEL_UNKNOWN
