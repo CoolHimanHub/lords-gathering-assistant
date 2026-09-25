@@ -1,5 +1,7 @@
 package com.coolhiman.lordsassistant.vision
 
+import com.coolhiman.lordsassistant.model.CoordinateAuthority
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -20,7 +22,8 @@ class TemporalObservationTrackerTest {
         incomingTroops = false,
         kind = TargetKind.RESOURCE,
         confidence = confidence,
-        timestampMs = 1000L
+        timestampMs = 1000L,
+        coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0)
     )
 
     @Test
@@ -28,6 +31,26 @@ class TemporalObservationTrackerTest {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         assertEquals(0, tracker.update(listOf(observation()), 1000L).size)
         assertEquals(1, tracker.update(listOf(observation()), 1100L).size)
+    }
+
+    @Test
+    fun observedProvenanceDoesNotLeakIntoLaterCalibratedFrame() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val observed = observation()
+        val calibrated = observed.copy(
+            confidence = 0.80f,
+            coordinateConfidence = CoordinateConfidence.calibrated(
+                calibrationUsable = true,
+                cameraStable = true,
+                residualPx = 6.0
+            )
+        )
+
+        tracker.update(listOf(observed), 1000L)
+        val stable = tracker.update(listOf(calibrated), 1100L).single()
+
+        assertEquals(CoordinateAuthority.CALIBRATED, stable.coordinateConfidence.authority)
+        assertEquals(6.0, stable.coordinateConfidence.residualPx)
     }
 
     @Test
