@@ -30,4 +30,16 @@ class AffineGridCalibratorTest {
         assertEquals(WorldCoordinate(k, 102, 202), result.inverse(ScreenPoint(540f, 680f), k))
         assertNull(result.inverse(ScreenPoint(900f, 900f), k))
     }
+    @Test
+    fun rejectsNearlyCollinearCalibration() {
+        val calibrator = AffineGridCalibrator()
+        val k = 355
+        calibrator.addSample(WorldCoordinate(k, 100, 100), ScreenPoint(500f, 500f))
+        calibrator.addSample(WorldCoordinate(k, 101, 101), ScreenPoint(540f, 540f))
+        calibrator.addSample(WorldCoordinate(k, 102, 102), ScreenPoint(580f, 580f))
+        calibrator.addSample(WorldCoordinate(k, 103, 102), ScreenPoint(620f, 580f))
+
+        assertNull(calibrator.fit())
+    }
+
 }
