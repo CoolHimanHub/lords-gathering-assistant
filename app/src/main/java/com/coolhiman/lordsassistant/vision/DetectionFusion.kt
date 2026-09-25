@@ -1,6 +1,8 @@
 package com.coolhiman.lordsassistant.vision
 
 import android.graphics.RectF
+import com.coolhiman.lordsassistant.map.CoordinateResolution
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import kotlin.math.hypot
@@ -21,6 +23,7 @@ data class FusionCandidate(
     val occupied: Boolean?,
     val incomingTroops: Boolean?,
     val confidence: Double,
+    val coordinateConfidence: CoordinateConfidence = CoordinateConfidence.none(),
     val ignored: Boolean = false,
     val marchAssociation: MarchAssociationDiagnostics = MarchAssociationDiagnostics(MarchAssociationStatus.NO_MARCH)
 )
@@ -34,7 +37,8 @@ class DetectionFusion(
         textRegions: List<TextRegion>,
         marchSignals: List<MarchSignal>,
         popupState: PopupState? = null,
-        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
+        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null },
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null
     ): List<FusionCandidate> {
         return frame.tiles.map { tile ->
             val text = selectTextForTile(tile, textRegions)
@@ -71,11 +75,21 @@ class DetectionFusion(
                 )
             }
 
-            val coordinate = coordinateResolver(tile.centerX, tile.centerY)
+            val resolution = coordinateEvidenceResolver?.invoke(tile.centerX, tile.centerY)
+                ?: coordinateResolver(tile.centerX, tile.centerY)?.let {
+                    CoordinateResolution(it, CoordinateConfidence.none())
+                }
+            val coordinate = resolution?.coordinate
+            var coordinateConfidence = resolution?.confidence ?: CoordinateConfidence.none()
             val popupMatches = popupState?.isPopup == true &&
                 popupState.coordinate != null && coordinate == popupState.coordinate
 
             if (popupMatches) {
+                coordinateConfidence = CoordinateConfidence.observed(
+                    calibrationUsable = coordinateConfidence.calibrationUsable,
+                    cameraStable = coordinateConfidence.cameraStable,
+                    residualPx = coordinateConfidence.residualPx
+                )
                 classification = classification.copy(
                     kind = popupState.kind ?: classification.kind,
                     resource = popupState.resource ?: classification.resource,
@@ -118,6 +132,7 @@ class DetectionFusion(
                 occupied = occupied,
                 incomingTroops = incoming,
                 confidence = confidence,
+                coordinateConfidence = coordinateConfidence,
                 ignored = textClassification?.ignored == true,
                 marchAssociation = marchAssociation
             )
