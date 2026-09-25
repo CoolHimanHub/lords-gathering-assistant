@@ -205,11 +205,11 @@ class GridLearningController(private val context: Context) {
             maxOf(abs(expected.x - actual.x), abs(expected.y - actual.y))
         } else null
 
-        val accepted = expected == null || (
-            expected.kingdom == actual.kingdom &&
-                abs(expected.x - actual.x) <= 1 &&
-                abs(expected.y - actual.y) <= 1
-            )
+        val accepted = GridProbeAcceptancePolicy.accepts(
+            expected = expected,
+            actual = actual,
+            source = probe.source
+        )
 
         store.append(
             GridLearningRecord(
