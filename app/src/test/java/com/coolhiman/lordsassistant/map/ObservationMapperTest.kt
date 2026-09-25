@@ -8,7 +8,8 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.DetectedTile
 import com.coolhiman.lordsassistant.vision.FusionCandidate
 import com.coolhiman.lordsassistant.vision.TextClassification
-import org.junit.Assert.assertEquals\nimport org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ObservationMapperTest {
