@@ -20,8 +20,8 @@ data class DetectedTile(
     val sourceTemplate: String? = null,
     val source: DetectionSource = DetectionSource.TEMPLATE
 ) {
-    val centerX: Float get() = (bounds.left + bounds.right) / 2f
-    val centerY: Float get() = (bounds.top + bounds.bottom) / 2f
+    val centerX: Float get() = bounds.centerX()
+    val centerY: Float get() = bounds.centerY()
 }
 
 enum class DetectionSource { TEMPLATE, LEVEL_BADGE }
