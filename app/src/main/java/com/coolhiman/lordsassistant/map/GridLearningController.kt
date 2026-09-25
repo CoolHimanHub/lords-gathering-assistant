@@ -86,6 +86,7 @@ class GridLearningController(private val context: Context) {
         frameObservations: List<MapObservation>,
         popupState: PopupState?,
         actionButtonDetections: Int,
+        cameraStable: Boolean = false,
         nowMs: Long = System.currentTimeMillis()
     ) {
         if (!active || width <= 0 || height <= 0) return
@@ -143,7 +144,7 @@ class GridLearningController(private val context: Context) {
                 }
             }
 
-        val selected = nextSyntheticProbe(width, height) ?: nextQueuedPoint(width, height)
+        val selected = nextSyntheticProbe(width, height, cameraStable) ?: nextQueuedPoint(width, height)
         if (selected == null) return
 
         val point = selected.point
@@ -201,8 +202,14 @@ class GridLearningController(private val context: Context) {
             )
         )
 
-        calibrationStore.addSample(actual, probe.point)
-        calibrator.addSample(actual, probe.point)
+        // Only feed the affine model with an expectation that agrees with the
+        // popup (or with an intentionally expectation-free semantic probe).
+        // A bad predicted tap must never poison the transform used for the
+        // next generation of probes.
+        if (accepted) {
+            calibrationStore.addSample(actual, probe.point)
+            calibrator.addSample(actual, probe.point)
+        }
         sessionSamples++
         learnedCoordinates.add(worldKey(actual))
         enqueueNeighbors(actual)
@@ -223,7 +230,8 @@ class GridLearningController(private val context: Context) {
         }
     }
 
-    private fun nextSyntheticProbe(width: Int, height: Int): Probe? {
+    private fun nextSyntheticProbe(width: Int, height: Int, cameraStable: Boolean): Probe? {
+        if (!cameraStable) return null
         val calibration = calibrator.fit() ?: return null
         if (calibration.rmsErrorPx > CALIBRATION_RMS_FOR_SYNTHETIC_PX) return null
         if (frontier.isEmpty()) return null
@@ -233,7 +241,11 @@ class GridLearningController(private val context: Context) {
             queuedWorld.remove(worldKey(coordinate))
             if (learnedCoordinates.contains(worldKey(coordinate))) return@repeat
             val point = calibration.predict(coordinate)
-            if (!safeMapPoint(point, width, height)) return@repeat
+            if (!safeMapPoint(point, width, height)) {
+                // Keep the world cell for a later viewport/camera position.
+                if (queuedWorld.add(worldKey(coordinate))) frontier.addLast(coordinate)
+                return@repeat
+            }
             return Probe(point, coordinate, "predicted-grid")
         }
         return null
@@ -274,6 +286,7 @@ class GridLearningController(private val context: Context) {
         return "GRID LEARN • probes=" + sessionSamples +
             " • saved=" + store.sampleCount() +
             " • frontier=" + frontier.size +
+            " • camera=" + if (calibrator.fit() == null) "BOOTSTRAP" else "CALIBRATED" +
             " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms
     }
 
