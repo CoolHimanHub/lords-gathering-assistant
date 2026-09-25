@@ -119,6 +119,33 @@ class CameraInvariantWorldModelTest {
     }
 
     @Test
+    fun singleBadAnchorDoesNotPoisonCameraModel() {
+        val good = listOf(
+            world(0, 0),
+            world(10, 0),
+            world(0, 10),
+            world(10, 10)
+        ).map { coordinate ->
+            CameraWorldAnchor(coordinate, currentScreen(coordinate.x, coordinate.y))
+        }
+        val bad = CameraWorldAnchor(
+            world(5, 5),
+            ScreenPoint(
+                currentScreen(5, 5).x + 160f,
+                currentScreen(5, 5).y - 120f
+            )
+        )
+
+        val fitted = model.fit(good + bad)
+
+        assertNotNull(fitted)
+        assertEquals(1.5, fitted!!.scale, 1e-5)
+        assertEquals(50.0, fitted.offsetX, 1e-4)
+        assertEquals(-30.0, fitted.offsetY, 1e-4)
+        assertTrue(fitted.residualRmsPx < 1e-3)
+    }
+
+    @Test
     fun inconsistentAnchorGeometryFailsClosed() {
         val anchors = listOf(
             CameraWorldAnchor(world(0, 0), currentScreen(0, 0)),
