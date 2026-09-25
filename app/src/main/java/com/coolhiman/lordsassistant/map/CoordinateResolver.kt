@@ -28,26 +28,26 @@ class CoordinateResolver(
         val calibration = calibrationStore.fit(kingdom) ?: return null
         if (!calibration.isUsable(maxResidualPx)) return null
 
-        val coordinate = if (cameraModel != null) {
+        val resolution = if (cameraModel != null) {
             CameraInvariantWorldModel(
                 baseCalibration = calibration,
                 maxAnchorResidualPx = maxResidualPx
-            ).resolve(
+            ).resolveDetailed(
                 screen = screen,
                 kingdom = kingdom,
                 model = cameraModel,
                 maxResidualPx = maxResidualPx
             )
         } else {
-            calibration.inverse(screen, kingdom, maxResidualPx)
+            calibration.inverseDetailed(screen, kingdom, maxResidualPx)
         } ?: return null
 
         return CoordinateResolution(
-            coordinate,
+            resolution.coordinate,
             CoordinateConfidence.calibrated(
                 calibrationUsable = true,
                 cameraStable = cameraModel == null || cameraModel.isUsable(maxResidualPx),
-                residualPx = calibration.rmsErrorPx
+                residualPx = resolution.residualPx
             )
         )
     }
