@@ -708,6 +708,7 @@ class ScreenCaptureService : Service() {
                             frameObservations = scan.frameObservations,
                             popupState = scan.popupState,
                             actionButtonDetections = scan.actionButtonDetections,
+                            cameraStable = scan.cameraState == com.coolhiman.lordsassistant.map.CameraState.STABLE,
                             nowMs = now
                         )
                         val scanProcessingMs = System.currentTimeMillis() - scanStartedAt
