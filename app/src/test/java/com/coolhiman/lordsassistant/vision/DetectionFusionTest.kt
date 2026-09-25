@@ -2,6 +2,9 @@ package com.coolhiman.lordsassistant.vision
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import com.coolhiman.lordsassistant.map.CoordinateResolution
+import com.coolhiman.lordsassistant.model.CoordinateAuthority
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.TargetKind
 import org.junit.Assert.assertEquals
@@ -58,6 +61,60 @@ class DetectionFusionTest {
         assertEquals(false, result.single().occupied)
         assertEquals(false, result.single().incomingTroops)
         assertEquals(720000L, result.single().classification.quantity)
+    }
+
+    @Test
+    fun popupUpgradesOnlyMatchingCoordinateToObservedProvenance() {
+        val tile = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f,100f,140f,140f), 0.9
+        )
+        val popup = PopupState(
+            kind = TargetKind.RESOURCE,
+            resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD,
+            level = 3,
+            quantity = 720000L,
+            occupied = false,
+            incomingTroops = false,
+            coordinate = WorldCoordinate(1, 200, 300),
+            isPopup = true
+        )
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(tile), 1),
+            emptyList(),
+            emptyList(),
+            popupState = popup,
+            coordinateResolver = { _, _ -> WorldCoordinate(1, 200, 300) },
+            coordinateEvidenceResolver = { _, _ ->
+                CoordinateResolution(
+                    WorldCoordinate(1, 200, 300),
+                    CoordinateConfidence.calibrated(true, true, 4.0)
+                )
+            }
+        ).single()
+
+        assertEquals(CoordinateAuthority.OBSERVED, result.coordinateConfidence.authority)
+        assertTrue(result.coordinateConfidence.actionAuthoritative)
+    }
+
+    @Test
+    fun calibratedCoordinateRemainsCalibratedWithoutPopupEvidence() {
+        val tile = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f,100f,140f,140f), 0.9
+        )
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(tile), 1),
+            emptyList(),
+            emptyList(),
+            coordinateEvidenceResolver = { _, _ ->
+                CoordinateResolution(
+                    WorldCoordinate(1, 200, 300),
+                    CoordinateConfidence.calibrated(true, true, 4.0)
+                )
+            }
+        ).single()
+
+        assertEquals(CoordinateAuthority.CALIBRATED, result.coordinateConfidence.authority)
+        assertTrue(!result.coordinateConfidence.actionAuthoritative)
     }
 
     @Test
