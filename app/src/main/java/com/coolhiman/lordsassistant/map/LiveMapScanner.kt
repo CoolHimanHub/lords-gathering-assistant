@@ -267,10 +267,12 @@ class LiveMapScanner(context: Context) {
                 calibrationUsable = calibrationValid,
                 cameraStable = camera.state == CameraState.STABLE
             )
-            observations.firstOrNull { it.coordinateConfidence.authority == CoordinateAuthority.OBSERVED }
-                ?.coordinateConfidence
-                ?: observations.firstOrNull { it.coordinateConfidence.authority == CoordinateAuthority.CALIBRATED }
-                    ?.coordinateConfidence
+            else -> observations.firstOrNull {
+                it.coordinateConfidence.authority == CoordinateAuthority.OBSERVED
+            }?.coordinateConfidence
+                ?: observations.firstOrNull {
+                    it.coordinateConfidence.authority == CoordinateAuthority.CALIBRATED
+                }?.coordinateConfidence
                 ?: CoordinateConfidence.none()
         }
         val detectedActionButtons = ActionButtonDetector.detect(
