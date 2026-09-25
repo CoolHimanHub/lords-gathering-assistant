@@ -36,7 +36,7 @@ class ObservationMapperTest {
         } catch (error: IllegalAccessError) {
             System.err.println("MAPPER_LINKAGE_ERROR: ${error.message}")
             error.printStackTrace(System.err)
-            throw error
+            throw AssertionError("Mapper linkage failure: ${error.message}", error)
         }
 
         assertEquals("Blackwing", observation.label)
