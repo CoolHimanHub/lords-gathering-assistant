@@ -24,6 +24,13 @@ class CoordinateConfidenceTest {
     }
 
     @Test
+    fun observedCoordinateCanCarryResidualWithoutLosingAuthority() {
+        val confidence = CoordinateConfidence.observed(true, true, residualPx = 3.5)
+        assertTrue(confidence.actionAuthoritative)
+        assertTrue(confidence.residualPx == 3.5)
+    }
+
+    @Test
     fun noCoordinateHasZeroConfidence() {
         val confidence = CoordinateConfidence.none()
         assertTrue(confidence.authority == CoordinateAuthority.NONE)
