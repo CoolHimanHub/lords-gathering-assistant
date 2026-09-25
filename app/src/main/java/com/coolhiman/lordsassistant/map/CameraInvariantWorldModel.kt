@@ -40,20 +40,63 @@ class CameraInvariantWorldModel(
     private val baseCalibration: Calibration,
     private val maxAnchorResidualPx: Double = 25.0
 ) {
+    companion object {
+        private const val MIN_TRIANGLE_AREA = 25.0
+        private const val MAX_ROBUST_OUTLIERS = 1
+        private const val MIN_OUTLIER_RESIDUAL_PX = 30.0
+        private const val OUTLIER_RATIO = 2.5
+        private const val REQUIRED_RMS_IMPROVEMENT = 0.65
+    }
+
     fun fit(anchors: List<CameraWorldAnchor>): CameraModel? {
         if (anchors.size < 3) return null
 
         val basePoints = anchors.map { baseCalibration.predict(it.world) }
         val currentPoints = anchors.map { it.screen }
+        var active = anchors.indices.toList()
+        var best = fitLeastSquares(basePoints, currentPoints, active) ?: return null
 
-        val baseMeanX = basePoints.map { it.x.toDouble() }.average()
-        // At least three non-collinear anchors are required. Two points can
-        // always be explained by a misleading scale/translation fit and cannot
-        // distinguish ordinary zoom from rotation or other geometry changes.
+        repeat(MAX_ROBUST_OUTLIERS) {
+            if (active.size <= 3) return@repeat
+
+            val worst = active.maxByOrNull { index ->
+                residualPx(best, basePoints[index], currentPoints[index])
+            } ?: return@repeat
+
+            val worstResidual = residualPx(best, basePoints[worst], currentPoints[worst])
+            val threshold = maxOf(
+                MIN_OUTLIER_RESIDUAL_PX,
+                best.residualRmsPx * OUTLIER_RATIO
+            )
+            if (worstResidual <= threshold) return@repeat
+
+            val candidateActive = active.filterNot { it == worst }
+            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive)
+                ?: return@repeat
+
+            if (candidate.residualRmsPx <= best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT) {
+                active = candidateActive
+                best = candidate
+            }
+        }
+
+        return best.takeIf { it.isUsable(maxAnchorResidualPx) }
+    }
+
+    private fun fitLeastSquares(
+        basePoints: List<com.coolhiman.lordsassistant.model.ScreenPoint>,
+        currentPoints: List<com.coolhiman.lordsassistant.model.ScreenPoint>,
+        active: List<Int>
+    ): CameraModel? {
+        if (active.size < 3) return null
+
         var maxTriangleArea = 0.0
-        for (i in 0 until basePoints.size) {
-            for (j in i + 1 until basePoints.size) {
-                for (k in j + 1 until basePoints.size) {
+        for (a in 0 until active.size) {
+            for (b in a + 1 until active.size) {
+                for (c in b + 1 until active.size) {
+                    val i = active[a]
+                    val j = active[b]
+                    val k = active[c]
                     val ax = basePoints[j].x - basePoints[i].x
                     val ay = basePoints[j].y - basePoints[i].y
                     val bx = basePoints[k].x - basePoints[i].x
@@ -65,19 +108,20 @@ class CameraInvariantWorldModel(
                 }
             }
         }
-        if (maxTriangleArea < 25.0) return null
+        if (maxTriangleArea < MIN_TRIANGLE_AREA) return null
 
-        val baseMeanY = basePoints.map { it.y.toDouble() }.average()
-        val currentMeanX = currentPoints.map { it.x.toDouble() }.average()
-        val currentMeanY = currentPoints.map { it.y.toDouble() }.average()
+        val baseMeanX = active.map { basePoints[it].x.toDouble() }.average()
+        val baseMeanY = active.map { basePoints[it].y.toDouble() }.average()
+        val currentMeanX = active.map { currentPoints[it].x.toDouble() }.average()
+        val currentMeanY = active.map { currentPoints[it].y.toDouble() }.average()
 
         var denominator = 0.0
         var numerator = 0.0
-        anchors.indices.forEach { i ->
-            val bx = basePoints[i].x - baseMeanX.toFloat()
-            val by = basePoints[i].y - baseMeanY.toFloat()
-            val cx = currentPoints[i].x - currentMeanX.toFloat()
-            val cy = currentPoints[i].y - currentMeanY.toFloat()
+        for (index in active) {
+            val bx = basePoints[index].x - baseMeanX.toFloat()
+            val by = basePoints[index].y - baseMeanY.toFloat()
+            val cx = currentPoints[index].x - currentMeanX.toFloat()
+            val cy = currentPoints[index].y - currentMeanY.toFloat()
             denominator += bx * bx + by * by
             numerator += bx * cx + by * cy
         }
@@ -90,23 +134,41 @@ class CameraInvariantWorldModel(
         val offsetY = currentMeanY - scale * baseMeanY
 
         var squaredError = 0.0
-        anchors.indices.forEach { i ->
-            val predictedX = scale * basePoints[i].x + offsetX
-            val predictedY = scale * basePoints[i].y + offsetY
-            squaredError += hypot(
-                predictedX - currentPoints[i].x,
-                predictedY - currentPoints[i].y
-            ).let { it * it }
+        for (index in active) {
+            val residual = residualPx(
+                scale,
+                offsetX,
+                offsetY,
+                basePoints[index],
+                currentPoints[index]
+            )
+            squaredError += residual * residual
         }
 
-        val model = CameraModel(
+        return CameraModel(
             scale = scale,
             offsetX = offsetX,
             offsetY = offsetY,
-            residualRmsPx = sqrt(squaredError / anchors.size)
+            residualRmsPx = sqrt(squaredError / active.size)
         )
-        return model.takeIf { it.isUsable(maxAnchorResidualPx) }
     }
+
+    private fun residualPx(
+        model: CameraModel,
+        base: com.coolhiman.lordsassistant.model.ScreenPoint,
+        current: com.coolhiman.lordsassistant.model.ScreenPoint
+    ): Double = residualPx(model.scale, model.offsetX, model.offsetY, base, current)
+
+    private fun residualPx(
+        scale: Double,
+        offsetX: Double,
+        offsetY: Double,
+        base: com.coolhiman.lordsassistant.model.ScreenPoint,
+        current: com.coolhiman.lordsassistant.model.ScreenPoint
+    ): Double = hypot(
+        scale * base.x + offsetX - current.x,
+        scale * base.y + offsetY - current.y
+    )
 
     fun resolve(
         screen: ScreenPoint,
@@ -119,9 +181,6 @@ class CameraInvariantWorldModel(
             ((screen.x - model.offsetX) / model.scale).toFloat(),
             ((screen.y - model.offsetY) / model.scale).toFloat()
         )
-        // Calibration.inverse measures residual in the base-camera pixel
-        // space. Keep a conservative finite tolerance here while avoiding an
-        // unnecessary scale-dependent rejection of an otherwise valid target.
         return baseCalibration.inverse(
             normalized,
             kingdom,
