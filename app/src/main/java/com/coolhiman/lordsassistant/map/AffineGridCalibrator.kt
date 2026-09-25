@@ -12,6 +12,7 @@ import kotlin.math.abs
  * coefficients and can be recalibrated whenever the camera changes.
  */
 class AffineGridCalibrator {
+    companion object { private const val MIN_GEOMETRY_SCORE = 0.05 }
     private val samples = ArrayDeque<Pair<WorldCoordinate, ScreenPoint>>(32)
 
     fun addSample(world: WorldCoordinate, screen: ScreenPoint) {
@@ -49,6 +50,12 @@ class AffineGridCalibrator {
         }
         val covarianceDet = covXX * covYY - covXY * covXY
         if (covarianceDet < 1e-6) return null
+        // Normalized 2-D spread. Values near zero mean the samples are nearly
+        // collinear even if both coordinate spans are non-zero. Such a set can
+        // fit an affine transform numerically while making the inverse highly
+        // sensitive to tiny screen errors.
+        val geometryScore = covarianceDet / (covXX * covYY).coerceAtLeast(1e-12)
+        if (geometryScore < MIN_GEOMETRY_SCORE) return null
 
         // Solve A*x=b for x coefficients using normal equations.
         val a = Array(3) { DoubleArray(3) }
@@ -83,7 +90,8 @@ class AffineGridCalibrator {
             minWorldY = ys.minOrNull()!!.toInt(),
             maxWorldY = ys.maxOrNull()!!.toInt(),
             worldSpanX = xSpan,
-            worldSpanY = ySpan
+            worldSpanY = ySpan,
+            geometryScore = geometryScore
         )
     }
 
@@ -120,7 +128,8 @@ data class Calibration(
     val minWorldY: Int = Int.MIN_VALUE,
     val maxWorldY: Int = Int.MAX_VALUE,
     val worldSpanX: Double = 0.0,
-    val worldSpanY: Double = 0.0
+    val worldSpanY: Double = 0.0,
+    val geometryScore: Double = 0.0
 ) {
     fun predict(world: WorldCoordinate): ScreenPoint =
         ScreenPoint(
@@ -150,5 +159,6 @@ data class Calibration(
         return candidate.takeIf { residual <= maxResidualPx }
     }
 
-    fun isUsable(maxRmsPx: Double = 35.0): Boolean = rmsErrorPx <= maxRmsPx
+    fun isUsable(maxRmsPx: Double = 35.0, minGeometryScore: Double = 0.05): Boolean =
+        rmsErrorPx <= maxRmsPx && geometryScore >= minGeometryScore
 }
