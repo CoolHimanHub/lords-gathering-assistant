@@ -288,17 +288,21 @@ class ScreenCaptureService : Service() {
 
     fun isCaptureSessionActive(): Boolean = captureSessionActive
 
-    fun startGridLearning() {
+    fun startGridLearning(): Boolean {
         if (!captureSessionActive) {
+            OverlayService.instance?.setGridLearningUi(false)
             OverlayService.instance?.showStatus("GRID LEARN • start screen scanner first")
-            return
+            return false
         }
         gridLearningController.start()
+        OverlayService.instance?.setGridLearningUi(true)
         OverlayService.instance?.showStatus("GRID LEARN • ACTIVE • probing map tiles only")
+        return true
     }
 
     fun stopGridLearning() {
         if (::gridLearningController.isInitialized) gridLearningController.stop()
+        OverlayService.instance?.setGridLearningUi(false)
         OverlayService.instance?.showStatus("GRID LEARN • STOPPED • samples saved")
     }
 
@@ -504,6 +508,7 @@ class ScreenCaptureService : Service() {
         previousScan = null
         lastScanMs = 0L
         if (::gridLearningController.isInitialized) gridLearningController.stop()
+        OverlayService.instance?.setGridLearningUi(false)
         actionSchedulerAdapter.resetForCaptureSession()
         liveScanner.resetCaptureSession()
 
