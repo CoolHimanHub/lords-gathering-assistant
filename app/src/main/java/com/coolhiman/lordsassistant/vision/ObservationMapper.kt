@@ -31,7 +31,8 @@ object ObservationMapper {
             incomingTroops = candidate.incomingTroops,
             kind = kind,
             confidence = candidate.confidence.toFloat().coerceIn(0f, 1f),
-            evidence = evidence
+            evidence = evidence,
+            coordinateConfidence = candidate.coordinateConfidence
         )
     }
 }
