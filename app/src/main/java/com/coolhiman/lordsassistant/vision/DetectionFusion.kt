@@ -81,6 +81,7 @@ class DetectionFusion(
                 }
             val coordinate = resolution?.coordinate
             var coordinateConfidence = resolution?.confidence ?: CoordinateConfidence.none()
+            val popup = popupState
             val popupMatches = popupMatchesExactly(
                 tile = tile,
                 classification = classification,
