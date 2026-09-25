@@ -56,16 +56,27 @@ class AffineGridCalibrator {
             }
             val worstIndex = residuals.indices.maxByOrNull { residuals[it] } ?: return@repeat
             val worst = residuals[worstIndex]
-            val threshold = maxOf(MIN_OUTLIER_RESIDUAL_PX, fit.rmsErrorPx * OUTLIER_RATIO)
-            if (worst <= threshold) return@repeat
+            if (worst <= MIN_OUTLIER_RESIDUAL_PX) return@repeat
 
-            val candidate = working.filterIndexed { index, _ -> index != worstIndex }
-            val candidateFit = fitLeastSquares(candidate) ?: return@repeat
-            if (candidateFit.rmsErrorPx > fit.rmsErrorPx * REQUIRED_RMS_IMPROVEMENT) {
+            // Use leave-one-out refitting rather than an RMS-multiple threshold.
+            // A small number of bad observations can inflate the global RMS enough
+            // to hide the very outlier we need to remove.
+            val candidates = working.indices
+                .filter { it != worstIndex }
+                .mapNotNull { removed ->
+                    val candidate = working.filterIndexed { index, _ -> index != removed }
+                    fitLeastSquares(candidate)?.let { removed to it }
+                }
+            val (bestRemoved, candidateFit) = candidates.minByOrNull { it.second.rmsErrorPx }
+                ?: return@repeat
+            val removedResidual = residuals[bestRemoved]
+            if (removedResidual <= MIN_OUTLIER_RESIDUAL_PX ||
+                candidateFit.rmsErrorPx > fit.rmsErrorPx * REQUIRED_RMS_IMPROVEMENT
+            ) {
                 return@repeat
             }
 
-            working = candidate
+            working = working.filterIndexed { index, _ -> index != bestRemoved }
             fit = candidateFit
         }
 
