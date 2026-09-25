@@ -113,12 +113,23 @@ class TemporalObservationTracker(
                 val candidate = if (observation.occupied == false && observation.incomingTroops != true &&
                     !acceptFreeTransition) {
                     old.observation.copy(
-                        confidence = max(old.observation.confidence, observation.confidence)
+                        confidence = max(old.observation.confidence, observation.confidence),
+                        screenPoint = observation.screenPoint,
+                        timestampMs = observation.timestampMs,
+                        coordinateConfidence = observation.coordinateConfidence
                     )
                 } else if (observation.confidence >= old.observation.confidence) {
                     observation
                 } else {
-                    old.observation
+                    // State continuity may keep the older semantic observation,
+                    // but coordinate provenance is always frame-local. Never
+                    // carry OBSERVED authority into a later calibrated/unknown
+                    // frame merely because the world identity stayed equal.
+                    old.observation.copy(
+                        screenPoint = observation.screenPoint,
+                        timestampMs = observation.timestampMs,
+                        coordinateConfidence = observation.coordinateConfidence
+                    )
                 }
 
                 old.observation = if (strongOccupied) {
