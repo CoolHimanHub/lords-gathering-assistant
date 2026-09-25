@@ -17,7 +17,6 @@ class AffineGridCalibrator {
         private const val MIN_GEOMETRY_SCORE = 0.05
         private const val MAX_ROBUST_OUTLIERS = 2
         private const val MIN_OUTLIER_RESIDUAL_PX = 30.0
-        private const val OUTLIER_RATIO = 1.5
         private const val REQUIRED_RMS_IMPROVEMENT = 0.65
     }
 
@@ -55,28 +54,18 @@ class AffineGridCalibrator {
                 )
             }
             val worstIndex = residuals.indices.maxByOrNull { residuals[it] } ?: return@repeat
-            val worst = residuals[worstIndex]
-            if (worst <= MIN_OUTLIER_RESIDUAL_PX) return@repeat
+            val worstResidual = residuals[worstIndex]
+            if (worstResidual <= MIN_OUTLIER_RESIDUAL_PX) return@repeat
 
-            // Use leave-one-out refitting rather than an RMS-multiple threshold.
-            // A small number of bad observations can inflate the global RMS enough
-            // to hide the very outlier we need to remove.
-            val candidates = working.indices
-                .filter { it != worstIndex }
-                .mapNotNull { removed ->
-                    val candidate = working.filterIndexed { index, _ -> index != removed }
-                    fitLeastSquares(candidate)?.let { removed to it }
-                }
-            val (bestRemoved, candidateFit) = candidates.minByOrNull { it.second.rmsErrorPx }
-                ?: return@repeat
-            val removedResidual = residuals[bestRemoved]
-            if (removedResidual <= MIN_OUTLIER_RESIDUAL_PX ||
-                candidateFit.rmsErrorPx > fit.rmsErrorPx * REQUIRED_RMS_IMPROVEMENT
-            ) {
+            // Refitting without the single worst residual is deterministic and
+            // avoids letting the outlier distort the model used to judge itself.
+            val candidateSource = working.filterIndexed { index, _ -> index != worstIndex }
+            val candidateFit = fitLeastSquares(candidateSource) ?: return@repeat
+            if (candidateFit.rmsErrorPx > fit.rmsErrorPx * REQUIRED_RMS_IMPROVEMENT) {
                 return@repeat
             }
 
-            working = working.filterIndexed { index, _ -> index != bestRemoved }
+            working = candidateSource
             fit = candidateFit
         }
 
