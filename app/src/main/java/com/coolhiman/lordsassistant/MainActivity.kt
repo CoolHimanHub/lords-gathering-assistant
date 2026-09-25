@@ -24,6 +24,9 @@ class MainActivity : Activity() {
     }
     private lateinit var store: PreferencesStore
     private lateinit var readinessStatus: TextView
+    private var projectionResultCode: Int? = null
+    private var projectionData: Intent? = null
+    private var captureButton: Button? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PreferencesStore(this)
@@ -65,7 +68,11 @@ class MainActivity : Activity() {
         root.addView(Switch(this).apply { text="Automatic actions (advanced)"; setTextColor(Color.WHITE); isChecked=current.automaticActions; setOnCheckedChangeListener { _,checked -> store.setAutomaticActions(checked) } })
         root.addView(Button(this).apply { text="Grant overlay permission"; setOnClickListener { startOverlayPermission() } })
         root.addView(Button(this).apply { text="Enable gesture service"; setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } })
-        root.addView(Button(this).apply { text="Start screen scanner"; setOnClickListener { requestCapture() } })
+        captureButton = Button(this).apply {
+            text = "Prepare screen capture"
+            setOnClickListener { requestCapture() }
+        }
+        root.addView(captureButton)
         root.addView(TextView(this).apply { text="Workflow: capture → CV/OCR → K/X/Y → discovery → ranking → validation → guarded action"; setTextColor(0xFFB8BBC4.toInt()); gravity=Gravity.CENTER_HORIZONTAL; setPadding(0,20,0,0) })
         setContentView(ScrollView(this).apply { addView(root) })
 
@@ -119,9 +126,9 @@ class MainActivity : Activity() {
     }
 
     private fun requestCapture() {
-        // Scanner HUD is owned by the foreground capture service. Require the
-        // overlay permission before starting capture so a session can never
-        // start with an invisible diagnostic surface.
+        // The MediaProjection chooser ("App cast") only grants permission.
+        // Do NOT start the scanner from its result callback. The user must
+        // explicitly press START SCANNER after choosing the app/window.
         if (LmAccessibilityService.instance == null) {
             Toast.makeText(
                 this,
@@ -136,11 +143,59 @@ class MainActivity : Activity() {
             startOverlayPermission()
             return
         }
+
+        if (projectionData == null) {
+            store.setOverlayEnabled(true)
+            startOverlayServiceSafely()
+            val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            startActivityForResult(manager.createScreenCaptureIntent(), 9001)
+            return
+        }
+
+        startPendingCapture()
+    }
+
+    private fun startPendingCapture() {
+        val data = projectionData ?: return
+        val resultCode = projectionResultCode ?: return
         store.setOverlayEnabled(true)
         startOverlayServiceSafely()
-        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        startActivityForResult(manager.createScreenCaptureIntent(), 9001)
+        startForegroundService(
+            Intent(this, ScreenCaptureService::class.java).apply {
+                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
+                putExtra(ScreenCaptureService.EXTRA_DATA, data)
+            }
+        )
+        captureButton?.post {
+            captureButton?.text = "Scanner running"
+            captureButton?.isEnabled = false
+        }
     }
+
     @Suppress("DEPRECATION")
-    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) { super.onActivityResult(requestCode,resultCode,data); if(requestCode!=9001 || resultCode!=RESULT_OK || data==null) return; startForegroundService(Intent(this,ScreenCaptureService::class.java).apply { putExtra(ScreenCaptureService.EXTRA_RESULT_CODE,resultCode); putExtra(ScreenCaptureService.EXTRA_DATA,data) }); if (Settings.canDrawOverlays(this)) startOverlayServiceSafely() }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 9001) return
+
+        if (resultCode != RESULT_OK || data == null) {
+            projectionResultCode = null
+            projectionData = null
+            captureButton?.text = "Prepare screen capture"
+            Toast.makeText(this, "Screen-capture permission not granted", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        projectionResultCode = resultCode
+        projectionData = data
+        captureButton?.post {
+            captureButton?.text = "START SCANNER"
+            captureButton?.isEnabled = true
+        }
+        Toast.makeText(
+            this,
+            "App cast ready. Press START SCANNER to begin.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
 }
