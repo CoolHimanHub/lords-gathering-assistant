@@ -31,7 +31,13 @@ class ObservationMapperTest {
             confidence = 0.95
         )
 
-        val observation = ObservationMapper.map(candidate)
+        val observation = try {
+            ObservationMapper.map(candidate)
+        } catch (error: IllegalAccessError) {
+            System.err.println("MAPPER_LINKAGE_ERROR: ${error.message}")
+            error.printStackTrace(System.err)
+            throw error
+        }
 
         assertEquals("Blackwing", observation.label)
         assertEquals(TargetKind.MONSTER, observation.kind)
@@ -60,7 +66,13 @@ class ObservationMapperTest {
             coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 2.5)
         )
 
-        val observation = ObservationMapper.map(candidate)
+        val observation = try {
+            ObservationMapper.map(candidate)
+        } catch (error: IllegalAccessError) {
+            System.err.println("MAPPER_LINKAGE_ERROR: ${error.message}")
+            error.printStackTrace(System.err)
+            throw error
+        }
 
         assertEquals(CoordinateAuthority.OBSERVED, observation.coordinateConfidence.authority)
         assertEquals(2.5, observation.coordinateConfidence.residualPx)
