@@ -21,8 +21,8 @@ class VisionPipeline(
         textRegions: List<TextRegion> = emptyList(),
         marchSignals: List<MarchSignal> = emptyList(),
         popupState: PopupState? = null,
-        coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null },
-        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
+        coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null }
     ): VisionPipelineResult {
         val detection = tileDetector.detect(bitmap, templates)
         val levelEnrichedDetection = enrichBadgeLevels(detection, textRegions)
