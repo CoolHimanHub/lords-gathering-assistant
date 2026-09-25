@@ -98,13 +98,13 @@ class DetectionFusion(
                     residualPx = coordinateConfidence.residualPx
                 )
                 classification = classification.copy(
-                    kind = popupState.kind ?: classification.kind,
-                    resource = popupState.resource ?: classification.resource,
-                    monsterName = popupState.monsterName ?: classification.monsterName,
-                    level = popupState.level ?: classification.level,
-                    quantity = popupState.quantity ?: classification.quantity,
-                    occupied = popupState.occupied ?: classification.occupied,
-                    incomingTroops = popupState.incomingTroops ?: classification.incomingTroops
+                    kind = popup.kind ?: classification.kind,
+                    resource = popup.resource ?: classification.resource,
+                    monsterName = popup.monsterName ?: classification.monsterName,
+                    level = popup.level ?: classification.level,
+                    quantity = popup.quantity ?: classification.quantity,
+                    occupied = popup.occupied ?: classification.occupied,
+                    incomingTroops = popup.incomingTroops ?: classification.incomingTroops
                 )
             }
 
@@ -182,7 +182,7 @@ class DetectionFusion(
         }
 
         val matchingTiles = allTiles.count { other ->
-            resolved(other) == popupState.coordinate && semanticMatch(other)
+            resolved(other) == popup.coordinate && semanticMatch(other)
         }
 
         return matchingTiles == 1 && semanticMatch(tile)
