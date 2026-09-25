@@ -15,6 +15,7 @@ import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
 import android.os.IBinder
 import com.coolhiman.lordsassistant.model.ScreenPoint
+import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.target.InteractionGate
 import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.target.ActionButton
@@ -255,6 +256,9 @@ class LmAccessibilityService : AccessibilityService() {
             val y = point.y
             if (x < screenWidth * 0.10f || x > screenWidth * 0.90f) return false
             if (y < screenHeight * 0.16f || y > screenHeight * 0.82f) return false
+            // Final defense-in-depth gate: never dispatch a learning gesture
+            // into the touchable diagnostics overlay itself.
+            if (OverlayService.isPointInsideInteractiveOverlay(x, y)) return false
             if (y < screenHeight * 0.30f && x in (screenWidth * 0.34f)..(screenWidth * 0.76f)) return false
             return true
         }
