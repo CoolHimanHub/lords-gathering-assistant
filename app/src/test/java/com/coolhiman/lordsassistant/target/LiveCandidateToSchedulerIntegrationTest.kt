@@ -2,6 +2,7 @@ package com.coolhiman.lordsassistant.target
 
 import android.graphics.RectF
 import com.coolhiman.lordsassistant.map.LiveActionCandidate
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -101,7 +102,8 @@ class LiveCandidateToSchedulerIntegrationTest {
             screenPoint = point,
             confidence = 0.95f,
             occupied = false,
-            incomingTroops = false
+            incomingTroops = false,
+            coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0)
         )
         return LiveActionCandidate(
             target = ActionTargetSnapshot(
