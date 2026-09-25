@@ -183,9 +183,8 @@ class DetectionFusion(
             val kindMatch = popup.kind == null || popup.kind == kind
             val level = detected?.level ?: other.level
             val levelMatch = popup.level == null || level == null || popup.level == level
-            val resourceMatch = popup.resource == null || detected?.resource == null || popup.resource == detected.resource
-            val monsterMatch = popup.monsterName == null || detected?.monsterName == null ||
-                popup.monsterName.equals(detected.monsterName, ignoreCase = true)
+            val resourceMatch = popup.resource == null || popup.resource == detected?.resource
+            val monsterMatch = popup.monsterName == null || popup.monsterName.equals(detected?.monsterName, ignoreCase = true)
             return kindMatch && levelMatch && resourceMatch && monsterMatch
         }
 
