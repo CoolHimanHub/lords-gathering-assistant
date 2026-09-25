@@ -17,7 +17,7 @@ class TargetValidationEngineTest {
     private val coordinate = WorldCoordinate(355, 167, 511)
 
     private fun observation(occupied: Boolean? = false, incoming: Boolean? = false, evidence: Set<ObservationEvidence> = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)) =
-        MapObservation(coordinate, ScreenPoint(100f, 200f), "WOOD", 3, 720000, occupied, incoming, TargetKind.RESOURCE, 0.95f, evidence)
+        MapObservation(coordinate, ScreenPoint(100f, 200f), "WOOD", 3, 720000, occupied, incoming, TargetKind.RESOURCE, 0.95f, evidence, coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0))
 
     private fun popup() = PopupState(kind = TargetKind.RESOURCE, resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD, level = 3, quantity = 720000, occupied = false, incomingTroops = false, coordinate = coordinate, isPopup = true)
 
