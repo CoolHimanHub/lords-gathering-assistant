@@ -5,6 +5,7 @@ import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.WorldCoordinate
+import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.vision.PopupState
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -299,6 +300,9 @@ class GridLearningController(private val context: Context) {
         val y = point.y
         if (x < width * 0.10f || x > width * 0.90f) return false
         if (y < height * 0.16f || y > height * 0.82f) return false
+        // Never probe through the touchable diagnostics overlay. The learner
+        // must not be able to activate timer/buttons while learning the grid.
+        if (OverlayService.isPointInsideInteractiveOverlay(x, y)) return false
         if (y < height * 0.30f && x in (width * 0.34f)..(width * 0.76f)) return false
         return true
     }
