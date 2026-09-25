@@ -44,7 +44,6 @@ class CameraInvariantWorldModel(
         private const val MIN_TRIANGLE_AREA = 25.0
         private const val MAX_ROBUST_OUTLIERS = 1
         private const val MIN_OUTLIER_RESIDUAL_PX = 30.0
-        private const val OUTLIER_RATIO = 2.5
         private const val REQUIRED_RMS_IMPROVEMENT = 0.65
     }
 
@@ -65,29 +64,17 @@ class CameraInvariantWorldModel(
             val worstResidual = residualPx(best, basePoints[worst], currentPoints[worst])
             if (worstResidual <= MIN_OUTLIER_RESIDUAL_PX) return@repeat
 
-            // Leave-one-out fitting avoids allowing a few bad anchors to inflate
-            // the global RMS enough that the bad anchor passes the threshold.
-            val candidates = active
-                .filter { it != worst }
-                .mapNotNull { removed ->
-                    val candidateActive = active.filterNot { it == removed }
-                    fitLeastSquares(basePoints, currentPoints, candidateActive)
-                        ?.let { removed to it }
-                }
-            val (bestRemoved, candidate) = candidates.minByOrNull { it.second.residualRmsPx }
+            // Refit without the single worst anchor. This keeps the decision
+            // deterministic and prevents the suspect anchor from influencing
+            // the replacement model.
+            val candidateActive = active.filterNot { it == worst }
+            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive)
                 ?: return@repeat
-            val removedResidual = residualPx(
-                best,
-                basePoints[bestRemoved],
-                currentPoints[bestRemoved]
-            )
-            if (removedResidual <= MIN_OUTLIER_RESIDUAL_PX ||
-                candidate.residualRmsPx > best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT
-            ) {
+            if (candidate.residualRmsPx > best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT) {
                 return@repeat
             }
 
-            active = active.filterNot { it == bestRemoved }
+            active = candidateActive
             best = candidate
         }
 
