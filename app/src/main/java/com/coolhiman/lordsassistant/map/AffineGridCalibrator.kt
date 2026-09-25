@@ -219,4 +219,9 @@ data class Calibration(
     fun isUsable(maxRmsPx: Double = 35.0, minGeometryScore: Double = 0.05): Boolean =
         rmsErrorPx <= maxRmsPx && geometryScore >= minGeometryScore
 }
-\n\ndata class CalibrationResolution(\n    val coordinate: WorldCoordinate,\n    val residualPx: Double\n)\n
+
+
+data class CalibrationResolution(
+    val coordinate: WorldCoordinate,
+    val residualPx: Double
+)
