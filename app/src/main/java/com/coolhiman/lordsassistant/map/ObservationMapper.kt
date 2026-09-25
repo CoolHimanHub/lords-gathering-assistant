@@ -7,7 +7,7 @@ object ObservationMapper {
     fun map(candidate: FusionCandidate): MapObservation = MapObservation(
         coordinate = candidate.coordinate,
         screenPoint = com.coolhiman.lordsassistant.model.ScreenPoint(candidate.tile.centerX, candidate.tile.centerY),
-        label = candidate.classification.resource?.name ?: candidate.classification.kind?.name,
+        label = candidate.classification.resource?.name ?: candidate.classification.monsterName ?: candidate.classification.kind?.name,
         level = candidate.classification.level ?: candidate.tile.level,
         quantity = candidate.classification.quantity,
         occupied = candidate.occupied,
