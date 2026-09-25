@@ -87,6 +87,7 @@ class LiveMapScanner(context: Context) {
     private val viewportGuard = ViewportGuard()
     private val cameraStateTracker = CameraStateTracker()
     private val cameraAnchorTracker = CameraAnchorTracker()
+    private val cameraModelStabilityTracker = CameraModelStabilityTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
     private val targetStabilityTrackers = linkedMapOf<String, TargetStabilityTracker>()
     private val templateLibrary = TemplateLibrary(DatasetStore(context))
@@ -166,6 +167,12 @@ class LiveMapScanner(context: Context) {
         val fittedCameraModel = calibrationStore.fit(kingdom)?.let { calibration ->
             CameraInvariantWorldModel(calibration).fit(anchors)
         }
+        // A camera model can be mathematically usable for one frame while its
+        // anchor association is still wrong. Require continuity across two
+        // consecutive usable models before allowing it to contribute action
+        // authority. Translation-only panning is intentionally allowed.
+        val cameraModelContinuityValid = fittedCameraModel == null ||
+            cameraModelStabilityTracker.update(fittedCameraModel)
 
         // Only a validated camera model may trigger a second coordinate pass.
         // Planning/action safety still requires CameraState.STABLE below.
@@ -262,6 +269,7 @@ class LiveMapScanner(context: Context) {
         }
         val targetStability = targetStabilityTracker.update(candidateObservation, camera.state)
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
+        val actionCameraStable = camera.state == CameraState.STABLE && cameraModelContinuityValid && camera.continuityForActions
         val coordinateConfidence = when {
             origin != null -> CoordinateConfidence.observed(
                 calibrationUsable = calibrationValid,
@@ -306,7 +314,7 @@ class LiveMapScanner(context: Context) {
                 }
                 val actionValidation = validationEngine.validate(
                     observation = observation,
-                    cameraStable = camera.state == CameraState.STABLE,
+                    cameraStable = actionCameraStable,
                     calibrationValid = calibrationValid,
                     targetStable = stability.stable,
                     marchAssociationStatus = fused?.marchAssociation?.status
@@ -353,7 +361,7 @@ class LiveMapScanner(context: Context) {
         val actionButton = selectedActionCandidate?.actionButton
         val validation = selectedActionCandidate?.validation ?: validationEngine.validate(
             observation = candidateObservation,
-            cameraStable = camera.state == CameraState.STABLE,
+            cameraStable = actionCameraStable,
             calibrationValid = calibrationValid,
             targetStable = targetStability.stable,
             marchAssociationStatus = com.coolhiman.lordsassistant.vision.MarchAssociationStatus.NO_MARCH,
@@ -454,6 +462,7 @@ class LiveMapScanner(context: Context) {
         tracker.reset()
         cameraStateTracker.reset()
         cameraAnchorTracker.reset()
+        cameraModelStabilityTracker.reset()
         targetStabilityTracker.reset()
         targetStabilityTrackers.clear()
     }
