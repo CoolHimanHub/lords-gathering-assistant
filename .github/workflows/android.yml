@@ -40,7 +40,7 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Run unit tests
-        run: gradle testDebugUnitTest --stacktrace
+        run: gradle clean testDebugUnitTest --stacktrace
 
       - name: Build final APK
         run: gradle assembleDebug --stacktrace
