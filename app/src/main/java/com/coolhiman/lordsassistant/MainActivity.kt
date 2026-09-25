@@ -195,7 +195,12 @@ class MainActivity : Activity() {
             captureButton?.text = "Scanner starting…"
             captureButton?.isEnabled = false
         }
-        window.decorView.postDelayed({ refreshCaptureButtonState() }, 1200L)
+        window.decorView.postDelayed({
+            if (ScreenCaptureService.instance?.isCaptureSessionActive() != true) {
+                captureStartInProgress = false
+            }
+            refreshCaptureButtonState()
+        }, 2500L)
     }
 
     @Suppress("DEPRECATION")
@@ -224,7 +229,12 @@ class MainActivity : Activity() {
             Toast.LENGTH_SHORT
         ).show()
         startPendingCapture()
-        window.decorView.postDelayed({ refreshCaptureButtonState() }, 1500L)
+        window.decorView.postDelayed({
+            if (ScreenCaptureService.instance?.isCaptureSessionActive() != true) {
+                captureStartInProgress = false
+            }
+            refreshCaptureButtonState()
+        }, 2500L)
     }
 
     override fun onDestroy() {
