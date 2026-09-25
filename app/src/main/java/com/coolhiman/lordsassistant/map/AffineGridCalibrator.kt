@@ -17,7 +17,7 @@ class AffineGridCalibrator {
         private const val MIN_GEOMETRY_SCORE = 0.05
         private const val MAX_ROBUST_OUTLIERS = 2
         private const val MIN_OUTLIER_RESIDUAL_PX = 30.0
-        private const val OUTLIER_RATIO = 2.5
+        private const val OUTLIER_RATIO = 1.5
         private const val REQUIRED_RMS_IMPROVEMENT = 0.65
     }
 
