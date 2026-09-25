@@ -48,8 +48,7 @@ class TemporalObservationTracker(
                     .asSequence()
                     .filter { (_, track) ->
                         nowMs - track.lastSeen <= maxGapMs &&
-                            track.observation.kind == observation.kind &&
-                            track.observation.level == observation.level &&
+                            semanticCompatible(track.observation, observation) &&
                             track.observation.screenPoint != null
                     }
                     .map { entry ->
@@ -80,8 +79,7 @@ class TemporalObservationTracker(
                     lastSeen = nowMs
                 ).also { tracks[key] = it }
             } else {
-                val consistent = old.observation.kind == observation.kind &&
-                    old.observation.level == observation.level
+                val consistent = semanticCompatible(old.observation, observation)
 
                 if (consistent) {
                     old.hits = old.hits + 1
@@ -153,6 +151,22 @@ class TemporalObservationTracker(
         tracks.entries.removeIf { nowMs - it.value.lastSeen > maxGapMs * 4 }
         return output
     }
+    private fun semanticCompatible(
+        previous: MapObservation,
+        current: MapObservation
+    ): Boolean {
+        if (previous.kind != current.kind || previous.level != current.level) return false
+
+        val previousLabel = previous.label?.trim()?.takeIf { it.isNotEmpty() }
+        val currentLabel = current.label?.trim()?.takeIf { it.isNotEmpty() }
+
+        // When both frames identify a concrete target label, require the
+        // identity to agree before re-associating a coordinate-drifted track.
+        // If either label is unavailable, retain kind+level continuity.
+        return previousLabel == null || currentLabel == null ||
+            previousLabel.equals(currentLabel, ignoreCase = true)
+    }
+
     fun reset() {
         tracks.clear()
     }
