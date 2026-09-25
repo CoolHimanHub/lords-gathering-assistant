@@ -19,7 +19,7 @@ class GridLearningController(private val context: Context) {
     private val calibrationStore = CalibrationStore(context)
     private val calibrator = AffineGridCalibrator()
 
-    private data class Probe(val point: ScreenPoint, val expected: WorldCoordinate?, val source: String, val cameraEpoch: Int)
+    private data class Probe(val point: ScreenPoint, val expected: WorldCoordinate?, val source: String, val cameraEpoch: Int, val stableAtDispatch: Boolean)
 
     private var active = false
     private var pending: Probe? = null
@@ -169,7 +169,7 @@ class GridLearningController(private val context: Context) {
                 val point = observation.screenPoint!!
                 val key = pointKey(point)
                 if (!attemptedScreen.containsKey(key) && candidateQueue == null) {
-                    candidateQueue = Probe(point, observation.coordinate, "semantic", cameraEpoch)
+                    candidateQueue = Probe(point, observation.coordinate, "semantic", cameraEpoch, cameraStable)
                 }
             }
 
@@ -238,7 +238,7 @@ class GridLearningController(private val context: Context) {
         // Never combine samples across a camera-motion boundary. The popup
         // coordinate is authoritative for the tapped cell, but the screen
         // position is only useful for calibration in the current viewport.
-        if (accepted && probe.cameraEpoch == cameraEpoch) {
+        if (accepted && probe.cameraEpoch == cameraEpoch && probe.stableAtDispatch && lastCameraStable) {
             calibrationStore.addSample(actual, probe.point)
             calibrator.addSample(actual, probe.point)
         }
@@ -280,7 +280,7 @@ class GridLearningController(private val context: Context) {
                 if (queuedWorld.add(worldKey(coordinate))) frontier.addLast(coordinate)
                 return@repeat
             }
-            return Probe(point, coordinate, "predicted-grid", cameraEpoch)
+            return Probe(point, coordinate, "predicted-grid", cameraEpoch, cameraStable)
         }
         return null
     }
