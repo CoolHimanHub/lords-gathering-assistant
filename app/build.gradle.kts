@@ -55,10 +55,3 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.robolectric:robolectric:4.14.1")
 }
-
-
-tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
-    testLogging {
-        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
-    }
-}
