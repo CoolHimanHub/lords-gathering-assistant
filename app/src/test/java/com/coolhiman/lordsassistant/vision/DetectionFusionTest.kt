@@ -209,7 +209,7 @@ class DetectionFusionTest {
             "WOOD", TileClass.RESOURCE, 3, RectF(100f, 100f, 140f, 140f), 0.9
         )
         val second = DetectedTile(
-            "RESOURCE", TileClass.RESOURCE, null, RectF(400f, 100f, 440f, 140f), 0.9
+            "RESOURCE", TileClass.RESOURCE, null, RectF(150f, 100f, 190f, 140f), 0.9
         )
         val popup = PopupState(
             kind = TargetKind.RESOURCE,
@@ -234,8 +234,9 @@ class DetectionFusionTest {
             }
         )
 
-        assertEquals(CoordinateAuthority.OBSERVED, result[0].coordinateConfidence.authority)
-        assertEquals(CoordinateAuthority.CALIBRATED, result[1].coordinateConfidence.authority)
+        assertEquals(2, result.size)
+        assertTrue(result.all { it.coordinateConfidence.authority == CoordinateAuthority.CALIBRATED })
+        assertTrue(result.none { it.coordinateConfidence.actionAuthoritative })
     }
 
     @Test
