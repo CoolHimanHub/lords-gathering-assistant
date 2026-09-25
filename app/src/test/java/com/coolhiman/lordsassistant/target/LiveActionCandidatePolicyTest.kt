@@ -1,6 +1,7 @@
 package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.map.LiveActionCandidate
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -20,7 +21,8 @@ class LiveActionCandidatePolicyTest {
         screenPoint = point,
         confidence = 0.95f,
         occupied = false,
-        incomingTroops = false
+        incomingTroops = false,
+        coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0)
     )
     private val validation = TargetValidationResult(
         safe = true,
@@ -103,6 +105,34 @@ class LiveActionCandidatePolicyTest {
             LiveActionCandidatePolicy.isSchedulerEligible(
                 candidate.copy(cameraContinuityValid = false)
             )
+        )
+    }
+
+    @Test
+    fun calibratedCoordinateCannotCrossSchedulerBoundary() {
+        val calibrated = candidate.copy(
+            observation = observation.copy(
+                coordinateConfidence = CoordinateConfidence.calibrated(true, true, 4.0)
+            )
+        )
+        assertFalse(LiveActionCandidatePolicy.isSchedulerEligible(calibrated))
+        assertEquals(
+            LiveActionCandidateRejectionReason.COORDINATE_NOT_ACTION_AUTHORITATIVE,
+            LiveActionCandidatePolicy.rejectionReason(calibrated)
+        )
+    }
+
+    @Test
+    fun observedCoordinateStillRequiresStableCameraAndUsableCalibration() {
+        val notUsable = candidate.copy(
+            observation = observation.copy(
+                coordinateConfidence = CoordinateConfidence.observed(false, true)
+            )
+        )
+        assertFalse(LiveActionCandidatePolicy.isSchedulerEligible(notUsable))
+        assertEquals(
+            LiveActionCandidateRejectionReason.COORDINATE_NOT_ACTION_AUTHORITATIVE,
+            LiveActionCandidatePolicy.rejectionReason(notUsable)
         )
     }
 
