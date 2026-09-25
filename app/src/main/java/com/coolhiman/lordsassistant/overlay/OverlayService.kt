@@ -38,6 +38,7 @@ class OverlayService : Service() {
     private var healthView: TextView? = null
     private var timerView: TextView? = null
     private var markerView: TargetMarkerView? = null
+    private var gridLearningButton: TextView? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -165,13 +166,20 @@ class OverlayService : Service() {
         if (diagnostics) {
             val gridStart = actionButton("◎  LEARN GRID", 0xFF245C78.toInt()).apply {
                 setOnClickListener {
-                    ScreenCaptureService.instance?.startGridLearning()
-                        ?: showStatus("GRID LEARN • start scanner first")
+                    val service = ScreenCaptureService.instance
+                    if (service == null) {
+                        setGridLearningUi(false)
+                        showStatus("GRID LEARN • start scanner first")
+                    } else {
+                        service.startGridLearning()
+                    }
                 }
             }
+            gridLearningButton = gridStart
             val gridStop = actionButton("■  STOP GRID", 0xFF5E3A22.toInt()).apply {
                 setOnClickListener {
                     ScreenCaptureService.instance?.stopGridLearning()
+                        ?: setGridLearningUi(false)
                 }
             }
             val gridRow = LinearLayout(this).apply {
@@ -308,6 +316,16 @@ class OverlayService : Service() {
     private fun timerStatusText(): String =
         "TEST: ${selectedTestDurationMinutes} min • READY"
 
+    fun setGridLearningUi(active: Boolean) {
+        gridLearningButton?.post {
+            gridLearningButton?.text = if (active) {
+                "●  GRID LEARNING ACTIVE"
+            } else {
+                "◎  LEARN GRID"
+            }
+        }
+    }
+
     fun showStatus(text: String) {
         statusView?.post { statusView?.text = text }
     }
@@ -356,6 +374,7 @@ class OverlayService : Service() {
         healthView = null
         timerView = null
         markerView = null
+        gridLearningButton = null
         super.onDestroy()
     }
 
