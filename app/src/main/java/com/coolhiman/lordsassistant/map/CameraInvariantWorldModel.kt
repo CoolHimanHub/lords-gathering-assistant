@@ -62,22 +62,33 @@ class CameraInvariantWorldModel(
             val worst = active.maxByOrNull { index ->
                 residualPx(best, basePoints[index], currentPoints[index])
             } ?: return@repeat
-
             val worstResidual = residualPx(best, basePoints[worst], currentPoints[worst])
-            val threshold = maxOf(
-                MIN_OUTLIER_RESIDUAL_PX,
-                best.residualRmsPx * OUTLIER_RATIO
-            )
-            if (worstResidual <= threshold) return@repeat
+            if (worstResidual <= MIN_OUTLIER_RESIDUAL_PX) return@repeat
 
-            val candidateActive = active.filterNot { it == worst }
-            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive)
+            // Leave-one-out fitting avoids allowing a few bad anchors to inflate
+            // the global RMS enough that the bad anchor passes the threshold.
+            val candidates = active
+                .filter { it != worst }
+                .mapNotNull { removed ->
+                    val candidateActive = active.filterNot { it == removed }
+                    fitLeastSquares(basePoints, currentPoints, candidateActive)
+                        ?.let { removed to it }
+                }
+            val (bestRemoved, candidate) = candidates.minByOrNull { it.second.residualRmsPx }
                 ?: return@repeat
-
-            if (candidate.residualRmsPx <= best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT) {
-                active = candidateActive
-                best = candidate
+            val removedResidual = residualPx(
+                best,
+                basePoints[bestRemoved],
+                currentPoints[bestRemoved]
+            )
+            if (removedResidual <= MIN_OUTLIER_RESIDUAL_PX ||
+                candidate.residualRmsPx > best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT
+            ) {
+                return@repeat
             }
+
+            active = active.filterNot { it == bestRemoved }
+            best = candidate
         }
 
         return best.takeIf { it.isUsable(maxAnchorResidualPx) }
