@@ -58,4 +58,28 @@ class AffineGridCalibratorTest {
 
         assertTrue(calibrator.fit() == null)
     }
+
+    @Test
+    fun clearOutlierDoesNotPoisonCalibration() {
+        val calibrator = AffineGridCalibrator()
+        val samples = listOf(
+            WorldCoordinate(355, 100, 200) to ScreenPoint(500f, 300f),
+            WorldCoordinate(355, 101, 200) to ScreenPoint(514f, 292f),
+            WorldCoordinate(355, 102, 200) to ScreenPoint(528f, 284f),
+            WorldCoordinate(355, 100, 201) to ScreenPoint(522f, 314f),
+            WorldCoordinate(355, 101, 201) to ScreenPoint(536f, 306f),
+            WorldCoordinate(355, 102, 201) to ScreenPoint(550f, 298f),
+            WorldCoordinate(355, 102, 202) to ScreenPoint(700f, 520f)
+        )
+        samples.forEach { (world, screen) -> calibrator.addSample(world, screen) }
+
+        val fit = calibrator.fit()
+        assertNotNull(fit)
+        assertTrue(fit!!.rmsErrorPx < 0.1)
+
+        val predicted = fit.predict(WorldCoordinate(355, 103, 202))
+        assertEquals(564f, predicted.x, 0.1f)
+        assertEquals(312f, predicted.y, 0.1f)
+    }
+
 }
