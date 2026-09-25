@@ -8,6 +8,7 @@ import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.TargetKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -94,6 +95,40 @@ class DetectionFusionTest {
 
         assertEquals(CoordinateAuthority.OBSERVED, result.coordinateConfidence.authority)
         assertTrue(result.coordinateConfidence.actionAuthoritative)
+    }
+
+    @Test
+    fun ambiguousPopupCoordinateDoesNotUpgradeEitherCollidingTile() {
+        val first = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f, 100f, 140f, 140f), 0.9
+        )
+        val second = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(150f, 100f, 190f, 140f), 0.9
+        )
+        val popup = PopupState(
+            kind = TargetKind.RESOURCE,
+            resource = com.coolhiman.lordsassistant.model.ResourceType.WOOD,
+            level = 3,
+            coordinate = WorldCoordinate(1, 200, 300),
+            isPopup = true
+        )
+
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(first, second), 1),
+            emptyList(),
+            emptyList(),
+            popupState = popup,
+            coordinateEvidenceResolver = { _, _ ->
+                CoordinateResolution(
+                    WorldCoordinate(1, 200, 300),
+                    CoordinateConfidence.calibrated(true, true, 4.0)
+                )
+            }
+        )
+
+        assertEquals(2, result.size)
+        assertTrue(result.all { it.coordinateConfidence.authority == CoordinateAuthority.CALIBRATED })
+        assertFalse(result.any { it.coordinateConfidence.actionAuthoritative })
     }
 
     @Test
