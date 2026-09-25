@@ -19,7 +19,7 @@ class GridLearningController(private val context: Context) {
     private val calibrationStore = CalibrationStore(context)
     private val calibrator = AffineGridCalibrator()
 
-    private data class Probe(val point: ScreenPoint, val expected: WorldCoordinate?, val source: String)
+    private data class Probe(val point: ScreenPoint, val expected: WorldCoordinate?, val source: String, val cameraEpoch: Int)
 
     private var active = false
     private var pending: Probe? = null
@@ -31,6 +31,7 @@ class GridLearningController(private val context: Context) {
     private var lastWidth = 0
     private var lastHeight = 0
     private var lastCameraStable = false
+    private var cameraEpoch = 0
     private var sessionSamples = 0
     private val learnedCoordinates = linkedSetOf<String>()
     private val queuedWorld = linkedSetOf<String>()
@@ -47,6 +48,8 @@ class GridLearningController(private val context: Context) {
         private const val MAX_FRONTIER = 160
         private const val MAX_SESSION_PROBES = 500
         private const val CALIBRATION_RMS_FOR_SYNTHETIC_PX = 24.0
+        private const val MIN_SYNTHETIC_SAMPLES = 6
+        private const val MIN_WORLD_SPAN = 2
     }
 
     @Synchronized
@@ -100,6 +103,23 @@ class GridLearningController(private val context: Context) {
         if (!active || width <= 0 || height <= 0) return
         lastWidth = width
         lastHeight = height
+        // A calibration transform is valid only for one camera viewport. If
+        // the camera leaves the stable state, invalidate the active transform
+        // and any screen-space work queued against it. Durable probe history
+        // remains untouched, so the learner can rebuild from the new viewport.
+        if (lastCameraStable && !cameraStable) {
+            cameraEpoch++
+            calibrator.clear()
+            calibrationStore.clear()
+            frontier.clear()
+            queuedWorld.clear()
+            candidateQueue = null
+            pending = null
+            pendingSinceMs = 0L
+            pendingRetries = 0
+            lastCandidate = null
+            candidateFrames = 0
+        }
         lastCameraStable = cameraStable
 
         val currentPopup = popupState?.takeIf { it.isPopup && it.coordinate != null }
@@ -149,7 +169,7 @@ class GridLearningController(private val context: Context) {
                 val point = observation.screenPoint!!
                 val key = pointKey(point)
                 if (!attemptedScreen.containsKey(key) && candidateQueue == null) {
-                    candidateQueue = Probe(point, observation.coordinate, "semantic")
+                    candidateQueue = Probe(point, observation.coordinate, "semantic", cameraEpoch)
                 }
             }
 
@@ -215,7 +235,10 @@ class GridLearningController(private val context: Context) {
         // popup (or with an intentionally expectation-free semantic probe).
         // A bad predicted tap must never poison the transform used for the
         // next generation of probes.
-        if (accepted) {
+        // Never combine samples across a camera-motion boundary. The popup
+        // coordinate is authoritative for the tapped cell, but the screen
+        // position is only useful for calibration in the current viewport.
+        if (accepted && probe.cameraEpoch == cameraEpoch) {
             calibrationStore.addSample(actual, probe.point)
             calibrator.addSample(actual, probe.point)
         }
@@ -243,6 +266,8 @@ class GridLearningController(private val context: Context) {
         if (!cameraStable) return null
         val calibration = calibrator.fit() ?: return null
         if (calibration.rmsErrorPx > CALIBRATION_RMS_FOR_SYNTHETIC_PX) return null
+        if (calibrator.sampleCount() < MIN_SYNTHETIC_SAMPLES) return null
+        if (calibration.worldSpanX < MIN_WORLD_SPAN || calibration.worldSpanY < MIN_WORLD_SPAN) return null
         if (frontier.isEmpty()) return null
 
         repeat(frontier.size) {
@@ -255,7 +280,7 @@ class GridLearningController(private val context: Context) {
                 if (queuedWorld.add(worldKey(coordinate))) frontier.addLast(coordinate)
                 return@repeat
             }
-            return Probe(point, coordinate, "predicted-grid")
+            return Probe(point, coordinate, "predicted-grid", cameraEpoch)
         }
         return null
     }
