@@ -58,6 +58,8 @@ data class LiveMapScanResult(
     val actionButtonDetections: Int = 0,
     val processingMs: Long,
     val origin: WorldCoordinate?,
+    /** Provenance of the coordinate evidence exposed by this frame. */
+    val coordinateConfidence: CoordinateConfidence = CoordinateConfidence.none(),
     val cameraState: CameraState = CameraState.STABLE,
     val cameraSharedTargets: Int = 0,
     val cameraScaleChangePercent: Float = 0f,
@@ -254,6 +256,18 @@ class LiveMapScanner(context: Context) {
         }
         val targetStability = targetStabilityTracker.update(candidateObservation, camera.state)
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
+        val coordinateConfidence = when {
+            origin != null -> CoordinateConfidence.observed(
+                calibrationUsable = calibrationValid,
+                cameraStable = camera.state == CameraState.STABLE
+            )
+            observations.any { it.coordinate != null } -> CoordinateConfidence.calibrated(
+                calibrationUsable = calibrationValid,
+                cameraStable = camera.state == CameraState.STABLE,
+                residualPx = calibrationStore.fit(kingdom)?.rmsErrorPx
+            )
+            else -> CoordinateConfidence.none()
+        }
         val detectedActionButtons = ActionButtonDetector.detect(
             textRegions = textRegions,
             popupPresent = popupState?.isPopup == true,
@@ -370,6 +384,7 @@ class LiveMapScanner(context: Context) {
             actionButtonDetections = detectedActionButtons.size,
             processingMs = System.currentTimeMillis() - started,
             origin = origin,
+            coordinateConfidence = coordinateConfidence,
             cameraState = camera.state,
             cameraSharedTargets = camera.sharedTargets,
             cameraScaleChangePercent = camera.scaleChangePercent,
