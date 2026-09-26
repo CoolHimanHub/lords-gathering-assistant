@@ -899,7 +899,7 @@ class ScreenCaptureService : Service() {
                                         automaticActionsEnabled = prefs.automaticActions,
                                         restartQuarantine = recoveryQuarantine.active,
                                         recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
-                                        captureSessionId = liveCaptureSessionId
+                                        captureSessionId = captureRuntime.snapshot().sessionId
                                     )
                                     val decision = actionSchedulerAdapter.select(now, safetyState)
                                     if (decision.candidate == null) {
