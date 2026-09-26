@@ -56,7 +56,6 @@ object PreActionRevalidator {
         val latestKind = latestObservation?.kind
         val latestLevel = latestObservation?.level
         val latestPoint = latestAction?.point
-        val latestObservationPoint = latestObservation?.screenPoint
         val latestSemanticIdentity = latestObservation?.label?.trim()?.takeIf { it.isNotEmpty() }
 
         if (latestCoordinate != selected.coordinate ||
@@ -111,13 +110,6 @@ object PreActionRevalidator {
         ) {
             reasons += TargetBlockReason.INTERACTION_POINT_INVALID
         }
-
-        if (latestObservationPoint == null ||
-            distancePx(selected.point, latestObservationPoint) > MAX_POINT_DRIFT_PX
-        ) {
-            reasons += TargetBlockReason.INTERACTION_POINT_INVALID
-        }
-
         reasons += latestValidation.reasons
 
         return if (reasons.isEmpty() && latestValidation.safe) {
