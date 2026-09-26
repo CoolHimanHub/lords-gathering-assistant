@@ -16,6 +16,7 @@ import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.vision.BlueMarchDetector
 import com.coolhiman.lordsassistant.target.ActionButton
 import com.coolhiman.lordsassistant.target.ActionButtonDetector
+import com.coolhiman.lordsassistant.target.ActionSemanticIdentity
 import com.coolhiman.lordsassistant.target.ActionKind
 import com.coolhiman.lordsassistant.target.ActionTargetSnapshot
 import com.coolhiman.lordsassistant.vision.DetectionFusion
@@ -330,7 +331,7 @@ class LiveMapScanner(context: Context) {
                     level = observation.level!!,
                     actionKind = button.kind,
                     point = button.point,
-                    semanticIdentity = observation.label?.trim()?.takeIf { it.isNotEmpty() }
+                    semanticIdentity = ActionSemanticIdentity.fromObservation(observation)
                 )
                 val plannerRankAndScore = plannerRankAndScore(plan, observation)
                 LiveActionCandidate(
@@ -384,7 +385,7 @@ class LiveMapScanner(context: Context) {
                     level = level,
                     actionKind = actionKind,
                     point = point,
-                    semanticIdentity = target.label?.trim()?.takeIf { it.isNotEmpty() }
+                    semanticIdentity = ActionSemanticIdentity.fromObservation(target)
                 )
             } else {
                 null
