@@ -34,7 +34,8 @@ class LiveActionCandidatePolicyTest {
             kind = TargetKind.RESOURCE,
             level = 3,
             actionKind = ActionKind.GATHER,
-            point = point
+            point = point,
+            semanticIdentity = "WOOD"
         ),
         observation = observation,
         actionButton = ActionButton(
@@ -53,6 +54,35 @@ class LiveActionCandidatePolicyTest {
     @Test
     fun rankedFiniteCandidateIsSchedulerEligible() {
         assertTrue(LiveActionCandidatePolicy.isSchedulerEligible(candidate))
+    }
+
+    @Test
+    fun missingSemanticIdentityCannotCrossSchedulerBoundary() {
+        val missing = candidate.copy(
+            target = candidate.target.copy(semanticIdentity = null)
+        )
+
+        assertFalse(LiveActionCandidatePolicy.isSchedulerEligible(missing))
+        assertEquals(
+            LiveActionCandidateRejectionReason.SEMANTIC_IDENTITY_MISSING,
+            LiveActionCandidatePolicy.rejectionReason(missing)
+        )
+    }
+
+    @Test
+    fun genericMonsterIdentityCannotBeUsedForAction() {
+        val monster = candidate.copy(
+            observation = observation.copy(
+                kind = TargetKind.MONSTER,
+                label = "MONSTER"
+            ),
+            target = candidate.target.copy(
+                kind = TargetKind.MONSTER,
+                semanticIdentity = null
+            )
+        )
+
+        assertFalse(LiveActionCandidatePolicy.isSchedulerEligible(monster))
     }
 
     @Test
