@@ -175,7 +175,7 @@ class ActionOrchestratorTest {
         val boundary = orchestrator.beginCaptureSession(900L)
 
         assertEquals(ActionLifecycleState.UNKNOWN, boundary.lifecycle.state)
-        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, boundary.lifecycle.failure ?: null)
+        assertEquals(ActionLifecycleFailure.VERIFICATION_TIMEOUT, boundary.lifecycle.failure)
         assertEquals(epochAfterRecovery, orchestrator.currentRecoveryEpoch)
     }
 
