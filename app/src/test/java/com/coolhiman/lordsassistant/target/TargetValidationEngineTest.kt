@@ -78,6 +78,56 @@ class TargetValidationEngineTest {
         assertTrue(TargetBlockReason.POPUP_RESOURCE_MISMATCH in r.reasons)
     }
 
+    @Test
+    fun popupMonsterNameMissingBlocksKnownMonsterInteraction() {
+        val monster = observation().copy(
+            kind = TargetKind.MONSTER,
+            label = "Frostwing"
+        )
+        val result = engine.validate(
+            observation = monster,
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null, monsterName = null),
+            actionKind = ActionKind.HUNT
+        )
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.POPUP_MONSTER_MISMATCH in result.reasons)
+    }
+
+    @Test
+    fun popupMonsterNameMismatchBlocksInteraction() {
+        val monster = observation().copy(
+            kind = TargetKind.MONSTER,
+            label = "Frostwing"
+        )
+        val result = engine.validate(
+            observation = monster,
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null, monsterName = "Darkwing"),
+            actionKind = ActionKind.HUNT
+        )
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.POPUP_MONSTER_MISMATCH in result.reasons)
+    }
+
+    @Test
+    fun matchingMonsterNameAllowsInteraction() {
+        val monster = observation().copy(
+            kind = TargetKind.MONSTER,
+            label = "Frostwing"
+        )
+        val result = engine.validate(
+            observation = monster,
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null, monsterName = "frostwing"),
+            actionKind = ActionKind.HUNT
+        )
+        assertTrue(result.safe)
+    }
+
     @Test fun popupLevelMismatchBlocksInteraction() {
         val r = engine.validate(observation(), true, true, popup().copy(level = 4))
         assertFalse(r.safe)
