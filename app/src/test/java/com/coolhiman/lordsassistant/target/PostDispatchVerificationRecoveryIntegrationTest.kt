@@ -3,7 +3,9 @@ package com.coolhiman.lordsassistant.target
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.ScreenPoint
@@ -86,9 +88,13 @@ class PostDispatchVerificationRecoveryIntegrationTest {
                 incomingTroops = false,
                 kind = TargetKind.RESOURCE,
                 level = 3,
-                confidence = 1f
+                confidence = 1f,
+                label = "WOOD",
+                coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 2.0),
+                evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
+                timestampMs = 3_000L
             ),
-            latestValidation = safeValidation(),
+            latestValidation = safeValidation(3_000L),
             latestAction = ActionButton(ActionKind.GATHER, ScreenPoint(500f, 400f), 1f)
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
@@ -161,11 +167,13 @@ class PostDispatchVerificationRecoveryIntegrationTest {
         kind = com.coolhiman.lordsassistant.model.TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = com.coolhiman.lordsassistant.model.ScreenPoint(500f, 400f)
+        point = com.coolhiman.lordsassistant.model.ScreenPoint(500f, 400f),
+        semanticIdentity = "WOOD"
     )
 
-    private fun safeValidation() = TargetValidationResult(
+    private fun safeValidation(validatedAtMs: Long = System.currentTimeMillis()) = TargetValidationResult(
         safe = true,
-        stage = TargetValidationStage.SAFE_TO_INTERACT
+        stage = TargetValidationStage.SAFE_TO_INTERACT,
+        validatedAtMs = validatedAtMs
     )
 }
