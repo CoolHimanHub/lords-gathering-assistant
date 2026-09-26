@@ -9,6 +9,7 @@ package com.coolhiman.lordsassistant.target
 enum class LiveActionCandidateRejectionReason {
     CAMERA_CONTINUITY_INVALID,
     COORDINATE_NOT_ACTION_AUTHORITATIVE,
+    SEMANTIC_IDENTITY_MISSING,
     VALIDATION_UNSAFE,
     VALIDATION_NOT_SAFE_TO_INTERACT,
     PLANNER_RANK_INVALID,
@@ -22,6 +23,8 @@ object LiveActionCandidatePolicy {
                 LiveActionCandidateRejectionReason.CAMERA_CONTINUITY_INVALID
             !candidate.observation.coordinateConfidence.actionAuthoritative ->
                 LiveActionCandidateRejectionReason.COORDINATE_NOT_ACTION_AUTHORITATIVE
+            candidate.target.semanticIdentity == null ->
+                LiveActionCandidateRejectionReason.SEMANTIC_IDENTITY_MISSING
             !candidate.validation.safe ->
                 LiveActionCandidateRejectionReason.VALIDATION_UNSAFE
             candidate.validation.stage != TargetValidationStage.SAFE_TO_INTERACT ->
