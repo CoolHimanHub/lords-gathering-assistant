@@ -1,6 +1,8 @@
 package com.coolhiman.lordsassistant.target
 
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -18,7 +20,8 @@ class ActionOrchestratorTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = ScreenPoint(900f, 600f)
+        point = ScreenPoint(900f, 600f),
+        semanticIdentity = "WOOD"
     )
 
     private val observation = MapObservation(
@@ -28,7 +31,10 @@ class ActionOrchestratorTest {
         screenPoint = selected.point,
         confidence = 0.95f,
         occupied = false,
-        incomingTroops = false
+        incomingTroops = false,
+        label = "WOOD",
+        coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0),
+        evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)
     )
 
     private val popup = PopupState(
@@ -46,6 +52,10 @@ class ActionOrchestratorTest {
         safe = true,
         stage = TargetValidationStage.SAFE_TO_INTERACT
     )
+
+    private fun freshObservation() = observation.copy(timestampMs = System.currentTimeMillis())
+
+    private fun freshValidation() = safeValidation.copy(validatedAtMs = System.currentTimeMillis())
 
     @Test
     fun disabledAutomationStopsBeforeDispatch() {
@@ -105,8 +115,8 @@ class ActionOrchestratorTest {
         )
 
         orchestrator.revalidate(
-            latestObservation = observation,
-            latestValidation = safeValidation,
+            latestObservation = freshObservation(),
+            latestValidation = freshValidation(),
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
@@ -433,7 +443,7 @@ class ActionOrchestratorTest {
     fun newAttemptDoesNotReusePreviousMarchEvidence() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 60_000L)
-        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.revalidate(freshObservation(), freshValidation(), ActionButton(ActionKind.GATHER, selected.point, 0.95f))
         orchestrator.dispatch(60_001L) { true }
 
         val oldFirst = MarchSignal(910f, 600f, 20.0, 0.9f)
@@ -543,8 +553,8 @@ class ActionOrchestratorTest {
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 42_000L)
 
         val result = orchestrator.revalidate(
-            latestObservation = observation.copy(screenPoint = moved.point),
-            latestValidation = safeValidation,
+            latestObservation = freshObservation().copy(screenPoint = moved.point),
+            latestValidation = freshValidation(),
             latestAction = ActionButton(ActionKind.GATHER, moved.point, 0.95f)
         )
 
@@ -577,8 +587,8 @@ class ActionOrchestratorTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 43_000L)
         orchestrator.revalidate(
-            observation.copy(screenPoint = moved.point),
-            safeValidation,
+            freshObservation().copy(screenPoint = moved.point),
+            freshValidation(),
             ActionButton(ActionKind.GATHER, moved.point, 0.95f)
         )
         orchestrator.dispatch(43_001L) { true }
