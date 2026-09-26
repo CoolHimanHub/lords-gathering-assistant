@@ -72,8 +72,14 @@ class ActionOrchestrator(
                 }
                 ActionLifecycleState.UNKNOWN -> Unit
                 ActionLifecycleState.IDLE,
-                ActionLifecycleState.SUCCEEDED,
-                ActionLifecycleState.FAILED -> lifecycle.reset()
+                ActionLifecycleState.SUCCEEDED -> lifecycle.reset()
+                ActionLifecycleState.FAILED -> {
+                    // A recovery-epoch exhaustion is a fail-closed boundary.
+                    // A new capture session must not silently clear it.
+                    if (lifecycle.snapshot.failure != ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED) {
+                        lifecycle.reset()
+                    }
+                }
             }
         }
 
