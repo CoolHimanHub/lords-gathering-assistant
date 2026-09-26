@@ -509,10 +509,16 @@ class ScreenCaptureService : Service() {
         lastScanMs = 0L
         if (::gridLearningController.isInitialized) gridLearningController.stop()
         OverlayService.instance?.setGridLearningUi(false)
+        val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
+        val captureBoundary = actionOrchestrator.beginCaptureSession(durableSessionId)
+        val recoveryPersistedAfterCaptureBoundary = persistRecoveryEpoch()
         actionSchedulerAdapter.resetForCaptureSession()
         liveScanner.resetCaptureSession()
-
-        val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
+        if (!recoveryPersistedAfterCaptureBoundary || captureBoundary.lifecycle.failure == ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED) {
+            captureRuntime.recordFailure(
+                "Action recovery boundary could not be durably established"
+            )
+        }
         captureRuntime.start(durableSessionId)
         persistCaptureDiagnostics()
 
@@ -957,7 +963,8 @@ class ScreenCaptureService : Service() {
                                         actionOrchestrator.revalidate(
                                             latestObservation = currentCandidate.observation,
                                             latestValidation = currentCandidate.validation,
-                                            latestAction = currentCandidate.actionButton
+                                            latestAction = currentCandidate.actionButton,
+                                            captureSessionId = liveCaptureSessionId
                                         )
                                         if (actionOrchestrator.lifecycleSnapshot.state != ActionLifecycleState.REVALIDATED) {
                                             actionAuditLog.appendIfChanged(
@@ -1008,7 +1015,7 @@ class ScreenCaptureService : Service() {
                                                 // durable dispatch barrier. This blocks another live
                                                 // selection until the guarded dispatch returns.
                                                 actionSchedulerAdapter.markDispatchStarted(now)
-                                                actionOrchestrator.dispatch(now) {
+                                                actionOrchestrator.dispatch(now, captureSessionId = liveCaptureSessionId) {
                                                     runCatching {
                                                         LmAccessibilityService.instance?.tapRevalidated(
                                                             selected = currentCandidate.target,
@@ -1055,7 +1062,8 @@ class ScreenCaptureService : Service() {
                                     val verification = actionOrchestrator.verifyPostAction(
                                         afterObservation = scan.selectedObservation,
                                         popupAfter = scan.popupState,
-                                        nowMs = now
+                                        nowMs = now,
+                                        captureSessionId = liveCaptureSessionId
                                     )
                                     if (verification.lifecycle.state == ActionLifecycleState.UNKNOWN) {
                                         val failure = verification.lifecycle.failure
