@@ -34,7 +34,7 @@ class ActionRestartRecoveryIntegrationTest {
     private val safe = TargetValidationResult(
         safe = true,
         stage = TargetValidationStage.SAFE_TO_INTERACT,
-        validatedAtMs = 1000L
+        validatedAtMs = System.currentTimeMillis()
     )
 
     @Test
@@ -91,7 +91,7 @@ class ActionRestartRecoveryIntegrationTest {
                 label = "WOOD",
                 coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0),
                 evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
-                timestampMs = 1000L
+                timestampMs = System.currentTimeMillis()
             ),
             latestValidation = safe,
             latestAction = ActionButton(
