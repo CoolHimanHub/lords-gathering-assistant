@@ -58,7 +58,6 @@ object PreActionRevalidator {
         val latestKind = latestObservation?.kind
         val latestLevel = latestObservation?.level
         val latestPoint = latestAction?.point
-        val latestSemanticIdentity = latestObservation?.label?.trim()?.takeIf { it.isNotEmpty() }
 
         val observationAgeMs = latestObservation?.timestampMs?.let { nowMs - it }
         if (observationAgeMs == null || observationAgeMs > MAX_OBSERVATION_AGE_MS) {
