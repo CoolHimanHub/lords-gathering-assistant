@@ -285,6 +285,27 @@ class PreActionRevalidatorTest {
     }
 
     @Test
+    fun staleValidationEvidenceCannotCrossFinalGate() {
+        val nowMs = 1_000_000L
+        val staleValidation = TargetValidationResult(
+            safe = true,
+            stage = TargetValidationStage.SAFE_TO_INTERACT,
+            validatedAtMs = nowMs - 2_001L
+        )
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            observation().copy(timestampMs = nowMs),
+            staleValidation,
+            action(),
+            nowMs = nowMs
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.STATE_UNKNOWN in result.reasons)
+    }
+
+    @Test
     fun latestValidationFailureAlwaysBlocks() {
         val latestValidation = TargetValidationResult(
             safe = false,
