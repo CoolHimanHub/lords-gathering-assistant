@@ -43,7 +43,8 @@ class PreActionRevalidatorTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = point
+        point = point,
+        semanticIdentity = "WOOD"
     )
 
     @Test
@@ -72,6 +73,35 @@ class PreActionRevalidatorTest {
 
         assertFalse(result.safe)
         assertTrue(TargetBlockReason.TARGET_CHANGED in result.reasons)
+    }
+
+    @Test
+    fun changedSemanticIdentityIsBlocked() {
+        val latest = observation().copy(label = "STONE")
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.TARGET_CHANGED in result.reasons)
+    }
+
+    @Test
+    fun matchingSemanticIdentityIsCaseInsensitive() {
+        val latest = observation().copy(label = "wood")
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertTrue(result.safe)
     }
 
     @Test
