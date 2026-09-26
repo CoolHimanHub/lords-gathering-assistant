@@ -1,6 +1,7 @@
 package com.coolhiman.lordsassistant.target
 
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ScreenPoint
 
 data class ActionTargetSnapshot(
@@ -55,6 +56,7 @@ object PreActionRevalidator {
         val latestKind = latestObservation?.kind
         val latestLevel = latestObservation?.level
         val latestPoint = latestAction?.point
+        val latestObservationPoint = latestObservation?.screenPoint
         val latestSemanticIdentity = latestObservation?.label?.trim()?.takeIf { it.isNotEmpty() }
 
         if (latestCoordinate != selected.coordinate ||
@@ -75,6 +77,19 @@ object PreActionRevalidator {
             reasons += TargetBlockReason.TARGET_CHANGED
         }
 
+        // Coordinate provenance is a direct pre-dispatch requirement. Do not
+        // rely on a separately supplied validation object to prove that the
+        // latest frame still has an observed, action-authoritative coordinate.
+        if (latestObservation?.coordinateConfidence?.actionAuthoritative != true) {
+            reasons += TargetBlockReason.COORDINATE_AUTHORITY_INVALID
+        }
+
+        // Temporal confirmation is also frame-local evidence. A stale
+        // validation result must not make a newly unconfirmed observation safe.
+        if (latestObservation?.evidence?.contains(ObservationEvidence.TEMPORALLY_CONFIRMED) != true) {
+            reasons += TargetBlockReason.STATE_UNKNOWN
+        }
+
         // Do not trust a separately supplied validation object over the
         // frame-local state it is supposed to validate. This closes the
         // TOCTOU gap where an occupied/incoming tile could be paired with an
@@ -93,6 +108,12 @@ object PreActionRevalidator {
 
         if (latestPoint == null ||
             distancePx(selected.point, latestPoint) > MAX_POINT_DRIFT_PX
+        ) {
+            reasons += TargetBlockReason.INTERACTION_POINT_INVALID
+        }
+
+        if (latestObservationPoint == null ||
+            distancePx(selected.point, latestObservationPoint) > MAX_POINT_DRIFT_PX
         ) {
             reasons += TargetBlockReason.INTERACTION_POINT_INVALID
         }
