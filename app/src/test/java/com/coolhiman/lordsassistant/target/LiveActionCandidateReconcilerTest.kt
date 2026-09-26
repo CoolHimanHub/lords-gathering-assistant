@@ -28,7 +28,8 @@ class LiveActionCandidateReconcilerTest {
             kind = TargetKind.RESOURCE,
             level = 3,
             actionKind = ActionKind.GATHER,
-            point = point
+            point = point,
+            semanticIdentity = "WOOD"
         ),
         observation = observation,
         actionButton = ActionButton(
