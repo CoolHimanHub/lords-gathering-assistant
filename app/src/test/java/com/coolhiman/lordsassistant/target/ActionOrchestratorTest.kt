@@ -274,6 +274,36 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun newCaptureSessionCannotClearRecoveryEpochExhaustion() {
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = Long.MAX_VALUE)
+
+        val exhausted = orchestrator.reset()
+
+        assertEquals(ActionLifecycleState.FAILED, exhausted.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, exhausted.lifecycle.failure)
+
+        val boundary = orchestrator.beginCaptureSession(777L)
+
+        assertEquals(ActionLifecycleState.FAILED, boundary.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, boundary.lifecycle.failure)
+        assertEquals(Long.MAX_VALUE, orchestrator.currentRecoveryEpoch)
+
+        val retry = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 85_000L,
+            captureSessionId = 777L
+        )
+        assertEquals(ActionLifecycleState.FAILED, retry.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, retry.lifecycle.failure)
+        assertTrue(retry.session == null)
+    }
+
+    @Test
     fun newCaptureSessionClearsCompletedTargetSuppression() {
         val orchestrator = ActionOrchestrator()
         orchestrator.beginCaptureSession(501L)
