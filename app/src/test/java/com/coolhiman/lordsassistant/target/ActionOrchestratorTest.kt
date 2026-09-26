@@ -165,6 +165,21 @@ class ActionOrchestratorTest {
     }
 
     @Test
+    fun newCaptureSessionDoesNotClearUnknownRecoveryQuarantine() {
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 20L)
+        val restored = orchestrator.restoreUnknown(77L)
+
+        assertEquals(ActionLifecycleState.UNKNOWN, restored.lifecycle.state)
+        val epochAfterRecovery = orchestrator.currentRecoveryEpoch
+
+        val boundary = orchestrator.beginCaptureSession(900L)
+
+        assertEquals(ActionLifecycleState.UNKNOWN, boundary.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED, boundary.lifecycle.failure ?: null)
+        assertEquals(epochAfterRecovery, orchestrator.currentRecoveryEpoch)
+    }
+
+    @Test
     fun staleCaptureSessionCannotRevalidate() {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(
