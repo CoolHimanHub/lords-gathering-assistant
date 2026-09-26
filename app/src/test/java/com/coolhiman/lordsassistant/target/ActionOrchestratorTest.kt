@@ -144,6 +144,7 @@ class ActionOrchestratorTest {
     @Test
     fun captureSessionChangeQuarantinesInFlightAttempt() {
         val orchestrator = ActionOrchestrator()
+        orchestrator.beginCaptureSession(101L)
         val requested = orchestrator.request(
             automaticActionsEnabled = true,
             selected = selected,
