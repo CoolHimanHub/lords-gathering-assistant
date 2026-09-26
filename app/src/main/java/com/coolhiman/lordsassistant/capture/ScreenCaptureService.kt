@@ -791,7 +791,8 @@ class ScreenCaptureService : Service() {
                                 plannerScore = candidate.plannerScore,
                                 stabilityFrames = candidate.stability.consecutiveFrames,
                                 validationSafe = true,
-                                queuedAtMs = now
+                                queuedAtMs = now,
+                                captureSessionId = liveCaptureSessionId
                             )
                         }
                         actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
@@ -897,7 +898,8 @@ class ScreenCaptureService : Service() {
                                         lifecycle = actionOrchestrator.lifecycleSnapshot,
                                         automaticActionsEnabled = prefs.automaticActions,
                                         restartQuarantine = recoveryQuarantine.active,
-                                        recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy
+                                        recoveryEpochPersistenceHealthy = recoveryEpochPersistenceHealthy,
+                                        captureSessionId = liveCaptureSessionId
                                     )
                                     val decision = actionSchedulerAdapter.select(now, safetyState)
                                     if (decision.candidate == null) {
