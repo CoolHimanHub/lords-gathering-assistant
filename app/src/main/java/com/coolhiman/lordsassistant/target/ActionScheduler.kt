@@ -141,6 +141,11 @@ class ActionScheduler(
         nowMs: Long,
         safetyState: ActionSchedulerSafetyState
     ): ActionScheduleDecision {
+        if (currentCaptureSessionId != null &&
+            safetyState.captureSessionId != currentCaptureSessionId
+        ) {
+            return ActionScheduleDecision(null, ActionScheduleBlockReason.SAFETY_BLOCKED)
+        }
         val blockReason = ActionSchedulerSafetyGate().blockReason(safetyState)
         if (blockReason != null) {
             return ActionScheduleDecision(null, ActionScheduleBlockReason.SAFETY_BLOCKED)
