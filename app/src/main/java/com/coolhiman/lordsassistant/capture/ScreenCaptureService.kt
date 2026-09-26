@@ -512,7 +512,7 @@ class ScreenCaptureService : Service() {
         val durableSessionId = captureDiagnosticsStore.allocateNextSessionId()
         val captureBoundary = actionOrchestrator.beginCaptureSession(durableSessionId)
         val recoveryPersistedAfterCaptureBoundary = persistRecoveryEpoch()
-        actionSchedulerAdapter.resetForCaptureSession()
+        actionSchedulerAdapter.resetForCaptureSession(durableSessionId)
         liveScanner.resetCaptureSession()
         if (!recoveryPersistedAfterCaptureBoundary || captureBoundary.lifecycle.failure == ActionLifecycleFailure.RECOVERY_EPOCH_EXHAUSTED) {
             captureRuntime.recordFailure(
