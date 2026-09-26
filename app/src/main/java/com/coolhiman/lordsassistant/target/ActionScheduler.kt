@@ -13,6 +13,8 @@ data class ActionScheduleCandidate(
     val stabilityFrames: Int,
     val validationSafe: Boolean,
     val queuedAtMs: Long,
+    /** Capture session that produced this candidate; null retains legacy unbound behavior. */
+    val captureSessionId: Long? = null,
     /** Zero-based order from TargetPlanner; lower is more preferred. */
     val plannerRank: Int = Int.MAX_VALUE,
     /** Planner's native score, retained as a tie-breaker inside the same rank. */
@@ -40,8 +42,10 @@ class ActionScheduler(
     private val completedUntilMs = linkedMapOf<ActionTargetIdentity, Long>()
     private var inFlight = false
     private var lastDispatchAtMs: Long? = null
+    private var currentCaptureSessionId: Long? = null
 
     fun offer(candidate: ActionScheduleCandidate) {
+        if (!sessionMatches(candidate)) return
         if (!candidate.validationSafe) return
         if (candidate.stabilityFrames < minimumStabilityFrames) return
         if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return
@@ -66,6 +70,7 @@ class ActionScheduler(
         val latestSafe = linkedMapOf<ActionTargetIdentity, ActionScheduleCandidate>()
 
         current.forEach { candidate ->
+            if (!sessionMatches(candidate)) return@forEach
             if (!candidate.validationSafe || candidate.stabilityFrames < minimumStabilityFrames) return@forEach
             if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return@forEach
 
@@ -101,12 +106,16 @@ class ActionScheduler(
      * MediaProjection session. Lifecycle/recovery safety remains owned by the
      * ActionSchedulerSafetyGate and ActionOrchestrator.
      */
-    fun resetForCaptureSession() {
+    fun resetForCaptureSession(captureSessionId: Long? = null) {
+        currentCaptureSessionId = captureSessionId
         candidates.clear()
         completedUntilMs.clear()
         inFlight = false
         lastDispatchAtMs = null
     }
+
+    private fun sessionMatches(candidate: ActionScheduleCandidate): Boolean =
+        currentCaptureSessionId == null || candidate.captureSessionId == currentCaptureSessionId
 
     fun markDispatchStarted(nowMs: Long) {
         inFlight = true
