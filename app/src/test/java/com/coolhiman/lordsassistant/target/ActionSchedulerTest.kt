@@ -420,6 +420,44 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun staleCandidateFromPreviousCaptureSessionCannotEnterQueue() {
+        val scheduler = ActionScheduler()
+        scheduler.resetForCaptureSession(100L)
+
+        scheduler.offer(
+            candidate(priority = 10, stabilityFrames = 3, safe = true).copy(captureSessionId = 99L)
+        )
+        assertEquals(0, scheduler.queuedCount())
+
+        val fresh = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(captureSessionId = 100L)
+        scheduler.offer(fresh)
+
+        assertEquals(fresh.target, scheduler.peek(10_000L).candidate?.target)
+    }
+
+    @Test
+    fun schedulerSelectionBlocksSafetySessionMismatch() {
+        val scheduler = ActionScheduler()
+        scheduler.resetForCaptureSession(200L)
+        val fresh = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(captureSessionId = 200L)
+        scheduler.offer(fresh)
+
+        val safety = ActionSchedulerSafetyState(
+            lifecycle = ActionLifecycleSnapshot(ActionLifecycleState.IDLE),
+            automaticActionsEnabled = true,
+            restartQuarantine = false,
+            recoveryEpochPersistenceHealthy = true,
+            captureSessionId = 201L
+        )
+
+        val decision = scheduler.peek(10_000L, safety)
+
+        assertEquals(ActionScheduleBlockReason.SAFETY_BLOCKED, decision.reason)
+        assertEquals(null, decision.candidate)
+        assertEquals(1, scheduler.queuedCount())
+    }
+
+    @Test
     fun resetForCaptureSessionClearsSessionScopedSchedulerState() {
         val scheduler = ActionScheduler()
         val oldTarget = candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1)
