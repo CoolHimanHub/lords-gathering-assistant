@@ -329,7 +329,8 @@ class LiveMapScanner(context: Context) {
                     kind = observation.kind!!,
                     level = observation.level!!,
                     actionKind = button.kind,
-                    point = button.point
+                    point = button.point,
+                    semanticIdentity = observation.label?.trim()?.takeIf { it.isNotEmpty() }
                 )
                 val plannerRankAndScore = plannerRankAndScore(plan, observation)
                 LiveActionCandidate(
@@ -377,7 +378,14 @@ class LiveMapScanner(context: Context) {
             val kind = target.kind
             val actionKind = actionButton?.kind
             if (point != null && coordinate != null && level != null && kind != null && actionKind != null) {
-                ActionTargetSnapshot(coordinate, kind, level, actionKind, point)
+                ActionTargetSnapshot(
+                    coordinate = coordinate,
+                    kind = kind,
+                    level = level,
+                    actionKind = actionKind,
+                    point = point,
+                    semanticIdentity = target.label?.trim()?.takeIf { it.isNotEmpty() }
+                )
             } else {
                 null
             }
