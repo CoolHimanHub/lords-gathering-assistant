@@ -61,6 +61,15 @@ class ActionExecutionControllerTest {
     }
 
     @Test
+    fun sameWorldTargetWithMovedScreenPointIsStillDuplicate() {
+        controller.markDispatched(target, 1000L)
+
+        val movedPoint = target.copy(point = ScreenPoint(540f, 430f))
+        val result = controller.request(true, movedPoint, safe, 2200L)
+        assertEquals(ActionExecutionBlockReason.DUPLICATE_TARGET, result.reason)
+    }
+
+    @Test
     fun differentTargetCanProceedAfterCooldown() {
         controller.markDispatched(target, 1000L)
 
