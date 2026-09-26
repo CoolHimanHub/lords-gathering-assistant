@@ -122,8 +122,8 @@ class ActionSafetySimulationTest {
 
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 3_000L)
         orchestrator.revalidate(
-            observation,
-            safeValidation,
+            freshObservation(),
+            freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
         orchestrator.dispatch(3_001L) {
@@ -156,8 +156,8 @@ class ActionSafetySimulationTest {
 
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 4_000L)
         orchestrator.revalidate(
-            observation,
-            safeValidation,
+            freshObservation(),
+            freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
         orchestrator.dispatch(4_001L) {
@@ -180,8 +180,8 @@ class ActionSafetySimulationTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 5_000L)
         orchestrator.revalidate(
-            observation,
-            safeValidation,
+            freshObservation(),
+            freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
         orchestrator.dispatch(5_001L) { true }
