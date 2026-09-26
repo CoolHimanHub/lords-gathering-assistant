@@ -1,5 +1,6 @@
 package com.coolhiman.lordsassistant.target
 
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ScreenPoint
@@ -23,6 +24,7 @@ class PreActionRevalidatorTest {
         incomingTroops = false,
         kind = TargetKind.RESOURCE,
         confidence = 0.95f,
+        coordinateConfidence = CoordinateConfidence.observed(true, true, 2.0),
         evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)
     )
 
@@ -147,6 +149,53 @@ class PreActionRevalidatorTest {
 
         assertFalse(result.safe)
         assertTrue(TargetBlockReason.STATE_UNKNOWN in result.reasons)
+    }
+
+    @Test
+    fun nonAuthoritativeLatestCoordinateBlocksEvenIfValidationClaimsSafe() {
+        val latest = observation().copy(
+            coordinateConfidence = CoordinateConfidence.calibrated(true, true, 1.0)
+        )
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.COORDINATE_AUTHORITY_INVALID in result.reasons)
+    }
+
+    @Test
+    fun missingTemporalConfirmationBlocksEvenIfValidationClaimsSafe() {
+        val latest = observation().copy(evidence = emptySet())
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.STATE_UNKNOWN in result.reasons)
+    }
+
+    @Test
+    fun movedObservationPointIsBlockedEvenIfActionPointIsUnchanged() {
+        val latest = observation().copy(screenPoint = ScreenPoint(560f, 400f))
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.INTERACTION_POINT_INVALID in result.reasons)
     }
 
     @Test
