@@ -120,7 +120,10 @@ object PreActionRevalidator {
         }
         reasons += latestValidation.reasons
 
-        return if (reasons.isEmpty() && latestValidation.safe) {
+        return if (reasons.isEmpty() &&
+            latestValidation.safe &&
+            latestValidation.stage == TargetValidationStage.SAFE_TO_INTERACT
+        ) {
             TargetValidationResult(
                 true,
                 TargetValidationStage.SAFE_TO_INTERACT
