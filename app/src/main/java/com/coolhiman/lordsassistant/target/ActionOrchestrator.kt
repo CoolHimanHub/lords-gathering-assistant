@@ -112,13 +112,13 @@ class ActionOrchestrator(
         return Result(lifecycleResult, session)
     }
 
-    fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?): Result {
+    fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?, nowMs: Long = System.currentTimeMillis()): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
         if (current == null || selected == null || selected.identity() != current.selected.identity()) {
             return Result(lifecycle.revalidated(TargetValidationResult(false, TargetValidationStage.DETECTED, setOf(TargetBlockReason.TARGET_CHANGED))), current)
         }
-        return Result(lifecycle.revalidated(PreActionRevalidator.revalidate(selected, latestObservation, latestValidation, latestAction)), current)
+        return Result(lifecycle.revalidated(PreActionRevalidator.revalidate(selected, latestObservation, latestValidation, latestAction, nowMs)), current)
     }
 
     fun dispatch(nowMs: Long, dispatch: () -> Boolean): Result {
