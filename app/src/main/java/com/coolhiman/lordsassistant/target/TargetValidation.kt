@@ -20,7 +20,9 @@ enum class TargetBlockReason {
 data class TargetValidationResult(
     val safe: Boolean,
     val stage: TargetValidationStage,
-    val reasons: Set<TargetBlockReason> = emptySet()
+    val reasons: Set<TargetBlockReason> = emptySet(),
+    /** Time at which this validation was produced; used to prevent stale evidence at dispatch. */
+    val validatedAtMs: Long = System.currentTimeMillis()
 )
 
 class TargetValidationEngine {
