@@ -36,12 +36,14 @@ data class ActionTargetIdentity(
  */
 object PreActionRevalidator {
     private const val MAX_POINT_DRIFT_PX = 45f
+    private const val MAX_OBSERVATION_AGE_MS = 2_000L
 
     fun revalidate(
         selected: ActionTargetSnapshot?,
         latestObservation: MapObservation?,
         latestValidation: TargetValidationResult,
-        latestAction: ActionButton?
+        latestAction: ActionButton?,
+        nowMs: Long = System.currentTimeMillis()
     ): TargetValidationResult {
         if (selected == null) {
             return TargetValidationResult(
@@ -57,6 +59,11 @@ object PreActionRevalidator {
         val latestLevel = latestObservation?.level
         val latestPoint = latestAction?.point
         val latestSemanticIdentity = latestObservation?.label?.trim()?.takeIf { it.isNotEmpty() }
+
+        val observationAgeMs = latestObservation?.timestampMs?.let { nowMs - it }
+        if (observationAgeMs == null || observationAgeMs > MAX_OBSERVATION_AGE_MS) {
+            reasons += TargetBlockReason.STATE_UNKNOWN
+        }
 
         if (latestCoordinate != selected.coordinate ||
             latestKind != selected.kind ||
