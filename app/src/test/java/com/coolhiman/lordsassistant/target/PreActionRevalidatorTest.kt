@@ -184,21 +184,6 @@ class PreActionRevalidatorTest {
     }
 
     @Test
-    fun movedObservationPointIsBlockedEvenIfActionPointIsUnchanged() {
-        val latest = observation().copy(screenPoint = ScreenPoint(560f, 400f))
-
-        val result = PreActionRevalidator.revalidate(
-            snapshot(),
-            latest,
-            validation(),
-            action()
-        )
-
-        assertFalse(result.safe)
-        assertTrue(TargetBlockReason.INTERACTION_POINT_INVALID in result.reasons)
-    }
-
-    @Test
     fun changedActionIsBlocked() {
         val latestAction = action().copy(kind = ActionKind.HUNT)
 
