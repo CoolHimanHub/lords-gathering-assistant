@@ -38,10 +38,24 @@ class TargetStabilityTracker(
         frames = 0
     }
 
-    private fun sameTarget(a: MapObservation, b: MapObservation): Boolean =
-        a.coordinate != null &&
-            a.coordinate == b.coordinate &&
-            a.kind == b.kind &&
-            a.level != null &&
-            a.level == b.level
+    private fun sameTarget(a: MapObservation, b: MapObservation): Boolean {
+        if (a.coordinate == null || a.coordinate != b.coordinate) return false
+        if (a.kind != b.kind || a.level == null || a.level != b.level) return false
+
+        // A known semantic identity is part of target continuity. Without this,
+        // two different monsters/resources occupying the same world tile and
+        // level could inherit the previous frame's stability.
+        val first = semanticIdentity(a)
+        val second = semanticIdentity(b)
+        return first == null || second == null || first.equals(second, ignoreCase = true)
+    }
+
+    private fun semanticIdentity(observation: MapObservation): String? =
+        observation.label
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.takeUnless {
+                observation.kind == com.coolhiman.lordsassistant.model.TargetKind.MONSTER &&
+                    it.equals("MONSTER", ignoreCase = true)
+            }
 }
