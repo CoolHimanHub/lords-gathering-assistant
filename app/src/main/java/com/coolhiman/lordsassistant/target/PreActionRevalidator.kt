@@ -76,11 +76,13 @@ object PreActionRevalidator {
             reasons += TargetBlockReason.ACTION_MISMATCH
         }
 
-        if (selected.semanticIdentity != null &&
-            (latestSemanticIdentity == null ||
-                !selected.semanticIdentity.equals(latestSemanticIdentity, ignoreCase = true))
+        val selectedIdentity = selected.semanticIdentity?.trim()?.takeIf { it.isNotEmpty() }
+        val latestIdentity = latestObservation?.let(ActionSemanticIdentity::fromObservation)
+
+        if (selectedIdentity == null || latestIdentity == null ||
+            !selectedIdentity.equals(latestIdentity, ignoreCase = true)
         ) {
-            reasons += TargetBlockReason.TARGET_CHANGED
+            reasons += TargetBlockReason.SEMANTIC_IDENTITY_INVALID
         }
 
         // Coordinate provenance is a direct pre-dispatch requirement. Do not
