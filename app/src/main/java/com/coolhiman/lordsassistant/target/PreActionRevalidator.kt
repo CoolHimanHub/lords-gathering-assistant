@@ -8,17 +8,21 @@ data class ActionTargetSnapshot(
     val kind: com.coolhiman.lordsassistant.model.TargetKind,
     val level: Int,
     val actionKind: ActionKind,
-    val point: ScreenPoint
+    val point: ScreenPoint,
+    /** Semantic identity captured with the selected target; null means unavailable. */
+    val semanticIdentity: String? = null
 ) {
     /** Stable world/action identity; screen point is transient UI geometry. */
-    fun identity(): ActionTargetIdentity = ActionTargetIdentity(coordinate, kind, level, actionKind)
+    fun identity(): ActionTargetIdentity =
+        ActionTargetIdentity(coordinate, kind, level, actionKind, semanticIdentity)
 }
 
 data class ActionTargetIdentity(
     val coordinate: com.coolhiman.lordsassistant.model.WorldCoordinate,
     val kind: com.coolhiman.lordsassistant.model.TargetKind,
     val level: Int,
-    val actionKind: ActionKind
+    val actionKind: ActionKind,
+    val semanticIdentity: String? = null
 )
 
 /**
@@ -51,6 +55,7 @@ object PreActionRevalidator {
         val latestKind = latestObservation?.kind
         val latestLevel = latestObservation?.level
         val latestPoint = latestAction?.point
+        val latestSemanticIdentity = latestObservation?.label?.trim()?.takeIf { it.isNotEmpty() }
 
         if (latestCoordinate != selected.coordinate ||
             latestKind != selected.kind ||
@@ -61,6 +66,13 @@ object PreActionRevalidator {
 
         if (latestAction?.kind != selected.actionKind) {
             reasons += TargetBlockReason.ACTION_MISMATCH
+        }
+
+        if (selected.semanticIdentity != null &&
+            (latestSemanticIdentity == null ||
+                !selected.semanticIdentity.equals(latestSemanticIdentity, ignoreCase = true))
+        ) {
+            reasons += TargetBlockReason.TARGET_CHANGED
         }
 
         if (latestPoint == null ||
