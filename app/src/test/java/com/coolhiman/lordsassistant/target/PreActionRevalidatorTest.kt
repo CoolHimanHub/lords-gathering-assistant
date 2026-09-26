@@ -78,6 +78,43 @@ class PreActionRevalidatorTest {
     }
 
     @Test
+    fun missingSelectedSemanticIdentityBlocksEvenIfValidationClaimsSafe() {
+        val result = PreActionRevalidator.revalidate(
+            snapshot().copy(semanticIdentity = null),
+            observation(),
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.SEMANTIC_IDENTITY_INVALID in result.reasons)
+    }
+
+    @Test
+    fun genericMonsterSemanticIdentityBlocksAtFinalGate() {
+        val monsterObservation = observation().copy(
+            label = "MONSTER",
+            kind = TargetKind.MONSTER
+        )
+        val monsterSnapshot = snapshot().copy(
+            kind = TargetKind.MONSTER,
+            actionKind = ActionKind.HUNT,
+            semanticIdentity = "MONSTER"
+        )
+        val monsterAction = action().copy(kind = ActionKind.HUNT)
+
+        val result = PreActionRevalidator.revalidate(
+            monsterSnapshot,
+            monsterObservation,
+            validation(),
+            monsterAction
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.SEMANTIC_IDENTITY_INVALID in result.reasons)
+    }
+
+    @Test
     fun changedSemanticIdentityIsBlocked() {
         val latest = observation().copy(label = "STONE")
 
