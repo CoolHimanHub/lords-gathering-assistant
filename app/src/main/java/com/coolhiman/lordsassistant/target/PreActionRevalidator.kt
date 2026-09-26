@@ -64,6 +64,11 @@ object PreActionRevalidator {
             reasons += TargetBlockReason.STATE_UNKNOWN
         }
 
+        val validationAgeMs = nowMs - latestValidation.validatedAtMs
+        if (validationAgeMs < 0L || validationAgeMs > MAX_OBSERVATION_AGE_MS) {
+            reasons += TargetBlockReason.STATE_UNKNOWN
+        }
+
         if (latestCoordinate != selected.coordinate ||
             latestKind != selected.kind ||
             latestLevel != selected.level
