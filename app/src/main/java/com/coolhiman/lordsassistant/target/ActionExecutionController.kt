@@ -41,7 +41,7 @@ class ActionExecutionController(
         if (lastDispatchMs != Long.MIN_VALUE && nowMs - lastDispatchMs < cooldownMs) {
             return ActionExecutionDecision(false, ActionExecutionBlockReason.COOLDOWN)
         }
-        if (lastTarget != null && selected == lastTarget && lastTargetMs != Long.MIN_VALUE && nowMs - lastTargetMs < duplicateTargetWindowMs) {
+        if (lastTarget != null && selected.identity() == lastTarget?.identity() && lastTargetMs != Long.MIN_VALUE && nowMs - lastTargetMs < duplicateTargetWindowMs) {
             return ActionExecutionDecision(false, ActionExecutionBlockReason.DUPLICATE_TARGET)
         }
 
