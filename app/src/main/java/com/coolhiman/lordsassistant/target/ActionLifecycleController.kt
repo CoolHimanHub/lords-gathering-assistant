@@ -24,6 +24,7 @@ enum class ActionLifecycleFailure {
     DISPATCH_FAILED,
     VERIFICATION_FAILED,
     VERIFICATION_TIMEOUT,
+    CAPTURE_SESSION_CHANGED,
     RECOVERY_EPOCH_EXHAUSTED
 }
 
@@ -133,6 +134,19 @@ class ActionLifecycleController(
                 state = ActionLifecycleState.FAILED,
                 failure = ActionLifecycleFailure.REVALIDATION_FAILED
             )
+        }
+        return snapshot
+    }
+
+    fun captureSessionChanged(): ActionLifecycleSnapshot {
+        snapshot = when (snapshot.state) {
+            ActionLifecycleState.REQUESTED,
+            ActionLifecycleState.REVALIDATED,
+            ActionLifecycleState.WAITING_FOR_RESULT -> snapshot.copy(
+                state = ActionLifecycleState.UNKNOWN,
+                failure = ActionLifecycleFailure.CAPTURE_SESSION_CHANGED
+            )
+            else -> snapshot
         }
         return snapshot
     }
