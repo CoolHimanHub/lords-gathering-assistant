@@ -105,6 +105,51 @@ class PreActionRevalidatorTest {
     }
 
     @Test
+    fun occupiedLatestObservationBlocksEvenIfValidationClaimsSafe() {
+        val latest = observation().copy(occupied = true)
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.OCCUPIED in result.reasons)
+    }
+
+    @Test
+    fun incomingLatestObservationBlocksEvenIfValidationClaimsSafe() {
+        val latest = observation().copy(incomingTroops = true)
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.INCOMING_TROOPS in result.reasons)
+    }
+
+    @Test
+    fun unknownLatestStateBlocksEvenIfValidationClaimsSafe() {
+        val latest = observation().copy(occupied = null, incomingTroops = null)
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation(),
+            action()
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.STATE_UNKNOWN in result.reasons)
+    }
+
+    @Test
     fun changedActionIsBlocked() {
         val latestAction = action().copy(kind = ActionKind.HUNT)
 
