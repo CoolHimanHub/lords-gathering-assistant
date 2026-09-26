@@ -166,7 +166,7 @@ class TargetValidationEngineTest {
             observation = observation().copy(kind = TargetKind.MONSTER, label = "Frostwing"),
             cameraStable = true,
             calibrationValid = true,
-            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null),
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null, monsterName = "Frostwing"),
             interactionPointValid = true,
             actionKind = ActionKind.HUNT
         )
@@ -174,7 +174,7 @@ class TargetValidationEngineTest {
             observation = observation().copy(kind = TargetKind.MONSTER, label = "Frostwing"),
             cameraStable = true,
             calibrationValid = true,
-            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null),
+            popupState = popup().copy(kind = TargetKind.MONSTER, resource = null, monsterName = "Frostwing"),
             interactionPointValid = true,
             actionKind = ActionKind.ATTACK
         )
