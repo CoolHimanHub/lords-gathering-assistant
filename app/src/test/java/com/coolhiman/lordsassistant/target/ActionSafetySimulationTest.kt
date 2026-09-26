@@ -1,6 +1,8 @@
 package com.coolhiman.lordsassistant.target
 
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
@@ -26,7 +28,8 @@ class ActionSafetySimulationTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = ScreenPoint(900f, 600f)
+        point = ScreenPoint(900f, 600f),
+        semanticIdentity = "WOOD"
     )
 
     private val observation = MapObservation(
@@ -36,7 +39,10 @@ class ActionSafetySimulationTest {
         screenPoint = selected.point,
         confidence = 0.95f,
         occupied = false,
-        incomingTroops = false
+        incomingTroops = false,
+        label = "WOOD",
+        coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0),
+        evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED)
     )
 
     private val changedObservation = observation.copy(
@@ -59,6 +65,10 @@ class ActionSafetySimulationTest {
         stage = TargetValidationStage.SAFE_TO_INTERACT
     )
 
+    private fun freshObservation() = observation.copy(timestampMs = System.currentTimeMillis())
+
+    private fun freshValidation() = safeValidation.copy(validatedAtMs = System.currentTimeMillis())
+
     @Test
     fun validFlowDispatchesExactlyOnceAndRequiresVerifiedEvidence() {
         val orchestrator = ActionOrchestrator()
@@ -66,8 +76,8 @@ class ActionSafetySimulationTest {
 
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 1_000L)
         orchestrator.revalidate(
-            observation,
-            safeValidation,
+            freshObservation(),
+            freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
         orchestrator.dispatch(1_001L) {
@@ -91,8 +101,8 @@ class ActionSafetySimulationTest {
 
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 2_000L)
         val revalidation = orchestrator.revalidate(
-            changedObservation,
-            safeValidation,
+            changedObservation.copy(timestampMs = System.currentTimeMillis()),
+            freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
         orchestrator.dispatch(2_001L) {
@@ -178,8 +188,11 @@ class ActionSafetySimulationTest {
 
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 5_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 5_200L)
-        val unstableAfter = observation.copy(
-            evidence = setOf(com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE)
+        val unstableAfter = freshObservation().copy(
+            evidence = setOf(
+                ObservationEvidence.TEMPORALLY_CONFIRMED,
+                ObservationEvidence.CAMERA_UNSTABLE
+            )
         )
         val result = orchestrator.verifyPostAction(unstableAfter, popup, 5_300L)
 
