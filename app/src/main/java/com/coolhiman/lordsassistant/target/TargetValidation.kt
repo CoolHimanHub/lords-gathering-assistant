@@ -14,7 +14,7 @@ enum class TargetBlockReason {
     NO_TARGET, TARGET_CHANGED, TARGET_UNSTABLE, CAMERA_UNSTABLE, CALIBRATION_INVALID, STATE_UNKNOWN, MARCH_AMBIGUOUS,
     OCCUPIED, INCOMING_TROOPS, KIND_UNKNOWN, LEVEL_UNKNOWN, COORDINATE_AUTHORITY_INVALID, POPUP_MISSING,
     POPUP_MISMATCH, POPUP_KIND_MISMATCH, POPUP_RESOURCE_MISMATCH,
-    POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID, ACTION_MISMATCH
+    POPUP_MONSTER_MISMATCH, POPUP_LEVEL_MISMATCH, INTERACTION_POINT_INVALID, ACTION_MISMATCH
 }
 
 data class TargetValidationResult(
@@ -107,6 +107,13 @@ class TargetValidationEngine {
             if (expectedResource != null && popupState.resource == null && expectedKind == TargetKind.RESOURCE) {
                 reasons += TargetBlockReason.POPUP_RESOURCE_MISMATCH
             }
+            val expectedMonsterName = if (expectedKind == TargetKind.MONSTER) {
+                observation.label?.trim()?.takeIf { it.isNotEmpty() && !it.equals("MONSTER", ignoreCase = true) }
+            } else null
+            if (expectedMonsterName != null &&
+                (popupState.monsterName == null || !popupState.monsterName.equals(expectedMonsterName, ignoreCase = true))) {
+                reasons += TargetBlockReason.POPUP_MONSTER_MISMATCH
+            }
             if (expectedLevel != null && popupState.level != null && popupState.level != expectedLevel) {
                 reasons += TargetBlockReason.POPUP_LEVEL_MISMATCH
             }
@@ -128,6 +135,7 @@ class TargetValidationEngine {
                 it == TargetBlockReason.POPUP_MISMATCH ||
                     it == TargetBlockReason.POPUP_KIND_MISMATCH ||
                     it == TargetBlockReason.POPUP_RESOURCE_MISMATCH ||
+                    it == TargetBlockReason.POPUP_MONSTER_MISMATCH ||
                     it == TargetBlockReason.POPUP_LEVEL_MISMATCH
             } -> TargetValidationStage.TEMPORALLY_CONFIRMED
             reasons.contains(TargetBlockReason.STATE_UNKNOWN) || reasons.contains(TargetBlockReason.OCCUPIED) || reasons.contains(TargetBlockReason.INCOMING_TROOPS) -> TargetValidationStage.POPUP_CONFIRMED
