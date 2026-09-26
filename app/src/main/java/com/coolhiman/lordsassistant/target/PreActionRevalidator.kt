@@ -75,6 +75,22 @@ object PreActionRevalidator {
             reasons += TargetBlockReason.TARGET_CHANGED
         }
 
+        // Do not trust a separately supplied validation object over the
+        // frame-local state it is supposed to validate. This closes the
+        // TOCTOU gap where an occupied/incoming tile could be paired with an
+        // accidentally stale "safe" validation result.
+        val latestOccupied = latestObservation?.occupied
+        val latestIncoming = latestObservation?.incomingTroops
+        if (latestOccupied == null || latestIncoming == null) {
+            reasons += TargetBlockReason.STATE_UNKNOWN
+        }
+        if (latestOccupied == true) {
+            reasons += TargetBlockReason.OCCUPIED
+        }
+        if (latestIncoming == true) {
+            reasons += TargetBlockReason.INCOMING_TROOPS
+        }
+
         if (latestPoint == null ||
             distancePx(selected.point, latestPoint) > MAX_POINT_DRIFT_PX
         ) {
