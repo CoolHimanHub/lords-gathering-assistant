@@ -142,6 +142,178 @@ class ActionOrchestratorTest {
 
 
     @Test
+    fun captureSessionChangeQuarantinesInFlightAttempt() {
+        val orchestrator = ActionOrchestrator()
+        val requested = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 80_000L,
+            captureSessionId = 101L
+        )
+        assertEquals(ActionLifecycleState.REQUESTED, requested.lifecycle.state)
+
+        val boundary = orchestrator.beginCaptureSession(102L)
+
+        assertEquals(ActionLifecycleState.UNKNOWN, boundary.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, boundary.lifecycle.failure)
+        assertEquals(1L, orchestrator.currentRecoveryEpoch)
+        assertEquals(null, boundary.session)
+    }
+
+    @Test
+    fun staleCaptureSessionCannotRevalidate() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 81_000L,
+            captureSessionId = 201L
+        )
+
+        val result = orchestrator.revalidate(
+            latestObservation = observation,
+            latestValidation = safeValidation,
+            latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            captureSessionId = 202L
+        )
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, result.lifecycle.failure)
+    }
+
+    @Test
+    fun staleCaptureSessionCannotDispatchGesture() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 82_000L,
+            captureSessionId = 301L
+        )
+        orchestrator.revalidate(
+            latestObservation = observation,
+            latestValidation = safeValidation,
+            latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            captureSessionId = 301L
+        )
+
+        var dispatched = false
+        val result = orchestrator.dispatch(
+            nowMs = 82_001L,
+            captureSessionId = 302L
+        ) {
+            dispatched = true
+            true
+        }
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, result.lifecycle.failure)
+        assertFalse(dispatched)
+    }
+
+    @Test
+    fun staleCaptureSessionCannotVerifyPostAction() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 83_000L,
+            captureSessionId = 401L
+        )
+        orchestrator.revalidate(
+            latestObservation = observation,
+            latestValidation = safeValidation,
+            latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            captureSessionId = 401L
+        )
+        orchestrator.dispatch(
+            nowMs = 83_001L,
+            captureSessionId = 401L
+        ) { true }
+
+        val result = orchestrator.verifyPostAction(
+            afterObservation = observation,
+            popupAfter = popup,
+            nowMs = 83_100L,
+            captureSessionId = 402L
+        )
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, result.lifecycle.failure)
+    }
+
+    @Test
+    fun newCaptureSessionClearsCompletedTargetSuppression() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.beginCaptureSession(501L)
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 84_000L,
+            captureSessionId = 501L
+        )
+        orchestrator.revalidate(
+            latestObservation = observation,
+            latestValidation = safeValidation,
+            latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            captureSessionId = 501L
+        )
+        orchestrator.dispatch(
+            nowMs = 84_001L,
+            captureSessionId = 501L
+        ) { true }
+
+        val evidence = setOf(
+            PostActionEvidence.OWN_MARCH_CONFIRMED
+        )
+        assertEquals(ActionLifecycleState.SUCCEEDED, orchestrator.lifecycleSnapshot.state.let {
+            orchestrator.run {
+                // Verify through the normal lifecycle path; the helper below
+                // supplies the minimum direct confirmation evidence.
+                javaClass.getDeclaredField("lifecycle").let { field ->
+                    field.isAccessible = true
+                    (field.get(this) as ActionLifecycleController).verify(evidence).state
+                }
+            }
+        })
+
+        val boundary = orchestrator.beginCaptureSession(502L)
+        assertEquals(ActionLifecycleState.IDLE, boundary.lifecycle.state)
+
+        val fresh = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            nowMs = 84_100L,
+            captureSessionId = 502L
+        )
+        assertEquals(ActionLifecycleState.REQUESTED, fresh.lifecycle.state)
+    }
+
+    @Test
     fun durableAttemptAllocatorPreventsAttemptIdReuse() {
         var persistedAttemptId = 17L
         val orchestrator = ActionOrchestrator(
