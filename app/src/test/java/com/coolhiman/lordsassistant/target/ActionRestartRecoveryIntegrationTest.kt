@@ -3,7 +3,9 @@ package com.coolhiman.lordsassistant.target
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import android.graphics.RectF
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -25,12 +27,14 @@ class ActionRestartRecoveryIntegrationTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = ScreenPoint(500f, 400f)
+        point = ScreenPoint(500f, 400f),
+        semanticIdentity = "WOOD"
     )
 
     private val safe = TargetValidationResult(
         safe = true,
-        stage = TargetValidationStage.SAFE_TO_INTERACT
+        stage = TargetValidationStage.SAFE_TO_INTERACT,
+        validatedAtMs = 1000L
     )
 
     @Test
@@ -83,7 +87,11 @@ class ActionRestartRecoveryIntegrationTest {
                 screenPoint = target.point,
                 confidence = 0.95f,
                 occupied = false,
-                incomingTroops = false
+                incomingTroops = false,
+                label = "WOOD",
+                coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0),
+                evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
+                timestampMs = 1000L
             ),
             latestValidation = safe,
             latestAction = ActionButton(
