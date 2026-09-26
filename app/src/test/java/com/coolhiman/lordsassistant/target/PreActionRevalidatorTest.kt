@@ -268,6 +268,23 @@ class PreActionRevalidatorTest {
     }
 
     @Test
+    fun safeValidationAtEarlierStageCannotCrossFinalGate() {
+        val earlierStage = TargetValidationResult(
+            safe = true,
+            stage = TargetValidationStage.STATE_VALIDATED
+        )
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            observation(),
+            earlierStage,
+            action()
+        )
+
+        assertFalse(result.safe)
+    }
+
+    @Test
     fun latestValidationFailureAlwaysBlocks() {
         val latestValidation = TargetValidationResult(
             safe = false,
