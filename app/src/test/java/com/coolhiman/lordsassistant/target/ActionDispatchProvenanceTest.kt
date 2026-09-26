@@ -68,6 +68,29 @@ class ActionDispatchProvenanceTest {
     }
 
     @Test
+    fun missingCaptureSessionCannotMatchLiveSession() {
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 22L)
+        val result = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = selected,
+            validation = safeValidation,
+            beforeObservation = observation,
+            popupBefore = popup,
+            baselineMarchSignals = emptyList(),
+            captureSessionId = 8001L,
+            nowMs = 82_000L
+        )
+
+        val legacy = ActionDispatchProvenance(
+            attemptId = result.session!!.attemptId,
+            recoveryEpoch = 22L,
+            startedAtMs = 82_001L
+        )
+
+        assertFalse(legacy.matches(result.session))
+    }
+
+    @Test
     fun recoveryEpochMismatchBlocksStalePreDispatchProvenance() {
         val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 21L)
         val result = orchestrator.request(
