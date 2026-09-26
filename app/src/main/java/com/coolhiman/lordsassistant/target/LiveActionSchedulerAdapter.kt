@@ -44,8 +44,8 @@ class LiveActionSchedulerAdapter(
      * Queue membership, completed-target suppression, dispatch cooldown, and
      * in-flight state are scoped to the current MediaProjection session.
      */
-    fun resetForCaptureSession() {
-        scheduler.resetForCaptureSession()
+    fun resetForCaptureSession(captureSessionId: Long? = null) {
+        scheduler.resetForCaptureSession(captureSessionId)
     }
 
     fun clear() {
