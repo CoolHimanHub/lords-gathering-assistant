@@ -1,7 +1,9 @@
 package com.coolhiman.lordsassistant.target
 
 import android.graphics.RectF
+import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
+import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
@@ -130,12 +132,17 @@ class LiveCandidatePreActionSafetyIntegrationTest {
         screenPoint = target.point,
         confidence = 0.95f,
         occupied = false,
-        incomingTroops = false
+        incomingTroops = false,
+        label = "WOOD",
+        coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0),
+        evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
+        timestampMs = System.currentTimeMillis()
     )
 
     private fun safeValidation() = TargetValidationResult(
         safe = true,
-        stage = TargetValidationStage.SAFE_TO_INTERACT
+        stage = TargetValidationStage.SAFE_TO_INTERACT,
+        validatedAtMs = System.currentTimeMillis()
     )
 
     private fun action(point: ScreenPoint) = ActionButton(
@@ -153,7 +160,8 @@ class LiveCandidatePreActionSafetyIntegrationTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = point
+        point = point,
+        semanticIdentity = "WOOD"
     )
 
     private fun safeState() = ActionSchedulerSafetyState(
