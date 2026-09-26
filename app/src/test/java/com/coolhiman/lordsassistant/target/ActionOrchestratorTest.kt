@@ -283,19 +283,20 @@ class ActionOrchestratorTest {
             captureSessionId = 501L
         ) { true }
 
-        val evidence = setOf(
-            PostActionEvidence.OWN_MARCH_CONFIRMED
+        val afterObservation = observation.copy(occupied = true)
+        orchestrator.verifyPostAction(
+            afterObservation = afterObservation,
+            popupAfter = null,
+            nowMs = 84_100L,
+            captureSessionId = 501L
         )
-        assertEquals(ActionLifecycleState.SUCCEEDED, orchestrator.lifecycleSnapshot.state.let {
-            orchestrator.run {
-                // Verify through the normal lifecycle path; the helper below
-                // supplies the minimum direct confirmation evidence.
-                javaClass.getDeclaredField("lifecycle").let { field ->
-                    field.isAccessible = true
-                    (field.get(this) as ActionLifecycleController).verify(evidence).state
-                }
-            }
-        })
+        val verified = orchestrator.verifyPostAction(
+            afterObservation = afterObservation,
+            popupAfter = null,
+            nowMs = 84_200L,
+            captureSessionId = 501L
+        )
+        assertEquals(ActionLifecycleState.SUCCEEDED, verified.lifecycle.state)
 
         val boundary = orchestrator.beginCaptureSession(502L)
         assertEquals(ActionLifecycleState.IDLE, boundary.lifecycle.state)
