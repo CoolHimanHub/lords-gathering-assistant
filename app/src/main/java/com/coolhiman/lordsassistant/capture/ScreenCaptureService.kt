@@ -792,7 +792,7 @@ class ScreenCaptureService : Service() {
                                 stabilityFrames = candidate.stability.consecutiveFrames,
                                 validationSafe = true,
                                 queuedAtMs = now,
-                                captureSessionId = liveCaptureSessionId
+                                captureSessionId = captureRuntime.snapshot().sessionId
                             )
                         }
                         actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
