@@ -205,8 +205,8 @@ class ActionOrchestratorTest {
         )
 
         val result = orchestrator.revalidate(
-            latestObservation = observation,
-            latestValidation = safeValidation,
+            latestObservation = freshObservation(),
+            latestValidation = freshValidation(),
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
             captureSessionId = 202L
         )
@@ -467,7 +467,7 @@ class ActionOrchestratorTest {
         assertEquals(1L, second.session?.recoveryEpoch)
         assertEquals(null, orchestrator.lastPostActionEvidence)
 
-        orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
+        orchestrator.revalidate(freshObservation(), freshValidation(), ActionButton(ActionKind.GATHER, selected.point, 0.95f))
         orchestrator.dispatch(61_001L) { true }
 
         val staleOnly = orchestrator.observeMarch(listOf(oldSecond), 61_100L)
