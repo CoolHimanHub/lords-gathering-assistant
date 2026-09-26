@@ -23,5 +23,8 @@ data class ActionDispatchProvenance(
         session != null &&
             session.attemptId == attemptId &&
             session.recoveryEpoch == recoveryEpoch &&
-            (captureSessionId == null || session.captureSessionId == captureSessionId)
+            when {
+                session.captureSessionId == null -> captureSessionId == null
+                else -> captureSessionId == session.captureSessionId
+            }
 }
