@@ -1024,12 +1024,7 @@ class ScreenCaptureService : Service() {
                                                     automaticActionsEnabled = prefs.automaticActions
                                                 ) { finalContext ->
                                                     runCatching {
-                                                        LmAccessibilityService.instance?.tapRevalidated(
-                                                            selected = finalContext.selected,
-                                                            latestObservation = finalContext.latestObservation,
-                                                            latestValidation = finalContext.latestValidation,
-                                                            latestAction = finalContext.latestAction
-                                                        ) == true
+                                                        LmAccessibilityService.instance?.dispatchFinal(finalContext) == true
                                                     }.getOrDefault(false)
                                                 }.also { result ->
                                                     actionSchedulerAdapter.markActionFinished()
