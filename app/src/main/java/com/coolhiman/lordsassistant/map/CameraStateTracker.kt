@@ -139,11 +139,15 @@ class CameraStateTracker(
 
         val firstLabel = a.label?.trim()?.takeIf { it.isNotEmpty() }
         val secondLabel = b.label?.trim()?.takeIf { it.isNotEmpty() }
-        if (firstLabel != null && secondLabel != null &&
-            !firstLabel.equals(secondLabel, ignoreCase = true)
-        ) return false
 
-        return true
+        // A concrete semantic identity cannot be carried through an OCR
+        // dropout. If either side has an identity, require both sides to have
+        // the same normalized identity; only anonymous observations may use
+        // kind/level as the fallback continuity key.
+        if (firstLabel == null || secondLabel == null) {
+            return firstLabel == null && secondLabel == null
+        }
+        return firstLabel.equals(secondLabel, ignoreCase = true)
     }
 
     private fun estimateScaleChange(
