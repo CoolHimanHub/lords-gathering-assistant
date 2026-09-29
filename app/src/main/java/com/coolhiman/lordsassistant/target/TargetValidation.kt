@@ -36,7 +36,7 @@ class TargetValidationEngine {
         expectedCoordinate: WorldCoordinate? = observation?.coordinate,
         expectedKind: TargetKind? = observation?.kind,
         expectedResource: com.coolhiman.lordsassistant.model.ResourceType? =
-            observation?.label?.let { runCatching { com.coolhiman.lordsassistant.model.ResourceType.valueOf(it) }.getOrNull() },
+            observation?.label?.let { runCatching { com.coolhiman.lordsassistant.model.ResourceType.valueOf(it.trim().uppercase()) }.getOrNull() },
         expectedLevel: Int? = observation?.level,
         interactionPointValid: Boolean = observation?.screenPoint != null,
         actionKind: ActionKind? = null
