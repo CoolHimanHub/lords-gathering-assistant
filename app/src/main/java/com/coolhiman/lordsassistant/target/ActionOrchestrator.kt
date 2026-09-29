@@ -5,6 +5,17 @@ import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.vision.MarchSignal
 import com.coolhiman.lordsassistant.vision.PopupState
 
+data class FinalDispatchContext(
+    val selected: ActionTargetSnapshot,
+    val latestObservation: MapObservation,
+    val latestValidation: TargetValidationResult,
+    val latestAction: ActionButton,
+    val attemptId: Long,
+    val recoveryEpoch: Long,
+    val captureSessionId: Long?,
+    val revalidatedAtMs: Long
+)
+
 class ActionOrchestrator(
     initialRecoveryEpoch: Long = 0L,
     private val lifecycle: ActionLifecycleController = ActionLifecycleController(),
@@ -200,7 +211,7 @@ class ActionOrchestrator(
         nowMs: Long,
         captureSessionId: Long? = null,
         automaticActionsEnabled: Boolean = false,
-        dispatch: () -> Boolean
+        dispatch: (FinalDispatchContext) -> Boolean
     ): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
@@ -256,7 +267,21 @@ class ActionOrchestrator(
             return Result(lifecycle.dispatched(nowMs, false), current)
         }
 
-        val next = lifecycle.dispatched(nowMs, dispatch())
+        val observation = latestObservation ?: return Result(lifecycle.dispatched(nowMs, false), current)
+        val validation = latestValidation ?: return Result(lifecycle.dispatched(nowMs, false), current)
+        val action = latestAction ?: return Result(lifecycle.dispatched(nowMs, false), current)
+        val revalidatedAt = revalidatedAtMs ?: return Result(lifecycle.dispatched(nowMs, false), current)
+        val context = FinalDispatchContext(
+            selected = selected,
+            latestObservation = observation,
+            latestValidation = validation,
+            latestAction = action,
+            attemptId = current.attemptId,
+            recoveryEpoch = current.recoveryEpoch,
+            captureSessionId = current.captureSessionId,
+            revalidatedAtMs = revalidatedAt
+        )
+        val next = lifecycle.dispatched(nowMs, dispatch(context))
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
         return Result(next, current)
     }
