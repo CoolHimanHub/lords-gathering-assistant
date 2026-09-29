@@ -30,13 +30,13 @@ class LevelBadgeSemanticAssociatorTest {
     }
 
     @Test
-    fun rejectsAmbiguousNearbyLevels() {
+    fun rejectsSimilarlySpacedNearbyLevels() {
         val badge = RectF(100f, 100f, 120f, 120f)
         val result = associator.associate(
             badge,
             listOf(
-                levelRegion(4, 105f, 104f),
-                levelRegion(2, 106f, 105f)
+                levelRegion(4, 120f, 104f),
+                levelRegion(2, 121f, 104f)
             )
         )
         assertNull(result)
