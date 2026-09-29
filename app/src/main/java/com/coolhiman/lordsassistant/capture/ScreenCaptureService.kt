@@ -363,6 +363,13 @@ class ScreenCaptureService : Service() {
         // "VirtualDisplay stopped" message.
         virtualDisplayReleaseExpected = true
         captureSessionActive = false
+        // Capture restart is a hard async boundary: invalidate the current
+        // frame token and OCR generation before releasing producer resources.
+        // Late ImageReader/ML Kit callbacks may still arrive, but they must
+        // recycle their old bitmap and never enter the new capture session.
+        processingToken.incrementAndGet()
+        busy.set(false)
+        if (::analyzer.isInitialized) analyzer.cancelInFlight("capture session stopped")
         if (::gridLearningController.isInitialized) gridLearningController.stop()
 
         reader?.setOnImageAvailableListener(null, null)
