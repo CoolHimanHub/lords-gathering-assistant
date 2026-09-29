@@ -154,12 +154,12 @@ class TemporalObservationTrackerTest {
         )
         val second = first.copy(
             coordinate = WorldCoordinate(355, 11, 21),
-            screenPoint = ScreenPoint(130f, 100f),
+            screenPoint = ScreenPoint(200f, 100f),
             label = "WOOD"
         )
         val ambiguous = first.copy(
             coordinate = WorldCoordinate(355, 12, 22),
-            screenPoint = ScreenPoint(114f, 100f),
+            screenPoint = ScreenPoint(145f, 100f),
             label = "WOOD"
         )
 
