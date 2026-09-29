@@ -93,7 +93,7 @@ class PostDispatchVerificationRecoveryIntegrationTest {
                 label = "WOOD",
                 coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 2.0),
                 evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
-                timestampMs = 3_000L
+                timestampMs = baseMs
             ),
             latestValidation = safeValidation(baseMs),
             latestAction = ActionButton(ActionKind.GATHER, ScreenPoint(500f, 400f), 1f)
