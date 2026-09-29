@@ -30,7 +30,8 @@ class PreActionRevalidatorTest {
 
     private fun validation() = TargetValidationResult(
         safe = true,
-        stage = TargetValidationStage.SAFE_TO_INTERACT
+        stage = TargetValidationStage.SAFE_TO_INTERACT,
+        validatedAtMs = System.currentTimeMillis()
     )
 
     private fun action() = ActionButton(
