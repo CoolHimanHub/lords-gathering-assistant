@@ -94,7 +94,7 @@ class PostActionEvidenceRecordTest {
             level = selected.level,
             screenPoint = selected.point,
             confidence = 1f,
-            occupied = true,
+            occupied = false,
             incomingTroops = false,
             label = "WOOD",
             coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 1.0),
@@ -116,8 +116,9 @@ class PostActionEvidenceRecordTest {
         orchestrator.revalidate(observation, validation, ActionButton(ActionKind.GATHER, selected.point, 1f), baseMs)
         orchestrator.dispatch(baseMs + 1L, automaticActionsEnabled = true) { true }
 
-        orchestrator.verifyPostAction(observation, popup, baseMs + 100L)
-        val repeated = orchestrator.verifyPostAction(observation, popup, baseMs + 200L)
+        val removed = observation.copy(coordinate = WorldCoordinate(355, 168, 511), timestampMs = baseMs + 100L)
+        orchestrator.verifyPostAction(removed, null, baseMs + 100L)
+        val repeated = orchestrator.verifyPostAction(removed, null, baseMs + 200L)
 
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, repeated.lifecycle.state)
         assertEquals(1, orchestrator.lastPostActionEvidence!!.confirmingFrames)
