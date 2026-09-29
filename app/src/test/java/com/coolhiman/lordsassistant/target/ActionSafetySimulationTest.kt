@@ -76,8 +76,8 @@ class ActionSafetySimulationTest {
 
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 1_000L)
         orchestrator.revalidate(
-            freshObservation(),
-            freshValidation(),
+            observation.copy(timestampMs = 3_000L),
+            safeValidation.copy(validatedAtMs = 3_000L),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f),
             nowMs = 3_000L
         )
@@ -106,7 +106,7 @@ class ActionSafetySimulationTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { _ ->
+        orchestrator.dispatch(3_001L, automaticActionsEnabled = true) { _ ->
             dispatches++
             true
         }
