@@ -53,19 +53,19 @@ class PostActionEvidenceRecordTest {
         val baseMs = System.currentTimeMillis()
         val currentObservation = observation.copy(timestampMs = baseMs)
         val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT, validatedAtMs = baseMs)
-        orchestrator.request(true, selected, validation, currentObservation, popup, emptyList(), baseMs)
-        orchestrator.revalidate(currentObservation, validation, ActionButton(ActionKind.GATHER, selected.point, 0.95f), nowMs = baseMs)
-        orchestrator.dispatch(baseMs + 1L, automaticActionsEnabled = true) { _ -> true }
+        orchestrator.request(true, selected, validation, currentObservation, popup, emptyList(), baseMs, captureSessionId = 601L)
+        orchestrator.revalidate(currentObservation, validation, ActionButton(ActionKind.GATHER, selected.point, 0.95f), nowMs = baseMs, captureSessionId = 601L)
+        orchestrator.dispatch(baseMs + 1L, captureSessionId = 601L, automaticActionsEnabled = true) { _ -> true }
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), baseMs + 100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), baseMs + 200L)
 
-        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 300L)
-        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 400L)
+        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 300L, captureSessionId = 601L)
+        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 400L, captureSessionId = 601L)
 
         val record = orchestrator.lastPostActionEvidence
         assertTrue(record != null)
         assertEquals(1L, record!!.attemptId)
-        assertEquals(null, record.captureSessionId)
+        assertEquals(601L, record.captureSessionId)
         assertTrue(PostActionEvidence.OWN_MARCH_CONFIRMED in record.evidence)
         assertTrue(PostActionEvidenceSource.MARCH_ASSOCIATION in record.sources)
         assertEquals(selected, record.selected)
