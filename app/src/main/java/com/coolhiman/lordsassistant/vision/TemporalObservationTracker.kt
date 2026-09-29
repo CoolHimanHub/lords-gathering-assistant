@@ -84,7 +84,11 @@ class TemporalObservationTracker(
                 if (consistent) {
                     old.hits = old.hits + 1
                 } else {
-                    old.hits = max(1, old.hits - 1)
+                    // A previously concrete semantic identity must not be
+                    // inherited through a frame where that identity is absent
+                    // or changed. The current frame needs a fresh confirmation
+                    // before the target can become temporally confirmed again.
+                    old.hits = 1
                 }
 
                 if (observation.occupied == false && observation.incomingTroops != true) {
@@ -160,11 +164,13 @@ class TemporalObservationTracker(
         val previousLabel = previous.label?.trim()?.takeIf { it.isNotEmpty() }
         val currentLabel = current.label?.trim()?.takeIf { it.isNotEmpty() }
 
-        // When both frames identify a concrete target label, require the
-        // identity to agree before re-associating a coordinate-drifted track.
-        // If either label is unavailable, retain kind+level continuity.
-        return previousLabel == null || currentLabel == null ||
-            previousLabel.equals(currentLabel, ignoreCase = true)
+        // Once a concrete identity exists, a missing label is not continuity
+        // evidence. Carrying it forward would let a stale semantic identity
+        // survive an OCR dropout and become action-eligible.
+        if (previousLabel == null || currentLabel == null) {
+            return previousLabel == null && currentLabel == null
+        }
+        return previousLabel.equals(currentLabel, ignoreCase = true)
     }
 
     fun reset() {
