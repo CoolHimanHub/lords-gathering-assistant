@@ -59,7 +59,7 @@ class ActionDispatchProvenanceTest {
             captureSessionId = 7001L,
             nowMs = 80_000L
         )
-        val provenance = ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7001L)
+        val provenance = ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7001L, targetSemanticIdentity = "WOOD")
 
         assertTrue(provenance.matches(result.session))
         assertFalse(ActionDispatchProvenance(2L, 12L, 80_001L).matches(result.session))
