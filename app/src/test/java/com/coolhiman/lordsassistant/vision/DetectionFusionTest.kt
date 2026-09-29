@@ -343,6 +343,58 @@ class DetectionFusionTest {
 
 
     @Test
+    fun ambiguousNearbyTargetLabelsDoNotBorrowEitherSemanticIdentity() {
+        val tile = DetectedTile(
+            "RESOURCE_BADGE", TileClass.RESOURCE, 4, RectF(100f, 100f, 130f, 130f), 0.9
+        )
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(tile), 1),
+            listOf(
+                TextRegion(
+                    RectF(130f, 100f, 160f, 125f),
+                    GameTextClassifier.classify("WOOD LV 4"),
+                    "WOOD LV 4"
+                ),
+                TextRegion(
+                    RectF(131f, 100f, 161f, 125f),
+                    GameTextClassifier.classify("STONE LV 4"),
+                    "STONE LV 4"
+                )
+            ),
+            emptyList()
+        )
+
+        assertEquals(TargetKind.RESOURCE, result.single().classification.kind)
+        assertNull(result.single().classification.resource)
+        assertEquals(4, result.single().classification.level)
+    }
+
+    @Test
+    fun clearlyNearestTargetLabelRemainsAssociated() {
+        val tile = DetectedTile(
+            "RESOURCE_BADGE", TileClass.RESOURCE, 4, RectF(100f, 100f, 130f, 130f), 0.9
+        )
+        val result = DetectionFusion().fuse(
+            DetectionFrame(listOf(tile), 1),
+            listOf(
+                TextRegion(
+                    RectF(132f, 100f, 162f, 125f),
+                    GameTextClassifier.classify("WOOD LV 4"),
+                    "WOOD LV 4"
+                ),
+                TextRegion(
+                    RectF(190f, 100f, 220f, 125f),
+                    GameTextClassifier.classify("STONE LV 4"),
+                    "STONE LV 4"
+                )
+            ),
+            emptyList()
+        )
+
+        assertEquals(com.coolhiman.lordsassistant.model.ResourceType.WOOD, result.single().classification.resource)
+    }
+
+    @Test
     fun nearbyStructureLabelDoesNotOverrideResourceBadgeWhenTooFar() {
         val tile = DetectedTile(
             "RESOURCE_BADGE", TileClass.RESOURCE, 4, RectF(100f, 100f, 130f, 130f), 0.9
