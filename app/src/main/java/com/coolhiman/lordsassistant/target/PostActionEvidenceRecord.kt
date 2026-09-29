@@ -22,6 +22,8 @@ enum class PostActionEvidenceSource {
 data class PostActionEvidenceRecord(
     val attemptId: Long,
     val recoveryEpoch: Long = 0L,
+    /** Capture session that produced the dispatched action. */
+    val captureSessionId: Long? = null,
     val evidence: Set<PostActionEvidence>,
     val sources: Set<PostActionEvidenceSource>,
     val selected: ActionTargetSnapshot,
