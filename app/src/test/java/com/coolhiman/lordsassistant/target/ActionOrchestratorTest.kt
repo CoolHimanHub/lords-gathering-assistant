@@ -264,8 +264,8 @@ class ActionOrchestratorTest {
             captureSessionId = 401L
         )
         orchestrator.revalidate(
-            latestObservation = observation,
-            latestValidation = safeValidation,
+            latestObservation = observation.copy(timestampMs = 83_000L),
+            latestValidation = safeValidation.copy(validatedAtMs = 83_000L),
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
             nowMs = 83_000L,
             captureSessionId = 401L
@@ -332,8 +332,8 @@ class ActionOrchestratorTest {
             captureSessionId = 501L
         )
         orchestrator.revalidate(
-            latestObservation = observation,
-            latestValidation = safeValidation,
+            latestObservation = observation.copy(timestampMs = 84_000L),
+            latestValidation = safeValidation.copy(validatedAtMs = 84_000L),
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
             nowMs = 84_000L,
             captureSessionId = 501L
