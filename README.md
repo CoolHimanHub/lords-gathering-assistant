@@ -1,3 +1,15 @@
+## V2.6.0 — Safety, provenance & sustained-device readiness
+
+The V2.6 line completes the guarded action boundary and adds the diagnostics needed for real-device validation.
+
+- Current-frame action candidates retain stable world/action identity and planner ordering.
+- Pre-action revalidation requires current semantic identity, authoritative coordinates, temporal confirmation, explicit occupancy state, valid interaction-point geometry, and fresh validation evidence.
+- Action attempts and recovery epochs are durably separated from the in-flight journal and remain fail-closed across restart/recovery boundaries.
+- Post-action evidence is bound to the exact attempt and recovery epoch, including march trajectory provenance and multi-frame confirmation.
+- Capture runtime now reports session identity, restarts, stalls, viewport changes, memory pressure, FPS, processing latency, stale frames, and candidate-rejection trends for sustained device testing.
+- The Android release metadata is aligned to **2.6.0 (versionCode 260)**.
+- Automatic Gather/Hunt actions remain disabled by default and diagnostics never authorize a gesture.
+
 
 ## V2.2.0 — Active map-grid learning
 
