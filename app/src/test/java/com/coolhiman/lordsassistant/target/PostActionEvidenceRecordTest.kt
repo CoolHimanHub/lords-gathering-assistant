@@ -60,7 +60,7 @@ class PostActionEvidenceRecordTest {
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), baseMs + 200L)
 
         orchestrator.verifyPostAction(currentObservation, popup, baseMs + 300L, captureSessionId = 601L)
-        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 400L, captureSessionId = 601L)
+        orchestrator.verifyPostAction(currentObservation.copy(timestampMs = baseMs + 350L), popup, baseMs + 400L, captureSessionId = 601L)
 
         val record = orchestrator.lastPostActionEvidence
         assertTrue(record != null)
@@ -80,5 +80,79 @@ class PostActionEvidenceRecordTest {
         assertEquals(0f, record.marchTrajectoryEvidence.directionY, 0.01f)
         assertEquals(2, record.marchTrajectoryEvidence.confirmingFrames)
         assertTrue(record.marchTrajectoryEvidence.cameraStable)
+
+    }
+
+    @Test
+    fun duplicatePostActionFrameCannotSatisfyConfirmation() {
+        val orchestrator = ActionOrchestrator()
+        val baseMs = System.currentTimeMillis()
+        val observation = MapObservation(
+            coordinate = selected.coordinate,
+            kind = selected.kind,
+            level = selected.level,
+            screenPoint = selected.point,
+            confidence = 1f,
+            occupied = true,
+            incomingTroops = false,
+            label = "WOOD",
+            coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 1.0),
+            evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
+            timestampMs = baseMs
+        )
+        val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT, validatedAtMs = baseMs)
+        val popup = PopupState(
+            kind = TargetKind.RESOURCE,
+            resource = ResourceType.WOOD,
+            level = 3,
+            quantity = 100L,
+            occupied = false,
+            incomingTroops = false,
+            coordinate = selected.coordinate,
+            isPopup = true
+        )
+        orchestrator.request(true, selected, validation, observation, popup, emptyList(), baseMs)
+        orchestrator.revalidate(observation, validation, ActionButton(ActionKind.GATHER, selected.point, 1f), baseMs)
+        orchestrator.dispatch(baseMs + 1L, automaticActionsEnabled = true) { true }
+
+        orchestrator.verifyPostAction(observation, popup, baseMs + 100L)
+        val repeated = orchestrator.verifyPostAction(observation, popup, baseMs + 200L)
+
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, repeated.lifecycle.state)
+        assertEquals(1, repeated.lifecycle.let { orchestrator.lastPostActionEvidence?.confirmingFrames })
+    }
+
+    @Test
+    fun changedSemanticIdentityCannotCountAsSamePostActionTarget() {
+        val before = MapObservation(
+            coordinate = selected.coordinate,
+            kind = selected.kind,
+            level = selected.level,
+            screenPoint = selected.point,
+            confidence = 1f,
+            occupied = false,
+            incomingTroops = false,
+            label = "WOOD",
+            coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 1.0),
+            evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
+            timestampMs = 1L
+        )
+        val afterDifferentResource = before.copy(
+            label = "STONE",
+            occupied = true,
+            timestampMs = 2L
+        )
+        val evidence = PostActionStateVerifier.collectEvidence(
+            selected = selected,
+            before = before,
+            after = afterDifferentResource,
+            popupBefore = null,
+            popupAfter = null
+        )
+
+        assertTrue(PostActionEvidence.TARGET_OCCUPIED !in evidence)
+        assertTrue(PostActionEvidence.TARGET_REMOVED !in evidence)
+        assertFalse(PostActionStateVerifier.isSameTarget(afterDifferentResource, selected))
     }
 }
+
