@@ -267,6 +267,7 @@ class ActionOrchestratorTest {
             latestObservation = observation,
             latestValidation = safeValidation,
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            nowMs = 83_000L,
             captureSessionId = 401L
         )
         orchestrator.dispatch(
@@ -334,6 +335,7 @@ class ActionOrchestratorTest {
             latestObservation = observation,
             latestValidation = safeValidation,
             latestAction = ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            nowMs = 84_000L,
             captureSessionId = 501L
         )
         orchestrator.dispatch(
