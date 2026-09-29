@@ -112,7 +112,12 @@ class TemporalObservationTracker(
                 val acceptFreeTransition = !wasOccupied ||
                     old.freeHits >= confirmHits
 
-                val candidate = if (observation.occupied == false && observation.incomingTroops != true &&
+                val candidate = if (!consistent) {
+                    // A semantic mismatch is a hard identity boundary. Do not
+                    // let confidence-based state continuity reintroduce the
+                    // previous label into the current frame.
+                    observation
+                } else if (observation.occupied == false && observation.incomingTroops != true &&
                     !acceptFreeTransition) {
                     old.observation.copy(
                         confidence = max(old.observation.confidence, observation.confidence),
@@ -123,10 +128,9 @@ class TemporalObservationTracker(
                 } else if (observation.confidence >= old.observation.confidence) {
                     observation
                 } else {
-                    // State continuity may keep the older semantic observation,
-                    // but coordinate provenance is always frame-local. Never
-                    // carry OBSERVED authority into a later calibrated/unknown
-                    // frame merely because the world identity stayed equal.
+                    // State continuity may keep the older semantic observation
+                    // only when semantic identity is already consistent.
+                    // Coordinate provenance is always frame-local.
                     old.observation.copy(
                         screenPoint = observation.screenPoint,
                         timestampMs = observation.timestampMs,
