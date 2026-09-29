@@ -5,6 +5,8 @@ import com.coolhiman.lordsassistant.model.ObservationEvidence
 import com.coolhiman.lordsassistant.vision.MarchSignal
 import com.coolhiman.lordsassistant.vision.PopupState
 
+private object FinalDispatchCapability
+
 data class FinalDispatchContext(
     val selected: ActionTargetSnapshot,
     val latestObservation: MapObservation,
@@ -13,8 +15,16 @@ data class FinalDispatchContext(
     val attemptId: Long,
     val recoveryEpoch: Long,
     val captureSessionId: Long?,
-    val revalidatedAtMs: Long
-)
+    val revalidatedAtMs: Long,
+    internal val capability: Any
+) {
+    /**
+     * Only ActionOrchestrator can mint the private capability instance.
+     * Accessibility therefore cannot be entered with a caller-fabricated
+     * context that merely contains a safe-looking validation result.
+     */
+    internal fun isGuardedDispatch(): Boolean = capability === FinalDispatchCapability
+}
 
 class ActionOrchestrator(
     initialRecoveryEpoch: Long = 0L,
@@ -283,7 +293,8 @@ class ActionOrchestrator(
             attemptId = current.attemptId,
             recoveryEpoch = current.recoveryEpoch,
             captureSessionId = current.captureSessionId,
-            revalidatedAtMs = revalidatedAt
+            revalidatedAtMs = revalidatedAt,
+            capability = FinalDispatchCapability
         )
         val next = lifecycle.dispatched(nowMs, dispatch(context))
         postActionStartedAtMs = if (next.state == ActionLifecycleState.WAITING_FOR_RESULT) nowMs else null
