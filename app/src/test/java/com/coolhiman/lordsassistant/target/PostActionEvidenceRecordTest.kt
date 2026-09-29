@@ -55,7 +55,7 @@ class PostActionEvidenceRecordTest {
         val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT, validatedAtMs = baseMs)
         orchestrator.request(true, selected, validation, currentObservation, popup, emptyList(), baseMs)
         orchestrator.revalidate(currentObservation, validation, ActionButton(ActionKind.GATHER, selected.point, 0.95f), nowMs = baseMs)
-        orchestrator.dispatch(baseMs + 1L), automaticActionsEnabled = true { _ -> true }
+        orchestrator.dispatch(baseMs + 1L, automaticActionsEnabled = true) { _ -> true }
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), baseMs + 100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), baseMs + 200L)
 
