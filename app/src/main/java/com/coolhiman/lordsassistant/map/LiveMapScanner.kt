@@ -175,9 +175,14 @@ class LiveMapScanner(context: Context) {
         val cameraModelContinuityValid = fittedCameraModel == null ||
             cameraModelStabilityTracker.update(fittedCameraModel)
 
-        // Only a validated camera model may trigger a second coordinate pass.
-        // Planning/action safety still requires CameraState.STABLE below.
-        if (fittedCameraModel?.isUsable() == true) {
+        // Only a camera model that has also established frame-to-frame
+        // continuity may drive the second coordinate pass. A mathematically
+        // usable model can still be a first-frame baseline or an incorrect
+        // anchor fit; consuming it early could poison world coordinates and
+        // durable map memory even though action authority remains gated below.
+        // The first pass remains the authoritative fallback until continuity
+        // is established.
+        if (fittedCameraModel?.isUsable() == true && cameraModelContinuityValid) {
             result = analyze(fittedCameraModel)
             observations = result.fused.map(::mapObservation)
         }
