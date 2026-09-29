@@ -60,7 +60,7 @@ object PreActionRevalidator {
         val latestPoint = latestAction?.point
 
         val observationAgeMs = latestObservation?.timestampMs?.let { nowMs - it }
-        if (observationAgeMs == null || observationAgeMs > MAX_OBSERVATION_AGE_MS) {
+        if (observationAgeMs == null || observationAgeMs < 0L || observationAgeMs > MAX_OBSERVATION_AGE_MS) {
             reasons += TargetBlockReason.STATE_UNKNOWN
         }
 
