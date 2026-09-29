@@ -18,6 +18,7 @@ import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.target.InteractionGate
 import com.coolhiman.lordsassistant.target.FinalDispatchContext
+import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.target.PreActionRevalidator
 
 class LmAccessibilityService : AccessibilityService() {
