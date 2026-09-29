@@ -48,7 +48,12 @@ object PostActionStateVerifier {
             if (after.occupied == true || after.incomingTroops == true) {
                 evidence += PostActionEvidence.TARGET_OCCUPIED
             }
-        } else if (beforeMatchesTarget) {
+        } else if (beforeMatchesTarget && (
+                after == null ||
+                    after.coordinate != selected.coordinate ||
+                    after.kind != selected.kind ||
+                    after.level != selected.level
+            )) {
             evidence += PostActionEvidence.TARGET_REMOVED
         }
 
