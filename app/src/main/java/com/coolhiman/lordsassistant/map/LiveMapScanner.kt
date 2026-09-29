@@ -249,14 +249,14 @@ class LiveMapScanner(context: Context) {
         val resourceCandidate = plan.ranked.firstOrNull()
         val monsterCandidate = plan.rankedMonsters.firstOrNull()
         val plannedCandidate = resourceCandidate?.let { ranked ->
-            snapshot.firstOrNull {
-                it.coordinate == ranked.tile.coordinate &&
-                    it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE
+            planningObservations.firstOrNull {
+                it.kind == com.coolhiman.lordsassistant.model.TargetKind.RESOURCE &&
+                    com.coolhiman.lordsassistant.target.ActionPlannerMatch.matchesResource(it, ranked)
             }
         } ?: monsterCandidate?.let { ranked ->
-            snapshot.firstOrNull {
-                it.coordinate == ranked.target.coordinate &&
-                    it.kind == com.coolhiman.lordsassistant.model.TargetKind.MONSTER
+            planningObservations.firstOrNull {
+                it.kind == com.coolhiman.lordsassistant.model.TargetKind.MONSTER &&
+                    com.coolhiman.lordsassistant.target.ActionPlannerMatch.matchesMonster(it, ranked)
             }
         }
 
@@ -266,7 +266,8 @@ class LiveMapScanner(context: Context) {
             stateAware.firstOrNull {
                 it.coordinate == planned.coordinate &&
                     it.kind == planned.kind &&
-                    it.level == planned.level
+                    it.level == planned.level &&
+                    com.coolhiman.lordsassistant.target.ActionPlannerMatch.sameSemanticIdentity(it, planned)
             }
         }
         // A camera discontinuity invalidates every per-target temporal tracker, including targets that were absent while the camera was unstable.
@@ -437,13 +438,17 @@ class LiveMapScanner(context: Context) {
         when (observation.kind) {
             com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> {
                 val index = plan.ranked.indexOfFirst {
-                    it.tile.coordinate == coordinate && it.tile.level == level
+                    it.tile.coordinate == coordinate &&
+                        it.tile.level == level &&
+                        com.coolhiman.lordsassistant.target.ActionPlannerMatch.matchesResource(observation, it)
                 }
                 if (index >= 0) return index to plan.ranked[index].score
             }
             com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> {
                 val index = plan.rankedMonsters.indexOfFirst {
-                    it.target.coordinate == coordinate && it.target.level == level
+                    it.target.coordinate == coordinate &&
+                        it.target.level == level &&
+                        com.coolhiman.lordsassistant.target.ActionPlannerMatch.matchesMonster(observation, it)
                 }
                 if (index >= 0) {
                     return (plan.ranked.size + index) to plan.rankedMonsters[index].score
