@@ -49,7 +49,8 @@ object PreActionRevalidator {
             return TargetValidationResult(
                 false,
                 TargetValidationStage.DETECTED,
-                setOf(TargetBlockReason.NO_TARGET)
+                setOf(TargetBlockReason.NO_TARGET),
+                validatedAtMs = nowMs
             )
         }
 
@@ -134,13 +135,15 @@ object PreActionRevalidator {
         ) {
             TargetValidationResult(
                 true,
-                TargetValidationStage.SAFE_TO_INTERACT
+                TargetValidationStage.SAFE_TO_INTERACT,
+                validatedAtMs = nowMs
             )
         } else {
             TargetValidationResult(
                 false,
                 latestValidation.stage,
-                reasons
+                reasons,
+                validatedAtMs = nowMs
             )
         }
     }
