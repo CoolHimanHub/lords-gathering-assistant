@@ -9,8 +9,8 @@ import android.content.Context
  * cannot turn an unknown in-flight gesture into an automatic retry. It is cleared
  * only after a definitive dispatch failure or verified/manual recovery.
  *
- * The stored attempt ID, recovery epoch, and originating capture session form
- * the durable provenance boundary for the guarded gesture.
+ * The stored attempt ID, recovery epoch, capture session, and target semantic identity
+ * form the durable provenance boundary for the guarded gesture.
  */
 class ActionExecutionJournal(context: Context) {
     private val prefs = context.getSharedPreferences("lm_action_journal", Context.MODE_PRIVATE)
@@ -20,7 +20,8 @@ class ActionExecutionJournal(context: Context) {
         val recoveryEpoch: Long,
         val recoveryEpochPersisted: Boolean,
         val startedAtMs: Long,
-        val captureSessionId: Long?
+        val captureSessionId: Long?,
+        val targetSemanticIdentity: String?
     )
 
     fun markInFlight(provenance: ActionDispatchProvenance): Boolean =
@@ -30,6 +31,11 @@ class ActionExecutionJournal(context: Context) {
             .putLong(KEY_RECOVERY_EPOCH, provenance.recoveryEpoch)
             .putLong(KEY_STARTED_AT, provenance.startedAtMs)
             .apply {
+                if (provenance.targetSemanticIdentity != null) {
+                    putString(KEY_TARGET_SEMANTIC_IDENTITY, provenance.targetSemanticIdentity)
+                } else {
+                    remove(KEY_TARGET_SEMANTIC_IDENTITY)
+                }
                 if (provenance.captureSessionId != null) {
                     putLong(KEY_CAPTURE_SESSION_ID, provenance.captureSessionId)
                 } else {
@@ -52,7 +58,10 @@ class ActionExecutionJournal(context: Context) {
                 startedAtMs = prefs.getLong(KEY_STARTED_AT, 0L),
                 captureSessionId = prefs.takeIf { it.contains(KEY_CAPTURE_SESSION_ID) }
                     ?.getLong(KEY_CAPTURE_SESSION_ID, 0L)
-                    ?.takeIf { it > 0L }
+                    ?.takeIf { it > 0L },
+                targetSemanticIdentity = prefs.getString(KEY_TARGET_SEMANTIC_IDENTITY, null)
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
             )
         } else null
 
@@ -65,5 +74,6 @@ class ActionExecutionJournal(context: Context) {
         private const val KEY_RECOVERY_EPOCH = "recovery_epoch"
         private const val KEY_STARTED_AT = "started_at"
         private const val KEY_CAPTURE_SESSION_ID = "capture_session_id"
+        private const val KEY_TARGET_SEMANTIC_IDENTITY = "target_semantic_identity"
     }
 }
