@@ -86,6 +86,41 @@ class LiveActionCandidatePolicyTest {
     }
 
     @Test
+    fun blankSemanticIdentityCannotCrossSchedulerBoundary() {
+        val blank = candidate.copy(
+            target = candidate.target.copy(semanticIdentity = "   ")
+        )
+
+        assertFalse(LiveActionCandidatePolicy.isSchedulerEligible(blank))
+        assertEquals(
+            LiveActionCandidateRejectionReason.SEMANTIC_IDENTITY_INVALID,
+            LiveActionCandidatePolicy.rejectionReason(blank)
+        )
+    }
+
+    @Test
+    fun genericMonsterIdentityIsExplicitlyRejected() {
+        val generic = candidate.copy(
+            target = candidate.target.copy(
+                kind = TargetKind.MONSTER,
+                actionKind = ActionKind.HUNT,
+                semanticIdentity = "MONSTER"
+            ),
+            observation = observation.copy(
+                kind = TargetKind.MONSTER,
+                label = "MONSTER"
+            ),
+            actionButton = candidate.actionButton.copy(kind = ActionKind.HUNT)
+        )
+
+        assertFalse(LiveActionCandidatePolicy.isSchedulerEligible(generic))
+        assertEquals(
+            LiveActionCandidateRejectionReason.SEMANTIC_IDENTITY_INVALID,
+            LiveActionCandidatePolicy.rejectionReason(generic)
+        )
+    }
+
+    @Test
     fun unrankedCandidateIsDiagnosticOnly() {
         assertFalse(
             LiveActionCandidatePolicy.isSchedulerEligible(
