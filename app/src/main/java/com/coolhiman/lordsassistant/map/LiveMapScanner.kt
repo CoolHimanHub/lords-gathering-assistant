@@ -477,7 +477,8 @@ class LiveMapScanner(context: Context) {
         cameraAnchorTracker.reset()
         cameraModelStabilityTracker.reset()
         targetStabilityTracker.reset()
-        targetStabilityTrackers.clear()
+        targetStabilityRegistry.resetForCameraBoundary()
+        previousCameraState = null
     }
 
     private fun reloadTemplates() {
