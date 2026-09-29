@@ -17,7 +17,9 @@ data class ActionDispatchProvenance(
      * Nullable for compatibility with pre-V0.10 provenance, but live
      * dispatches should always populate it.
      */
-    val captureSessionId: Long? = null
+    val captureSessionId: Long? = null,
+    /** Canonical semantic identity bound to the guarded target. */
+    val targetSemanticIdentity: String? = null
 ) {
     fun matches(session: ActionOrchestrator.Session?): Boolean =
         session != null &&
@@ -26,5 +28,9 @@ data class ActionDispatchProvenance(
             when {
                 session.captureSessionId == null -> captureSessionId == null
                 else -> captureSessionId == session.captureSessionId
+            } &&
+            when {
+                session.selected.semanticIdentity == null -> targetSemanticIdentity == null
+                else -> targetSemanticIdentity?.trim()?.equals(session.selected.semanticIdentity.trim(), ignoreCase = true) == true
             }
 }
