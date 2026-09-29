@@ -1,3 +1,15 @@
+## V2.7.0 — Canonical semantic identity boundary
+
+V2.7 closes the remaining scheduler admission gap around target semantics.
+
+- Resource action candidates must carry a canonical ResourceType identity before entering the scheduler.
+- Generic MONSTER labels are rejected as insufficient identity for Hunt actions; concrete monster labels remain required.
+- Blank/whitespace semantic identities are explicitly rejected and audited as SEMANTIC_IDENTITY_INVALID.
+- The final pre-action revalidator also treats semantic identity drift as concrete target change, preserving fail-closed behavior.
+- CI verifies the semantic-admission regression and the full Android debug APK build.
+- Android release metadata is aligned to 2.7.0 (versionCode 270).
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ## V2.6.0 — Safety, provenance & sustained-device readiness
 
 The V2.6 line completes the guarded action boundary and adds the diagnostics needed for real-device validation.
