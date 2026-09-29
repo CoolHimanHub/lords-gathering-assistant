@@ -108,31 +108,22 @@ class LiveMapScanner(context: Context) {
     ): LiveMapScanResult {
         val started = System.currentTimeMillis()
         if (!viewportGuard.accept(bitmap.width, bitmap.height)) {
-            // A viewport discontinuity invalidates screen-space continuity.
-            // Quarantine all frame-to-frame camera/temporal state so the next
-            // accepted frame cannot inherit stale anchor positions.
+            // A viewport discontinuity is a hard screen-space evidence boundary.
+            // Do not carry temporal target/march evidence or camera geometry across
+            // it. Re-baseline the guard to the new dimensions and process this
+            // frame as the first frame of the new viewport; action continuity will
+            // remain false until subsequent frames establish it again.
+            viewportGuard.reset()
+            check(viewportGuard.accept(bitmap.width, bitmap.height)) {
+                "ViewportGuard rejected its own fresh dimensions"
+            }
+            tracker.reset()
+            marchTracker.clear()
             cameraAnchorTracker.reset()
             cameraModelStabilityTracker.reset()
             cameraStateTracker.reset()
             targetStabilityTracker.reset()
             targetStabilityTrackers.clear()
-
-            val snapshot = mapMemory.snapshot()
-            return LiveMapScanResult(
-                observations = snapshot,
-                frameObservations = emptyList(),
-                plan = TargetPlan(snapshot, emptyList()),
-                detectedTiles = 0,
-                templateCount = templates.size,
-                semanticTargetDetections = 0,
-                badgeDetections = 0,
-                openCvReady = false,
-                openCvDiagnostic = OpenCvRuntime.diagnostic(),
-                actionButtonDetections = 0,
-                processingMs = System.currentTimeMillis() - started,
-                origin = null,
-                cameraState = CameraState.UNSTABLE
-            )
         }
         val kingdom = ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
         val resolver = CoordinateResolver(calibrationStore, kingdom)
