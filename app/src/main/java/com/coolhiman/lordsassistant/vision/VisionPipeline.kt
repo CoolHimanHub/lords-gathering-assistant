@@ -45,12 +45,7 @@ class VisionPipeline(
         if (detection.tiles.none { it.source == DetectionSource.LEVEL_BADGE } || textRegions.isEmpty()) return detection
         val enriched = detection.tiles.map { tile ->
             if (tile.source != DetectionSource.LEVEL_BADGE || tile.level != null) return@map tile
-            val level = textRegions.asSequence()
-                .filter { it.classification.level in 1..5 }
-                .map { it.classification.level!! to distance(tile.bounds, it.bounds) }
-                .filter { it.second <= 55f }
-                .minByOrNull { it.second }
-                ?.first
+            val level = LevelBadgeSemanticAssociator().associate(tile.bounds, textRegions)
             tile.copy(level = level)
         }
         return detection.copy(tiles = enriched)
