@@ -30,7 +30,8 @@ data class FusionCandidate(
 
 class DetectionFusion(
     private val maxTextDistancePx: Float = 180f,
-    private val maxMarchDistancePx: Float = 75f
+    private val maxMarchDistancePx: Float = 75f,
+    private val maxTextNearestToSecondRatio: Float = 0.72f
 ) {
     fun fuse(
         frame: DetectionFrame,
@@ -210,10 +211,24 @@ class DetectionFusion(
                         region.classification.monsterName != null
                 }
             }
-            .minByOrNull { it.second }
+            .sortedBy { it.second }
 
-        if (compatible != null) return compatible.first
+        val nearest = compatible.firstOrNull() ?: return selectIgnoredTextForTile(tile, textRegions)
+        val second = compatible.getOrNull(1)
 
+        // Multiple semantically compatible OCR regions at nearly the same
+        // distance are not safe to resolve by nearest-neighbour alone.
+        // Returning null preserves the tile's detector semantics instead of
+        // silently borrowing another target's label.
+        if (second != null) {
+            if (second.second <= 0f) return null
+            if (nearest.second / second.second > maxTextNearestToSecondRatio) return null
+        }
+
+        return nearest.first
+    }
+
+    private fun selectIgnoredTextForTile(tile: DetectedTile, textRegions: List<TextRegion>): TextRegion? {
         // Structure/UI labels may be very close to a badge, but must never
         // override target semantics at the broader OCR association radius.
         return textRegions
