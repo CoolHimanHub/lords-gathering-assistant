@@ -182,6 +182,38 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun finalDispatchContextCannotBeForgedIntoAccessibilityBoundary() {
+        val target = target()
+        val now = System.currentTimeMillis()
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidationAt(now),
+            beforeObservation = observationAt(target, now),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = now
+        )
+        orchestrator.revalidate(
+            latestObservation = observationAt(target, now),
+            latestValidation = safeValidationAt(now),
+            latestAction = action(target.point),
+            nowMs = now
+        )
+
+        var received: FinalDispatchContext? = null
+        orchestrator.dispatch(now + 1L, automaticActionsEnabled = true) {
+            received = it
+            true
+        }
+
+        val context = received ?: error("dispatch context missing")
+        assertTrue(context.isGuardedDispatch())
+        assertFalse(context.copy(capability = Any()).isGuardedDispatch())
+    }
+
+    @Test
     fun automationDisabledAfterRevalidationBlocksFinalGesture() {
         val target = target()
         val orchestrator = ActionOrchestrator()
