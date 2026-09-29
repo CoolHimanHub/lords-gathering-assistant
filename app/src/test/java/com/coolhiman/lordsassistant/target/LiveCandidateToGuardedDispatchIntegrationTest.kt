@@ -45,7 +45,8 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         orchestrator.revalidate(
             latestObservation = observation(target),
             latestValidation = safeValidation(),
-            latestAction = action(target.point)
+            latestAction = action(target.point),
+            nowMs = 10_000L
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
