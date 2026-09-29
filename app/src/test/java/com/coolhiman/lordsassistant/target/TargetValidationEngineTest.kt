@@ -72,6 +72,35 @@ class TargetValidationEngineTest {
         assertTrue(TargetBlockReason.POPUP_KIND_MISMATCH in r.reasons)
     }
 
+    @Test
+    fun resourceIdentityNormalizationPreservesPopupResourceCheck() {
+        val lowerCase = observation().copy(label = "wood")
+        val result = engine.validate(
+            observation = lowerCase,
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = popup(),
+            interactionPointValid = true,
+            actionKind = ActionKind.GATHER
+        )
+        assertTrue(result.safe)
+    }
+
+    @Test
+    fun normalizedResourceIdentityStillRejectsPopupMismatch() {
+        val lowerCase = observation().copy(label = "wood")
+        val result = engine.validate(
+            observation = lowerCase,
+            cameraStable = true,
+            calibrationValid = true,
+            popupState = popup().copy(resource = ResourceType.STONE),
+            interactionPointValid = true,
+            actionKind = ActionKind.GATHER
+        )
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.POPUP_RESOURCE_MISMATCH in result.reasons)
+    }
+
     @Test fun popupResourceMismatchBlocksInteraction() {
         val r = engine.validate(observation(), true, true, popup().copy(resource = com.coolhiman.lordsassistant.model.ResourceType.STONE))
         assertFalse(r.safe)
