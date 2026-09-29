@@ -39,6 +39,7 @@ class ActionOrchestrator(
     private var lastRevalidatedObservation: MapObservation? = null
     private var lastRevalidatedValidation: TargetValidationResult? = null
     private var lastRevalidatedAction: ActionButton? = null
+    private var lastRevalidatedAtMs: Long? = null
 
     val currentRecoveryEpoch: Long get() = recoveryEpoch
     val currentCaptureSessionId: Long? get() = activeCaptureSessionId
@@ -50,6 +51,7 @@ class ActionOrchestrator(
     companion object {
         const val POST_ACTION_TIMEOUT_MS = 4_000L
         const val POST_ACTION_CONFIRMATION_FRAMES = 2
+        const val FINAL_DISPATCH_MAX_DELAY_MS = 1_500L
     }
 
     /**
@@ -190,6 +192,7 @@ class ActionOrchestrator(
         lastRevalidatedObservation = latestObservation
         lastRevalidatedValidation = latestValidation
         lastRevalidatedAction = latestAction
+        lastRevalidatedAtMs = nowMs
         return Result(lifecycle.revalidated(revalidation), current)
     }
 
@@ -226,6 +229,19 @@ class ActionOrchestrator(
         val latestObservation = lastRevalidatedObservation
         val latestValidation = lastRevalidatedValidation
         val latestAction = lastRevalidatedAction
+        val revalidatedAtMs = lastRevalidatedAtMs
+        // Revalidate the same evidence at the time it was actually observed,
+        // then separately bound the time-of-check -> time-of-use interval.
+        // Re-aging the identical frame against the later gesture timestamp
+        // would reject otherwise valid evidence merely because the dispatch
+        // call itself took time.
+        if (revalidatedAtMs == null ||
+            revalidatedAtMs < 0L ||
+            nowMs < revalidatedAtMs ||
+            nowMs - revalidatedAtMs > FINAL_DISPATCH_MAX_DELAY_MS
+        ) {
+            return Result(lifecycle.dispatched(nowMs, false), current)
+        }
         val finalValidation = PreActionRevalidator.revalidate(
             selected = selected,
             latestObservation = latestObservation,
@@ -234,7 +250,7 @@ class ActionOrchestrator(
                 stage = TargetValidationStage.DETECTED
             ),
             latestAction = latestAction,
-            nowMs = nowMs
+            nowMs = revalidatedAtMs
         )
         if (!InteractionGate.allow(finalValidation, latestAction?.point)) {
             return Result(lifecycle.dispatched(nowMs, false), current)
@@ -366,6 +382,7 @@ class ActionOrchestrator(
         lastRevalidatedObservation = null
         lastRevalidatedValidation = null
         lastRevalidatedAction = null
+        lastRevalidatedAtMs = null
     }
 
     /**
