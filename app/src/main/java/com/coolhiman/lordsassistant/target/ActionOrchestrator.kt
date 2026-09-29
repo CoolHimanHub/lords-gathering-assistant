@@ -333,6 +333,7 @@ class ActionOrchestrator(
         lastPostActionEvidence = PostActionEvidenceRecord(
             attemptId = current.attemptId,
             recoveryEpoch = current.recoveryEpoch,
+            captureSessionId = current.captureSessionId,
             evidence = evidence.toSet(),
             sources = sources.toSet(),
             selected = selected,
