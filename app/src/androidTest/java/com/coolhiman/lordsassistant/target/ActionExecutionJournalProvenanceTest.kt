@@ -22,7 +22,8 @@ class ActionExecutionJournalProvenanceTest {
                 attemptId = 41L,
                 recoveryEpoch = 12L,
                 startedAtMs = 9000L,
-                captureSessionId = 77L
+                captureSessionId = 77L,
+                targetSemanticIdentity = "WOOD"
             )
         )
 
@@ -33,6 +34,7 @@ class ActionExecutionJournalProvenanceTest {
         assertTrue(entry?.recoveryEpochPersisted == true)
         assertEquals(9000L, entry?.startedAtMs)
         assertEquals(77L, entry?.captureSessionId)
+        assertEquals("WOOD", entry?.targetSemanticIdentity)
 
         journal.clear()
     }
