@@ -17,11 +17,8 @@ import android.os.IBinder
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.overlay.OverlayService
 import com.coolhiman.lordsassistant.target.InteractionGate
-import com.coolhiman.lordsassistant.target.TargetValidationResult
-import com.coolhiman.lordsassistant.target.ActionButton
-import com.coolhiman.lordsassistant.target.ActionTargetSnapshot
+import com.coolhiman.lordsassistant.target.FinalDispatchContext
 import com.coolhiman.lordsassistant.target.PreActionRevalidator
-import com.coolhiman.lordsassistant.model.MapObservation
 
 class LmAccessibilityService : AccessibilityService() {
     companion object { @Volatile var instance: LmAccessibilityService? = null }
@@ -218,24 +215,33 @@ class LmAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Revalidates the selected target against the latest scan before allowing
-     * a gesture. This is intentionally a separate entry point so future
-     * automation cannot accidentally bypass the stale-target check.
+     * Final gesture boundary. The context must have been minted by the
+     * ActionOrchestrator after automation, lifecycle, provenance, journal,
+     * freshness and final validation gates have all passed.
+     *
+     * This method is internal so callers outside the app module cannot treat
+     * AccessibilityService as a general-purpose tap API. The private
+     * capability inside FinalDispatchContext also rejects fabricated contexts.
      */
-    fun tapRevalidated(
-        selected: ActionTargetSnapshot,
-        latestObservation: MapObservation?,
-        latestValidation: TargetValidationResult,
-        latestAction: ActionButton?
+    internal fun dispatchFinal(
+        context: FinalDispatchContext,
+        nowMs: Long = System.currentTimeMillis()
     ): Boolean {
+        if (!context.isGuardedDispatch()) return false
+        if (nowMs < context.revalidatedAtMs ||
+            nowMs - context.revalidatedAtMs > 1_500L
+        ) return false
+
         val validation = PreActionRevalidator.revalidate(
-            selected = selected,
-            latestObservation = latestObservation,
-            latestValidation = latestValidation,
-            latestAction = latestAction
+            selected = context.selected,
+            latestObservation = context.latestObservation,
+            latestValidation = context.latestValidation,
+            latestAction = context.latestAction,
+            nowMs = context.revalidatedAtMs
         )
-        if (!InteractionGate.allow(validation, latestAction?.point)) return false
-        return tapValidated(latestAction!!.point, validation)
+        val point = context.latestAction.point ?: return false
+        if (!InteractionGate.allow(validation, point)) return false
+        return tapValidated(point, validation)
     }
 
     /**
