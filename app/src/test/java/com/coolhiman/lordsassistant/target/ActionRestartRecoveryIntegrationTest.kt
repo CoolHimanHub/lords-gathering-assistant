@@ -104,7 +104,7 @@ class ActionRestartRecoveryIntegrationTest {
 
         assertEquals(
             ActionLifecycleState.WAITING_FOR_RESULT,
-            first.dispatch(1100L, automaticActionsEnabled = true) { true }.lifecycle.state
+            first.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }.lifecycle.state
         )
 
         val inFlightAttempt = first.session!!.attemptId
