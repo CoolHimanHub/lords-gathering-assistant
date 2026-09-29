@@ -50,7 +50,7 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
         var dispatches = 0
-        val result = orchestrator.dispatch(10_001L) {
+        val result = orchestrator.dispatch(10_001L, automaticActionsEnabled = true) {
             dispatches += 1
             true
         }
@@ -89,7 +89,7 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         assertEquals(ActionLifecycleFailure.REVALIDATION_FAILED, revalidation.lifecycle.failure)
 
         var dispatches = 0
-        val result = orchestrator.dispatch(20_001L) {
+        val result = orchestrator.dispatch(20_001L, automaticActionsEnabled = true) {
             dispatches += 1
             true
         }
@@ -121,7 +121,7 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         assertEquals(ActionLifecycleState.FAILED, request.lifecycle.state)
 
         var dispatches = 0
-        orchestrator.dispatch(30_001L) {
+        orchestrator.dispatch(30_001L, automaticActionsEnabled = true) {
             dispatches += 1
             true
         }
