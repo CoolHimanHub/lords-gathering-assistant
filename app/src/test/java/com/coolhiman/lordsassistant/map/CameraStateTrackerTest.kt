@@ -105,4 +105,28 @@ class CameraStateTrackerTest {
     }
 
 
+    @Test
+    fun semanticFallbackNormalizesLabelCaseAndWhitespace() {
+        val tracker = CameraStateTracker()
+        tracker.update(
+            listOf(
+                obs(100f, 100f, 1),
+                obs(200f, 200f, 2),
+                obs(300f, 300f, 3)
+            )
+        )
+
+        val result = tracker.update(
+            listOf(
+                obs(101f, 99f, 11).copy(label = " wood "),
+                obs(199f, 201f, 12).copy(label = "WoOd"),
+                obs(301f, 299f, 13).copy(label = "WOOD")
+            )
+        )
+
+        assertEquals(CameraState.STABLE, result.state)
+        assertEquals(3, result.sharedTargets)
+        assertEquals(true, result.continuityForActions)
+    }
+
 }
