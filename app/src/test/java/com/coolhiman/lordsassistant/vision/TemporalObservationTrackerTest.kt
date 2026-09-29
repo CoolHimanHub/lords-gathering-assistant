@@ -99,6 +99,20 @@ class TemporalObservationTrackerTest {
     }
 
     @Test
+    fun lowerConfidenceSemanticMismatchDoesNotInheritPreviousLabel() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val wood = observation(0.95f).copy(label = "WOOD")
+        val stone = observation(0.40f).copy(label = "STONE")
+
+        assertEquals(0, tracker.update(listOf(wood), 1000L).size)
+        assertEquals(0, tracker.update(listOf(stone), 1100L).size)
+        assertEquals(1, tracker.update(listOf(stone), 1200L).size)
+
+        val stable = tracker.update(listOf(stone), 1300L).single()
+        assertEquals("STONE", stable.label)
+    }
+
+    @Test
     fun highConfidenceUnknownDoesNotBecomeOccupied() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         val unknown = observation(0.95f).copy(occupied = null, incomingTroops = null)
