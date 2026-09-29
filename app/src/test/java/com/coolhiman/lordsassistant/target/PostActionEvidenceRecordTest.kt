@@ -10,6 +10,7 @@ import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.MarchSignal
 import com.coolhiman.lordsassistant.vision.PopupState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -119,7 +120,7 @@ class PostActionEvidenceRecordTest {
         val repeated = orchestrator.verifyPostAction(observation, popup, baseMs + 200L)
 
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, repeated.lifecycle.state)
-        assertEquals(1, repeated.lifecycle.let { orchestrator.lastPostActionEvidence?.confirmingFrames })
+        assertEquals(1, orchestrator.lastPostActionEvidence!!.confirmingFrames)
     }
 
     @Test
