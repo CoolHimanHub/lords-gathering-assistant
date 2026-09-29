@@ -58,6 +58,8 @@ class ActionOrchestrator(
     private var postActionStartedAtMs: Long? = null
     private var postEvidenceSignature: Set<PostActionEvidence>? = null
     private var postEvidenceFrames = 0
+    private var postEvidenceObservationTimestampMs: Long? = null
+    private var postEvidenceMarchConfirmedFrames = 0
 
     companion object {
         const val POST_ACTION_TIMEOUT_MS = 4_000L
@@ -109,6 +111,8 @@ class ActionOrchestrator(
         postActionStartedAtMs = null
         postEvidenceSignature = null
         postEvidenceFrames = 0
+        postEvidenceObservationTimestampMs = null
+        postEvidenceMarchConfirmedFrames = 0
         lastPostActionEvidence = null
         clearRevalidationEvidence()
         return Result(lifecycle.snapshot, null)
@@ -319,6 +323,8 @@ class ActionOrchestrator(
         if (predicted == ActionLifecycleState.UNKNOWN) {
             postEvidenceSignature = null
             postEvidenceFrames = 0
+            postEvidenceObservationTimestampMs = null
+            postEvidenceMarchConfirmedFrames = 0
             lastPostActionEvidence = null
             val startedAt = postActionStartedAtMs
             if (startedAt != null && nowMs - startedAt >= POST_ACTION_TIMEOUT_MS) {
@@ -328,8 +334,22 @@ class ActionOrchestrator(
             return Result(lifecycle.snapshot, session)
         }
 
-        postEvidenceFrames = if (postEvidenceSignature == evidence) postEvidenceFrames + 1 else 1
+        val observationTimestamp = afterObservation?.timestampMs
+        val marchConfirmedFrames = current.marchSession.confirmedFrames
+        val sameEvidence = postEvidenceSignature == evidence
+        val newObservationFrame = observationTimestamp != null &&
+            (postEvidenceObservationTimestampMs == null ||
+                observationTimestamp > postEvidenceObservationTimestampMs!!)
+        val newMarchConfirmation = marchConfirmedFrames > postEvidenceMarchConfirmedFrames
+
+        if (sameEvidence && postEvidenceFrames > 0 && !newObservationFrame && !newMarchConfirmation) {
+            return Result(lifecycle.snapshot, session)
+        }
+
+        postEvidenceFrames = if (sameEvidence) postEvidenceFrames + 1 else 1
         postEvidenceSignature = evidence.toSet()
+        postEvidenceObservationTimestampMs = observationTimestamp
+        postEvidenceMarchConfirmedFrames = marchConfirmedFrames
         lastPostActionEvidence = PostActionEvidenceRecord(
             attemptId = current.attemptId,
             recoveryEpoch = current.recoveryEpoch,
@@ -360,10 +380,14 @@ class ActionOrchestrator(
             postActionStartedAtMs = null
             postEvidenceSignature = null
             postEvidenceFrames = 0
+            postEvidenceObservationTimestampMs = null
+            postEvidenceMarchConfirmedFrames = 0
         } else if (verified.state == ActionLifecycleState.FAILED) {
             postActionStartedAtMs = null
             postEvidenceSignature = null
             postEvidenceFrames = 0
+            postEvidenceObservationTimestampMs = null
+            postEvidenceMarchConfirmedFrames = 0
         }
         return Result(verified, current)
     }
@@ -380,6 +404,8 @@ class ActionOrchestrator(
         postActionStartedAtMs = null
         postEvidenceSignature = null
         postEvidenceFrames = 0
+        postEvidenceObservationTimestampMs = null
+        postEvidenceMarchConfirmedFrames = 0
         lastPostActionEvidence = null
         clearRevalidationEvidence()
         return Result(lifecycle.restoreUnknown(), null)
