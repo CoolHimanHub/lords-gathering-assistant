@@ -120,7 +120,7 @@ class MainActivity : Activity() {
             append("\nGesture service: ").append(if (LmAccessibilityService.instance != null) "CONNECTED" else "NOT CONNECTED")
             append("\nScreen capture: requested when scanner starts")
             append("\nAutomatic actions: ").append(if (automatic) "ENABLED (advanced)" else "OFF — safe default")
-            append("\nRuntime: V2.3.3 — discovery, grid learning, calibration and guarded actions")
+            append("\nRuntime: V2.6.0 — live capture, grid learning, validation, guarded actions and recovery safety")
         }
     }
 
