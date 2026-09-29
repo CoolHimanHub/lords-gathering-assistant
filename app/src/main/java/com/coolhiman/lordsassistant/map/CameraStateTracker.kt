@@ -30,7 +30,8 @@ class CameraStateTracker(
     private val panShiftPx: Float = 70f,
     private val unstableSpreadPx: Float = 90f,
     private val unstableScaleChangePercent: Float = 8f,
-    private val maxSemanticMatchDistancePx: Float = 220f
+    private val maxSemanticMatchDistancePx: Float = 220f,
+    private val semanticAmbiguityMarginPx: Float = 12f
 ) {
     private var previous = emptyList<MapObservation>()
     private var established = false
@@ -111,7 +112,7 @@ class CameraStateTracker(
         for (now in current) {
             if (matches.any { it.second === now }) continue
             val point = now.screenPoint ?: continue
-            val best = unmatched
+            val ranked = unmatched
                 .mapNotNull { index ->
                     val before = old[index]
                     val beforePoint = before.screenPoint ?: return@mapNotNull null
@@ -122,8 +123,17 @@ class CameraStateTracker(
                     ).toFloat()
                     if (distance > maxSemanticMatchDistancePx) null else index to distance
                 }
-                .minByOrNull { it.second }
-                ?.first
+                .sortedBy { it.second }
+
+            val nearest = ranked.firstOrNull()
+            val second = ranked.getOrNull(1)
+            // When identical semantic targets are nearby, nearest-neighbour
+            // matching can swap their identities between frames. Do not let an
+            // ambiguous association contribute to camera continuity or scale.
+            val best = nearest?.takeIf {
+                second == null ||
+                    second.second - it.second >= semanticAmbiguityMarginPx
+            }?.first
 
             if (best != null) {
                 matches += old[best] to now
