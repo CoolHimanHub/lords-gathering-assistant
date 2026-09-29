@@ -136,7 +136,13 @@ class CameraStateTracker(
 
     private fun sameSemanticTarget(a: MapObservation, b: MapObservation): Boolean {
         if (a.kind != b.kind || a.level != b.level) return false
-        if (a.label != null && b.label != null && a.label != b.label) return false
+
+        val firstLabel = a.label?.trim()?.takeIf { it.isNotEmpty() }
+        val secondLabel = b.label?.trim()?.takeIf { it.isNotEmpty() }
+        if (firstLabel != null && secondLabel != null &&
+            !firstLabel.equals(secondLabel, ignoreCase = true)
+        ) return false
+
         return true
     }
 
