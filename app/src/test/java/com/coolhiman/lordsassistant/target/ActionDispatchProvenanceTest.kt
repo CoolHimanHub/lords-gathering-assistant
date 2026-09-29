@@ -16,7 +16,8 @@ class ActionDispatchProvenanceTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = ScreenPoint(900f, 600f)
+        point = ScreenPoint(900f, 600f),
+        semanticIdentity = "WOOD"
     )
 
     private val observation = MapObservation(
@@ -64,6 +65,8 @@ class ActionDispatchProvenanceTest {
         assertFalse(ActionDispatchProvenance(2L, 12L, 80_001L).matches(result.session))
         assertFalse(ActionDispatchProvenance(1L, 13L, 80_001L).matches(result.session))
         assertFalse(ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7002L).matches(result.session))
+        assertFalse(ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7001L, targetSemanticIdentity = "STONE").matches(result.session))
+        assertTrue(ActionDispatchProvenance(1L, 12L, 80_001L, captureSessionId = 7001L, targetSemanticIdentity = "wood").matches(result.session))
         assertFalse(ActionDispatchProvenance(1L, 12L, 80_001L).matches(null))
     }
 
