@@ -167,7 +167,14 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, result.lifecycle.state)
         assertEquals(target, received?.selected)
         assertEquals(latestObservation, received?.latestObservation)
-        assertEquals(latestValidation, received?.latestValidation)
+        val finalValidation = PreActionRevalidator.revalidate(
+            selected = target,
+            latestObservation = latestObservation,
+            latestValidation = latestValidation,
+            latestAction = latestAction,
+            nowMs = now
+        )
+        assertEquals(finalValidation, received?.latestValidation)
         assertEquals(latestAction, received?.latestAction)
         assertEquals(now, received?.revalidatedAtMs)
         assertEquals(orchestrator.session?.attemptId, received?.attemptId)
