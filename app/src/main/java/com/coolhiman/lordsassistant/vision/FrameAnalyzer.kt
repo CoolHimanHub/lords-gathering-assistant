@@ -9,6 +9,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 data class FrameAnalysis(
     val text: String,
@@ -75,6 +76,9 @@ class FrameAnalyzer {
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val inFlight = AtomicBoolean(false)
+    /** Monotonic analysis generation. Stale ML Kit callbacks from a timed-out
+     * frame must never deliver into a newer capture frame. */
+    private val analysisGeneration = AtomicLong(0L)
     @Volatile private var stage = "IDLE"
     @Volatile private var lastFailure: String? = null
 
@@ -92,6 +96,7 @@ class FrameAnalyzer {
         }
 
         val startedAt = System.currentTimeMillis()
+        val generation = analysisGeneration.incrementAndGet()
         val ocrBitmap = try {
             OcrBitmapPreprocessor.prepare(bitmap)
         } catch (_: Throwable) {
@@ -100,13 +105,17 @@ class FrameAnalyzer {
         val delivered = AtomicBoolean(false)
 
         fun finish() {
-            inFlight.set(false)
+            if (analysisGeneration.get() == generation) {
+                inFlight.set(false)
+            }
         }
 
         fun deliver(result: FrameAnalysis) {
+            if (analysisGeneration.get() != generation) return
             if (!delivered.compareAndSet(false, true)) return
             try {
                 analysisExecutor.execute {
+                    if (analysisGeneration.get() != generation) return@execute
                     callback(result)
                 }
             } catch (error: Throwable) {
@@ -309,6 +318,20 @@ class FrameAnalyzer {
             )
         }
         return true
+    }
+
+    /**
+     * Cancels the current OCR analysis generation. ML Kit may still invoke its
+     * asynchronous completion callback, but that callback becomes stale and is
+     * prevented from delivering a FrameAnalysis into a newer capture frame.
+     */
+    fun cancelInFlight(reason: String = "cancelled") {
+        if (inFlight.get()) {
+            analysisGeneration.incrementAndGet()
+            inFlight.set(false)
+            stage = "CANCELLED"
+            lastFailure = reason.take(180)
+        }
     }
 
     fun close() {
