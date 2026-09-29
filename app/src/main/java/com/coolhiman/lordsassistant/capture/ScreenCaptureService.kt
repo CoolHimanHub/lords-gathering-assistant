@@ -601,7 +601,7 @@ class ScreenCaptureService : Service() {
             val frameArrivedAtMs = System.currentTimeMillis()
             captureHealth.frameArrived(frameArrivedAtMs)
             captureWatchdog.frameArrived(frameArrivedAtMs)
-            if (now - lastScanMs < 300L || !busy.compareAndSet(false, true)) {
+            if (frameArrivedAtMs - lastScanMs < 300L || !busy.compareAndSet(false, true)) {
                 source.acquireLatestImage()?.close()
                 captureHealth.frameDropped()
                 return@setOnImageAvailableListener
