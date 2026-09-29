@@ -120,26 +120,38 @@ class ActionSafetySimulationTest {
     fun popupDisappearanceWithoutMarchCannotBecomeSuccessOrRetry() {
         val orchestrator = ActionOrchestrator()
         var dispatches = 0
+        val baseMs = System.currentTimeMillis()
+        val currentObservation = observation.copy(timestampMs = baseMs)
+        val currentValidation = safeValidation.copy(validatedAtMs = baseMs)
 
-        orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 3_000L)
-        orchestrator.revalidate(
-            freshObservation(),
-            freshValidation(),
-            ActionButton(ActionKind.GATHER, selected.point, 0.95f)
+        orchestrator.request(
+            true, selected, currentValidation, currentObservation, popup, emptyList(), baseMs
         )
-        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { _ ->
+        orchestrator.revalidate(
+            currentObservation,
+            currentValidation,
+            ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            nowMs = baseMs
+        )
+        orchestrator.dispatch(baseMs + 1L, automaticActionsEnabled = true) { _ ->
             dispatches++
             true
         }
 
-        val waiting = orchestrator.verifyPostAction(observation, null, 3_100L)
+        val waiting = orchestrator.verifyPostAction(currentObservation, null, baseMs + 100L)
         val timeout = orchestrator.verifyPostAction(
-            observation,
+            currentObservation,
             null,
-            3_001L + ActionOrchestrator.POST_ACTION_TIMEOUT_MS
+            baseMs + 1L + ActionOrchestrator.POST_ACTION_TIMEOUT_MS
         )
         val retry = orchestrator.request(
-            true, selected, safeValidation, observation, popup, emptyList(), 7_100L
+            true,
+            selected,
+            currentValidation,
+            currentObservation,
+            popup,
+            emptyList(),
+            baseMs + 1L + ActionOrchestrator.POST_ACTION_TIMEOUT_MS + 100L
         )
 
         assertEquals(1, dispatches)
