@@ -1,3 +1,14 @@
+## V2.7.1 — Normalized semantic validation
+
+V2.7.1 closes a consistency gap between canonical scheduler admission and popup validation.
+
+- Resource identities are normalized case-insensitively at the validation boundary, matching the canonical ResourceType identity used by the scheduler.
+- Lowercase/mixed-case OCR labels such as `wood` still require an exact popup resource match after normalization.
+- A popup reporting a different resource remains blocked as `POPUP_RESOURCE_MISMATCH`.
+- Regression tests cover both the normalized-match and normalized-mismatch paths.
+- Android metadata is aligned to **2.7.1 (versionCode 271)**.
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ## V2.7.0 — Canonical semantic identity boundary
 
 V2.7 closes the remaining scheduler admission gap around target semantics.
