@@ -79,4 +79,18 @@ class ActionButtonDetectorTest {
         assertEquals(1, buttons.size)
         assertEquals(ActionKind.GATHER, buttons.first().kind)
     }
+    @Test
+    fun equallyClosePopupAnchorsRejectActionAssociation() {
+        val buttons = ActionButtonDetector.detect(
+            listOf(
+                TextRegion(RectF(400f, 400f, 480f, 430f), TextClassification(), "Woods Lv.3"),
+                TextRegion(RectF(600f, 400f, 680f, 430f), TextClassification(), "Unoccupied"),
+                TextRegion(RectF(500f, 400f, 580f, 430f), TextClassification(), "Gather")
+            ),
+            popupPresent = true,
+            targetKind = TargetKind.RESOURCE
+        )
+        assertTrue(buttons.isEmpty())
+    }
+
 }
