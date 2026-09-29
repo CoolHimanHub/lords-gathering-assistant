@@ -17,7 +17,8 @@ class PostActionEvidenceRecordTest {
         TargetKind.RESOURCE,
         3,
         ActionKind.GATHER,
-        ScreenPoint(900f, 600f)
+        ScreenPoint(900f, 600f),
+        semanticIdentity = "WOOD"
     )
 
     @Test
@@ -29,7 +30,11 @@ class PostActionEvidenceRecordTest {
             screenPoint = selected.point,
             confidence = 0.95f,
             occupied = false,
-            incomingTroops = false
+            incomingTroops = false,
+            label = "WOOD",
+            coordinateConfidence = com.coolhiman.lordsassistant.model.CoordinateConfidence.observed(true, true, residualPx = 2.0),
+            evidence = setOf(com.coolhiman.lordsassistant.model.ObservationEvidence.TEMPORALLY_CONFIRMED),
+            timestampMs = 10_000L
         )
         val popup = PopupState(
             kind = TargetKind.RESOURCE,
@@ -43,7 +48,7 @@ class PostActionEvidenceRecordTest {
         )
 
         val orchestrator = ActionOrchestrator()
-        val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT)
+        val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT, validatedAtMs = 10_000L)
         orchestrator.request(true, selected, validation, observation, popup, emptyList(), 10_000L)
         orchestrator.revalidate(observation, validation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
         orchestrator.dispatch(10_001L) { true }
