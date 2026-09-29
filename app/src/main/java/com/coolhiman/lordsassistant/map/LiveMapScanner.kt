@@ -90,7 +90,7 @@ class LiveMapScanner(context: Context) {
     private val cameraAnchorTracker = CameraAnchorTracker()
     private val cameraModelStabilityTracker = CameraModelStabilityTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
-    private val targetStabilityTrackers = linkedMapOf<String, TargetStabilityTracker>()
+    private val targetStabilityRegistry = com.coolhiman.lordsassistant.target.TargetStabilityRegistry()
     private val templateLibrary = TemplateLibrary(DatasetStore(context))
     private var templates = templateLibrary.loadTileTemplates()
     private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
@@ -123,7 +123,7 @@ class LiveMapScanner(context: Context) {
             cameraModelStabilityTracker.reset()
             cameraStateTracker.reset()
             targetStabilityTracker.reset()
-            targetStabilityTrackers.clear()
+            targetStabilityRegistry.resetForCameraBoundary()
         }
         val kingdom = ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
         val resolver = CoordinateResolver(calibrationStore, kingdom)
@@ -260,6 +260,11 @@ class LiveMapScanner(context: Context) {
                     it.level == planned.level
             }
         }
+        // A camera discontinuity invalidates every per-target temporal tracker, including targets that were absent while the camera was unstable.
+        // Without this collection-level reset, an old two-frame history could resume on the first post-pan frame and satisfy action stability too early.
+        if (camera.state != CameraState.STABLE) {
+            targetStabilityRegistry.resetForCameraBoundary()
+        }
         val targetStability = targetStabilityTracker.update(candidateObservation, camera.state)
         val calibrationValid = calibrationStore.fit(kingdom)?.isUsable() == true
         val actionCameraStable = camera.state == CameraState.STABLE && cameraModelContinuityValid && camera.continuityForActions
@@ -298,8 +303,7 @@ class LiveMapScanner(context: Context) {
             .mapNotNull { (observation, button) ->
 
                 val key = "${observation.coordinate}:${observation.kind}:${observation.level}"
-                val stabilityTracker = targetStabilityTrackers.getOrPut(key) { TargetStabilityTracker() }
-                val stability = stabilityTracker.update(observation, camera.state)
+                val stability = targetStabilityRegistry.update(key, observation, camera.state)
                 val fused = result.fused.firstOrNull { item ->
                     item.coordinate == observation.coordinate &&
                         item.classification.kind == observation.kind &&
@@ -337,12 +341,11 @@ class LiveMapScanner(context: Context) {
                 )
             }
 
-        targetStabilityTrackers.keys
-            .filter { key -> candidateTargets.none { candidate ->
-                "${candidate.target.coordinate}:${candidate.target.kind}:${candidate.target.level}" == key
-            } }
-            .takeIf { it.size > 32 }
-            ?.forEach(targetStabilityTrackers::remove)
+        targetStabilityRegistry.removeExcept(
+            candidateTargets.mapTo(linkedSetOf()) {
+                "${it.target.coordinate}:${it.target.kind}:${it.target.level}"
+            }
+        )
 
         val selectedFusionCandidate = candidateObservation?.let { observation ->
             result.fused.firstOrNull { fused ->
