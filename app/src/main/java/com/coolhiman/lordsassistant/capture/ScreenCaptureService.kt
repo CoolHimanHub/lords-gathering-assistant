@@ -606,7 +606,7 @@ class ScreenCaptureService : Service() {
                 captureHealth.frameDropped()
                 return@setOnImageAvailableListener
             }
-            lastScanMs = now
+            lastScanMs = frameArrivedAtMs
             val memoryBeforeImage = memoryPressurePolicy.evaluate(
                 usedBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
                 maxBytes = Runtime.getRuntime().maxMemory()
