@@ -278,7 +278,7 @@ class ActionOrchestrator(
         val context = FinalDispatchContext(
             selected = selected,
             latestObservation = observation,
-            latestValidation = validation,
+            latestValidation = finalValidation,
             latestAction = action,
             attemptId = current.attemptId,
             recoveryEpoch = current.recoveryEpoch,
