@@ -131,6 +131,12 @@ class TemporalObservationTracker(
                         // only when semantic identity is already consistent.
                         // Coordinate provenance is always frame-local.
                         old.observation.copy(
+                            // Quantity is transient OCR evidence. Even when the
+                            // current frame has lower overall confidence, a
+                            // successfully parsed quantity must not be discarded
+                            // in favor of an older value because quantity feeds
+                            // informational target ranking.
+                            quantity = observation.quantity ?: old.observation.quantity,
                             screenPoint = observation.screenPoint,
                             timestampMs = observation.timestampMs,
                             coordinateConfidence = observation.coordinateConfidence
