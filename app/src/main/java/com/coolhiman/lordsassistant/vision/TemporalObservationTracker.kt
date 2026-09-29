@@ -81,72 +81,71 @@ class TemporalObservationTracker(
             } else {
                 val consistent = semanticCompatible(old.observation, observation)
 
-                if (consistent) {
+                if (!consistent) {
+                    // A semantic mismatch is a hard identity boundary. Start
+                    // a completely fresh track so prior hit/free/occupied
+                    // evidence cannot confirm the new semantic target.
+                    Track(
+                        observation = observation,
+                        hits = 1,
+                        freeHits = if (observation.occupied == false && observation.incomingTroops != true) 1 else 0,
+                        occupiedHits = if (strongOccupied) 1 else 0,
+                        lastSeen = nowMs
+                    ).also { tracks[key] = it }
+                } else {
                     old.hits = old.hits + 1
-                } else {
-                    // A previously concrete semantic identity must not be
-                    // inherited through a frame where that identity is absent
-                    // or changed. The current frame needs a fresh confirmation
-                    // before the target can become temporally confirmed again.
-                    old.hits = 1
+
+                    if (observation.occupied == false && observation.incomingTroops != true) {
+                        old.freeHits = old.freeHits + 1
+                    } else {
+                        old.freeHits = 0
+                    }
+
+                    if (strongOccupied) {
+                        old.occupiedHits = old.occupiedHits + 1
+                    } else {
+                        old.occupiedHits = 0
+                    }
+
+                    val wasOccupied = old.observation.occupied == true ||
+                        old.observation.incomingTroops == true
+
+                    // A free transition needs repeated free evidence if the node
+                    // was previously occupied/incoming. Occupied evidence may
+                    // become authoritative immediately.
+                    val acceptFreeTransition = !wasOccupied ||
+                        old.freeHits >= confirmHits
+
+                    val candidate = if (observation.occupied == false && observation.incomingTroops != true &&
+                        !acceptFreeTransition) {
+                        old.observation.copy(
+                            confidence = max(old.observation.confidence, observation.confidence),
+                            screenPoint = observation.screenPoint,
+                            timestampMs = observation.timestampMs,
+                            coordinateConfidence = observation.coordinateConfidence
+                        )
+                    } else if (observation.confidence >= old.observation.confidence) {
+                        observation
+                    } else {
+                        // State continuity may keep the older semantic observation
+                        // only when semantic identity is already consistent.
+                        // Coordinate provenance is always frame-local.
+                        old.observation.copy(
+                            screenPoint = observation.screenPoint,
+                            timestampMs = observation.timestampMs,
+                            coordinateConfidence = observation.coordinateConfidence
+                        )
+                    }
+
+                    old.observation = if (strongOccupied) {
+                        observation
+                    } else {
+                        candidate
+                    }
+                    old.lastSeen = nowMs
+                    old
                 }
-
-                if (observation.occupied == false && observation.incomingTroops != true) {
-                    old.freeHits = old.freeHits + 1
-                } else {
-                    old.freeHits = 0
-                }
-
-                if (strongOccupied) {
-                    old.occupiedHits = old.occupiedHits + 1
-                } else {
-                    old.occupiedHits = 0
-                }
-
-                val wasOccupied = old.observation.occupied == true ||
-                    old.observation.incomingTroops == true
-
-                // A free transition needs repeated free evidence if the node
-                // was previously occupied/incoming. Occupied evidence may
-                // become authoritative immediately.
-                val acceptFreeTransition = !wasOccupied ||
-                    old.freeHits >= confirmHits
-
-                val candidate = if (!consistent) {
-                    // A semantic mismatch is a hard identity boundary. Do not
-                    // let confidence-based state continuity reintroduce the
-                    // previous label into the current frame.
-                    observation
-                } else if (observation.occupied == false && observation.incomingTroops != true &&
-                    !acceptFreeTransition) {
-                    old.observation.copy(
-                        confidence = max(old.observation.confidence, observation.confidence),
-                        screenPoint = observation.screenPoint,
-                        timestampMs = observation.timestampMs,
-                        coordinateConfidence = observation.coordinateConfidence
-                    )
-                } else if (observation.confidence >= old.observation.confidence) {
-                    observation
-                } else {
-                    // State continuity may keep the older semantic observation
-                    // only when semantic identity is already consistent.
-                    // Coordinate provenance is always frame-local.
-                    old.observation.copy(
-                        screenPoint = observation.screenPoint,
-                        timestampMs = observation.timestampMs,
-                        coordinateConfidence = observation.coordinateConfidence
-                    )
-                }
-
-                old.observation = if (strongOccupied) {
-                    observation
-                } else {
-                    candidate
-                }
-                old.lastSeen = nowMs
-                old
             }
-
             val occupiedState = track.observation.occupied == true ||
                 track.observation.incomingTroops == true
 
