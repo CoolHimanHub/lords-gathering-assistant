@@ -310,19 +310,36 @@ class LiveMapScanner(context: Context) {
             "${it.kind}:${it.point.x}:${it.point.y}"
         }
 
-        val candidateTargets = uniqueActionButtons
+        // Multiple detected buttons can still refer to the same world target
+        // (for example overlapping OCR/template detections at different screen
+        // points). Resolve each target to one deterministic button before touching
+        // temporal stability. Otherwise one bitmap can advance the same target's
+        // tracker more than once and manufacture a two-frame confirmation.
+        val candidateMatches = uniqueActionButtons
             .flatMap { button ->
-                val matching = stateAware.filter { observation ->
-                    observation.coordinate != null && observation.kind != null && observation.level != null &&
-                        when (observation.kind) {
-                            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
-                            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
-                            null -> false
-                        } &&
-                        distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX
-                }
-                if (matching.size != 1) emptyList() else matching.map { it to button }
+                stateAware
+                    .filter { observation ->
+                        observation.coordinate != null && observation.kind != null && observation.level != null &&
+                            when (observation.kind) {
+                                com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
+                                com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
+                                null -> false
+                            } &&
+                            distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX
+                    }
+                    .map { it to button }
             }
+            .groupBy { (observation, _) ->
+                "${observation.coordinate}:${observation.kind}:${observation.level}"
+            }
+            .values
+            .mapNotNull { matches ->
+                matches.minByOrNull { (_, button) ->
+                    distance(button.point, matches.first().first.screenPoint)
+                }
+            }
+
+        val candidateTargets = candidateMatches
             .mapNotNull { (observation, button) ->
 
                 val key = "${observation.coordinate}:${observation.kind}:${observation.level}"
