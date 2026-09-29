@@ -1017,7 +1017,11 @@ class ScreenCaptureService : Service() {
                                                 // durable dispatch barrier. This blocks another live
                                                 // selection until the guarded dispatch returns.
                                                 actionSchedulerAdapter.markDispatchStarted(now)
-                                                actionOrchestrator.dispatch(now, captureSessionId = liveCaptureSessionId) {
+                                                actionOrchestrator.dispatch(
+                                                    nowMs = now,
+                                                    captureSessionId = liveCaptureSessionId,
+                                                    automaticActionsEnabled = prefs.automaticActions
+                                                ) {
                                                     runCatching {
                                                         LmAccessibilityService.instance?.tapRevalidated(
                                                             selected = currentCandidate.target,
