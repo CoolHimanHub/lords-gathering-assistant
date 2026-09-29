@@ -20,6 +20,19 @@ class ViewportGuardTest {
     }
 
     @Test
+    fun resetAllowsNewViewportToBecomeBaseline() {
+        val guard = ViewportGuard()
+        assertTrue(guard.accept(2756, 1268))
+        assertFalse(guard.accept(1920, 1080))
+
+        guard.reset()
+
+        assertTrue(guard.accept(1920, 1080))
+        assertTrue(guard.accept(1920, 1080))
+        assertFalse(guard.accept(2756, 1268))
+    }
+
+    @Test
     fun rejectsInvalidInitialDimensions() {
         val guard = ViewportGuard()
         assertFalse(guard.accept(0, 1268))
