@@ -51,6 +51,21 @@ class PreActionRevalidatorTest {
     )
 
     @Test
+    fun finalGateUsesSuppliedValidationTimestamp() {
+        val nowMs = 1_000_000L
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            observation().copy(timestampMs = nowMs),
+            validation().copy(validatedAtMs = nowMs),
+            action(),
+            nowMs = nowMs
+        )
+
+        assertTrue(result.safe)
+        assertTrue(result.validatedAtMs == nowMs)
+    }
+
+    @Test
     fun unchangedTargetRemainsSafe() {
         val result = PreActionRevalidator.revalidate(
             snapshot(),
