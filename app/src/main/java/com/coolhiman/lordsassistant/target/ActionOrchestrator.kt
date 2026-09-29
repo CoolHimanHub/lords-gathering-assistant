@@ -32,6 +32,13 @@ class ActionOrchestrator(
     private var nextAttemptId = 0L
     private var recoveryEpoch = initialRecoveryEpoch
     private var activeCaptureSessionId: Long? = null
+    // Retain the exact inputs that produced the REVALIDATED state. The final
+    // dispatch boundary re-runs the same safety check at gesture time so a
+    // delay between validation and the Accessibility call cannot turn stale
+    // evidence into a live gesture.
+    private var lastRevalidatedObservation: MapObservation? = null
+    private var lastRevalidatedValidation: TargetValidationResult? = null
+    private var lastRevalidatedAction: ActionButton? = null
 
     val currentRecoveryEpoch: Long get() = recoveryEpoch
     val currentCaptureSessionId: Long? get() = activeCaptureSessionId
@@ -90,6 +97,7 @@ class ActionOrchestrator(
         postEvidenceSignature = null
         postEvidenceFrames = 0
         lastPostActionEvidence = null
+        clearRevalidationEvidence()
         return Result(lifecycle.snapshot, null)
     }
 
@@ -172,10 +180,25 @@ class ActionOrchestrator(
             lifecycle.captureSessionChanged()
             return Result(lifecycle.snapshot, current)
         }
-        return Result(lifecycle.revalidated(PreActionRevalidator.revalidate(selected, latestObservation, latestValidation, latestAction, nowMs)), current)
+        val revalidation = PreActionRevalidator.revalidate(
+            selected,
+            latestObservation,
+            latestValidation,
+            latestAction,
+            nowMs
+        )
+        lastRevalidatedObservation = latestObservation
+        lastRevalidatedValidation = latestValidation
+        lastRevalidatedAction = latestAction
+        return Result(lifecycle.revalidated(revalidation), current)
     }
 
-    fun dispatch(nowMs: Long, captureSessionId: Long? = null, dispatch: () -> Boolean): Result {
+    fun dispatch(
+        nowMs: Long,
+        captureSessionId: Long? = null,
+        automaticActionsEnabled: Boolean = false,
+        dispatch: () -> Boolean
+    ): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
         if (current == null || selected == null || selected.identity() != current.selected.identity()) {
@@ -190,6 +213,30 @@ class ActionOrchestrator(
         // already reached REVALIDATED. This keeps a failed/stale revalidation
         // from causing a side effect merely because a caller invoked dispatch().
         if (lifecycle.snapshot.state != ActionLifecycleState.REVALIDATED) {
+            return Result(lifecycle.dispatched(nowMs, false), current)
+        }
+
+        // Automatic execution is an explicit runtime capability, not a fact
+        // inferred from the earlier request. A caller must positively confirm
+        // that automation is still enabled at the exact gesture boundary.
+        if (!automaticActionsEnabled) {
+            return Result(lifecycle.dispatched(nowMs, false), current)
+        }
+
+        val latestObservation = lastRevalidatedObservation
+        val latestValidation = lastRevalidatedValidation
+        val latestAction = lastRevalidatedAction
+        val finalValidation = PreActionRevalidator.revalidate(
+            selected = selected,
+            latestObservation = latestObservation,
+            latestValidation = latestValidation ?: TargetValidationResult(
+                safe = false,
+                stage = TargetValidationStage.DETECTED
+            ),
+            latestAction = latestAction,
+            nowMs = nowMs
+        )
+        if (!InteractionGate.allow(finalValidation, latestAction?.point)) {
             return Result(lifecycle.dispatched(nowMs, false), current)
         }
 
@@ -292,6 +339,7 @@ class ActionOrchestrator(
         postEvidenceSignature = null
         postEvidenceFrames = 0
         lastPostActionEvidence = null
+        clearRevalidationEvidence()
         return Result(lifecycle.restoreUnknown(), null)
     }
 
@@ -310,7 +358,14 @@ class ActionOrchestrator(
         postEvidenceSignature = null
         postEvidenceFrames = 0
         lastPostActionEvidence = null
+        clearRevalidationEvidence()
         return Result(lifecycle.snapshot, null)
+    }
+
+    private fun clearRevalidationEvidence() {
+        lastRevalidatedObservation = null
+        lastRevalidatedValidation = null
+        lastRevalidatedAction = null
     }
 
     /**
