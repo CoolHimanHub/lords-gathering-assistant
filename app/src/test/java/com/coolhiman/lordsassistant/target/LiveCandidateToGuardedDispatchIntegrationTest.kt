@@ -130,6 +130,75 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         assertEquals(0, dispatches)
     }
 
+    @Test
+    fun automationDisabledAfterRevalidationBlocksFinalGesture() {
+        val target = target()
+        val orchestrator = ActionOrchestrator()
+        val now = System.currentTimeMillis()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidationAt(now),
+            beforeObservation = observationAt(target, now),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = now
+        )
+        orchestrator.revalidate(
+            latestObservation = observationAt(target, now),
+            latestValidation = safeValidationAt(now),
+            latestAction = action(target.point),
+            nowMs = now
+        )
+
+        var dispatches = 0
+        val result = orchestrator.dispatch(
+            nowMs = now + 1L,
+            automaticActionsEnabled = false
+        ) {
+            dispatches += 1
+            true
+        }
+
+        assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
+        assertEquals(0, dispatches)
+    }
+
+    @Test
+    fun evidenceThatExpiresAfterRevalidationIsRejectedAtGestureBoundary() {
+        val target = target()
+        val orchestrator = ActionOrchestrator()
+        val now = System.currentTimeMillis()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidationAt(now),
+            beforeObservation = observationAt(target, now),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = now
+        )
+        orchestrator.revalidate(
+            latestObservation = observationAt(target, now),
+            latestValidation = safeValidationAt(now),
+            latestAction = action(target.point),
+            nowMs = now
+        )
+
+        var dispatches = 0
+        val result = orchestrator.dispatch(
+            nowMs = now + 2_001L,
+            automaticActionsEnabled = true
+        ) {
+            dispatches += 1
+            true
+        }
+
+        assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.DISPATCH_FAILED, result.lifecycle.failure)
+        assertEquals(0, dispatches)
+    }
+
     private fun scheduleCandidate(target: ActionTargetSnapshot) =
         ActionScheduleCandidate(
             target = target,
@@ -150,6 +219,9 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
             point = point,
             semanticIdentity = "WOOD"
         )
+
+    private fun observationAt(target: ActionTargetSnapshot, timestampMs: Long) =
+        observation(target).copy(timestampMs = timestampMs)
 
     private fun observation(target: ActionTargetSnapshot) =
         MapObservation(
@@ -173,6 +245,9 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
             point = point,
             confidence = 0.95f
         )
+
+    private fun safeValidationAt(timestampMs: Long) =
+        safeValidation().copy(validatedAtMs = timestampMs)
 
     private fun safeValidation() =
         TargetValidationResult(
