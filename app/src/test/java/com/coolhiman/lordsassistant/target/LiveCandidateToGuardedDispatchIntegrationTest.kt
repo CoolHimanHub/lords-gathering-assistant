@@ -43,8 +43,8 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
         )
 
         orchestrator.revalidate(
-            latestObservation = observation(target),
-            latestValidation = safeValidation(),
+            latestObservation = observation(target).copy(timestampMs = 10_000L),
+            latestValidation = safeValidation().copy(validatedAtMs = 10_000L),
             latestAction = action(target.point),
             nowMs = 10_000L
         )
