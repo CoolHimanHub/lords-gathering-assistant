@@ -90,6 +90,7 @@ class LiveMapScanner(context: Context) {
     private val cameraAnchorTracker = CameraAnchorTracker()
     private val cameraModelStabilityTracker = CameraModelStabilityTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
+    private var previousCameraState: CameraState? = null
     private val targetStabilityRegistry = com.coolhiman.lordsassistant.target.TargetStabilityRegistry()
     private val templateLibrary = TemplateLibrary(DatasetStore(context))
     private var templates = templateLibrary.loadTileTemplates()
@@ -127,6 +128,13 @@ class LiveMapScanner(context: Context) {
         }
         val kingdom = ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
         val resolver = CoordinateResolver(calibrationStore, kingdom)
+        // March contours are screen-space evidence. Once the camera has moved,
+        // tracks from the previous view must not survive into the next stable frame.
+        // The first unstable frame is still harmless because action authority is
+        // camera-gated; the next frame starts from a fresh march track set.
+        if (previousCameraState != null && previousCameraState != CameraState.STABLE) {
+            marchTracker.clear()
+        }
         val rawMarchSignals = blueMarchDetector.detect(bitmap) + orangeMarchDetector.detect(bitmap)
         val marchSignals = marchTracker.update(rawMarchSignals, started)
 
@@ -184,6 +192,7 @@ class LiveMapScanner(context: Context) {
         // stability or fabricate a stable camera state.
         val stable = tracker.update(observations)
         val camera = cameraStateTracker.update(stable)
+        previousCameraState = camera.state
         val stateAware = if (camera.state == CameraState.STABLE) stable else stable.map {
             it.copy(evidence = it.evidence + com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE)
         }
