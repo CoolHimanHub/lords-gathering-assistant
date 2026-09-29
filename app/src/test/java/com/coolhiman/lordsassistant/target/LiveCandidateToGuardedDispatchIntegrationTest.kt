@@ -131,6 +131,49 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun finalGestureReceivesExactContextThatPassedFinalGate() {
+        val target = target()
+        val now = System.currentTimeMillis()
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidationAt(now),
+            beforeObservation = observationAt(target, now),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = now
+        )
+        val latestObservation = observationAt(target, now)
+        val latestValidation = safeValidationAt(now)
+        val latestAction = action(target.point)
+        orchestrator.revalidate(
+            latestObservation = latestObservation,
+            latestValidation = latestValidation,
+            latestAction = latestAction,
+            nowMs = now
+        )
+
+        var received: FinalDispatchContext? = null
+        val result = orchestrator.dispatch(
+            nowMs = now + 1L,
+            automaticActionsEnabled = true
+        ) { context ->
+            received = context
+            true
+        }
+
+        assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, result.lifecycle.state)
+        assertEquals(target, received?.selected)
+        assertEquals(latestObservation, received?.latestObservation)
+        assertEquals(latestValidation, received?.latestValidation)
+        assertEquals(latestAction, received?.latestAction)
+        assertEquals(now, received?.revalidatedAtMs)
+        assertEquals(orchestrator.session?.attemptId, received?.attemptId)
+        assertEquals(orchestrator.currentRecoveryEpoch, received?.recoveryEpoch)
+    }
+
+    @Test
     fun automationDisabledAfterRevalidationBlocksFinalGesture() {
         val target = target()
         val orchestrator = ActionOrchestrator()
