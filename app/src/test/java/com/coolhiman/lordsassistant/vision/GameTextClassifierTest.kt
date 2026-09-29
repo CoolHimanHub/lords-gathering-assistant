@@ -18,6 +18,18 @@ class GameTextClassifierTest {
     }
 
     @Test
+    fun parsesCompactQuantities() {
+        assertEquals(850_000L, GameTextClassifier.classify("Food Lv.5 850K").quantity)
+        assertEquals(1_200_000L, GameTextClassifier.classify("Wood Lv.4 1.2M").quantity)
+        assertEquals(2_500_000_000L, GameTextClassifier.classify("Gold Lv.5 2.5B").quantity)
+    }
+
+    @Test
+    fun rejectsMalformedCompactQuantity() {
+        assertNull(GameTextClassifier.classify("Food Lv.5 12X").quantity)
+    }
+
+    @Test
     fun classifiesNamedMonster() {
         val result = GameTextClassifier.classify("Frostwing Lv.4")
         assertEquals(TargetKind.MONSTER, result.kind)
