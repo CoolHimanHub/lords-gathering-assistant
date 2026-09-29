@@ -81,6 +81,30 @@ class CameraStateTrackerTest {
     }
 
     @Test
+    fun ambiguousRepeatedSemanticTargetsDoNotEstablishContinuity() {
+        val tracker = CameraStateTracker()
+        tracker.update(
+            listOf(
+                obs(100f, 100f, 1),
+                obs(130f, 100f, 2),
+                obs(300f, 300f, 3)
+            )
+        )
+
+        val result = tracker.update(
+            listOf(
+                obs(114f, 100f, 11),
+                obs(116f, 100f, 12),
+                obs(301f, 299f, 13)
+            )
+        )
+
+        assertEquals(CameraState.UNSTABLE, result.state)
+        assertEquals(1, result.sharedTargets)
+        assertEquals(false, result.continuityForActions)
+    }
+
+    @Test
     fun semanticFallbackKeepsStationaryCameraStableWhenCoordinatesDrift() {
         val tracker = CameraStateTracker()
         tracker.update(
