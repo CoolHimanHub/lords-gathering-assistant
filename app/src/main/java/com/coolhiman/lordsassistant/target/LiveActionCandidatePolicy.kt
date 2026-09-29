@@ -10,6 +10,7 @@ enum class LiveActionCandidateRejectionReason {
     CAMERA_CONTINUITY_INVALID,
     COORDINATE_NOT_ACTION_AUTHORITATIVE,
     SEMANTIC_IDENTITY_MISSING,
+    SEMANTIC_IDENTITY_INVALID,
     VALIDATION_UNSAFE,
     VALIDATION_NOT_SAFE_TO_INTERACT,
     PLANNER_RANK_INVALID,
@@ -25,6 +26,8 @@ object LiveActionCandidatePolicy {
                 LiveActionCandidateRejectionReason.COORDINATE_NOT_ACTION_AUTHORITATIVE
             candidate.target.semanticIdentity == null ->
                 LiveActionCandidateRejectionReason.SEMANTIC_IDENTITY_MISSING
+            !isCanonicalSemanticIdentity(candidate.target) ->
+                LiveActionCandidateRejectionReason.SEMANTIC_IDENTITY_INVALID
             !candidate.validation.safe ->
                 LiveActionCandidateRejectionReason.VALIDATION_UNSAFE
             candidate.validation.stage != TargetValidationStage.SAFE_TO_INTERACT ->
@@ -35,6 +38,16 @@ object LiveActionCandidatePolicy {
                 LiveActionCandidateRejectionReason.PLANNER_SCORE_NON_FINITE
             else -> null
         }
+
+    private fun isCanonicalSemanticIdentity(target: ActionTargetSnapshot): Boolean {
+        val identity = target.semanticIdentity?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        return when (target.kind) {
+            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> runCatching {
+                com.coolhiman.lordsassistant.model.ResourceType.valueOf(identity.uppercase())
+            }.isSuccess
+            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> !identity.equals("MONSTER", ignoreCase = true)
+        }
+    }
 
     fun isSchedulerEligible(candidate: com.coolhiman.lordsassistant.map.LiveActionCandidate): Boolean =
         rejectionReason(candidate) == null
