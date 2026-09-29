@@ -106,6 +106,30 @@ class CameraStateTrackerTest {
 
 
     @Test
+    fun semanticFallbackDoesNotCarryConcreteIdentityThroughDropout() {
+        val tracker = CameraStateTracker()
+        tracker.update(
+            listOf(
+                obs(100f, 100f, 1),
+                obs(200f, 200f, 2),
+                obs(300f, 300f, 3)
+            )
+        )
+
+        val result = tracker.update(
+            listOf(
+                obs(101f, 99f, 11).copy(label = null),
+                obs(199f, 201f, 12).copy(label = null),
+                obs(301f, 299f, 13).copy(label = null)
+            )
+        )
+
+        assertEquals(CameraState.UNSTABLE, result.state)
+        assertEquals(0, result.sharedTargets)
+        assertEquals(false, result.continuityForActions)
+    }
+
+    @Test
     fun semanticFallbackNormalizesLabelCaseAndWhitespace() {
         val tracker = CameraStateTracker()
         tracker.update(
