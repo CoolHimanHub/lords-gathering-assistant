@@ -27,7 +27,8 @@ class ActionExecutionJournalTest {
             attemptId = 41L,
             recoveryEpoch = 12L,
             startedAtMs = 55_000L,
-            captureSessionId = 701L
+            captureSessionId = 701L,
+            targetSemanticIdentity = "WOOD"
         )
         assertTrue(first.markInFlight(provenance))
 
@@ -38,6 +39,7 @@ class ActionExecutionJournalTest {
         assertTrue(entry?.recoveryEpochPersisted == true)
         assertEquals(55_000L, entry?.startedAtMs)
         assertEquals(701L, entry?.captureSessionId)
+        assertEquals("WOOD", entry?.targetSemanticIdentity)
 
         reopened.clear()
 
