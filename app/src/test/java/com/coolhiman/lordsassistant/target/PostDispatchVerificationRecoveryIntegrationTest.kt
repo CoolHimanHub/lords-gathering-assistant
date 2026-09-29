@@ -100,13 +100,14 @@ class PostDispatchVerificationRecoveryIntegrationTest {
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
-        orchestrator.dispatch(baseMs + 1L, automaticActionsEnabled = true) { _ -> true }
+        val dispatchAtMs = System.currentTimeMillis() + 1L
+        orchestrator.dispatch(dispatchAtMs, automaticActionsEnabled = true) { _ -> true }
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, orchestrator.lifecycleSnapshot.state)
 
         val timedOut = orchestrator.verifyPostAction(
             afterObservation = null,
             popupAfter = null,
-            nowMs = baseMs + 10_000L
+            nowMs = dispatchAtMs + 10_000L
         )
         assertEquals(ActionLifecycleState.UNKNOWN, timedOut.lifecycle.state)
         assertEquals(ActionLifecycleFailure.VERIFICATION_TIMEOUT, timedOut.lifecycle.failure)
@@ -119,7 +120,7 @@ class PostDispatchVerificationRecoveryIntegrationTest {
             beforeObservation = null,
             popupBefore = null,
             baselineMarchSignals = emptyList(),
-            nowMs = baseMs + 10_001L
+            nowMs = dispatchAtMs + 10_001L
         )
         assertEquals(ActionLifecycleState.UNKNOWN, blocked.lifecycle.state)
 
