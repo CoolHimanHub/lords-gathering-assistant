@@ -72,7 +72,7 @@ class ActionOrchestratorTest {
 
         assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
         var dispatched = false
-        orchestrator.dispatch(1L, automaticActionsEnabled = true) {
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) {
             dispatched = true
             true
         }
@@ -121,7 +121,7 @@ class ActionOrchestratorTest {
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
-        orchestrator.dispatch(10_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, orchestrator.lifecycleSnapshot.state)
 
         val first = MarchSignal(910f, 600f, 20.0, 0.9f)
@@ -413,7 +413,7 @@ class ActionOrchestratorTest {
         assertTrue(result.session == null)
 
         var dispatched = false
-        orchestrator.dispatch(68_100L, automaticActionsEnabled = true) {
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) {
             dispatched = true
             true
         }
@@ -447,7 +447,7 @@ class ActionOrchestratorTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 60_000L)
         orchestrator.revalidate(freshObservation(), freshValidation(), ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(60_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         val oldFirst = MarchSignal(910f, 600f, 20.0, 0.9f)
         val oldSecond = MarchSignal(920f, 600f, 20.0, 0.9f)
@@ -471,7 +471,7 @@ class ActionOrchestratorTest {
         assertEquals(null, orchestrator.lastPostActionEvidence)
 
         orchestrator.revalidate(freshObservation(), freshValidation(), ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(61_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         val staleOnly = orchestrator.observeMarch(listOf(oldSecond), 61_100L)
         assertFalse(staleOnly.session?.ownMarchConfirmed == true)
@@ -491,7 +491,7 @@ class ActionOrchestratorTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 15_000L)
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(15_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 15_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 15_200L)
@@ -517,7 +517,7 @@ class ActionOrchestratorTest {
             nowMs = 20_000L
         )
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(20_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         val after = observation.copy(coordinate = WorldCoordinate(355, 168, 511))
         val first = orchestrator.verifyPostAction(after, null, 20_100L)
@@ -532,7 +532,7 @@ class ActionOrchestratorTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_000L)
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(40_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 40_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 40_200L)
         orchestrator.verifyPostAction(observation, popup, 40_300L)
@@ -540,7 +540,7 @@ class ActionOrchestratorTest {
 
         var dispatched = false
         val result = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_500L)
-        orchestrator.dispatch(40_501L, automaticActionsEnabled = true) {
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) {
             dispatched = true
             true
         }
@@ -572,7 +572,7 @@ class ActionOrchestratorTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 41_000L)
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(41_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 41_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 41_200L)
         orchestrator.verifyPostAction(observation, popup, 41_300L)
@@ -594,7 +594,7 @@ class ActionOrchestratorTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, moved.point, 0.95f)
         )
-        orchestrator.dispatch(43_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         val result = orchestrator.verifyPostAction(observation.copy(screenPoint = moved.point), popup, 43_100L)
 
@@ -615,7 +615,7 @@ class ActionOrchestratorTest {
             nowMs = 30_000L
         )
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(30_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         val result = orchestrator.verifyPostAction(observation, null, 30_100L)
 
@@ -627,12 +627,12 @@ class ActionOrchestratorTest {
         val orchestrator = ActionOrchestrator()
         orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 50_000L)
         orchestrator.revalidate(observation, safeValidation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(50_001L, automaticActionsEnabled = true) { true }
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { true }
 
         val result = orchestrator.verifyPostAction(
             afterObservation = observation,
             popupAfter = popup,
-            nowMs = 50_001L + ActionOrchestrator.POST_ACTION_TIMEOUT_MS
+            nowMs = System.currentTimeMillis() + ActionOrchestrator.POST_ACTION_TIMEOUT_MS
         )
 
         assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
@@ -656,7 +656,7 @@ class ActionOrchestratorTest {
             baselineMarchSignals = emptyList(),
             nowMs = 72_000L
         )
-        orchestrator.dispatch(72_001L, automaticActionsEnabled = true) {
+        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) {
             dispatched = true
             true
         }
