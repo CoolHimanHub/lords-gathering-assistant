@@ -998,7 +998,8 @@ class ScreenCaptureService : Service() {
                                                     attemptId = it.attemptId,
                                                     recoveryEpoch = it.recoveryEpoch,
                                                     startedAtMs = now,
-                                                    captureSessionId = liveCaptureSessionId
+                                                    captureSessionId = liveCaptureSessionId,
+                                                    targetSemanticIdentity = it.selected.semanticIdentity
                                                 )
                                             }
                                             if (provenance != null &&
