@@ -86,10 +86,10 @@ class ActionSafetySimulationTest {
             true
         }
 
-        orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 1_100L)
-        orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 1_200L)
-        orchestrator.verifyPostAction(observation, popup, 1_300L)
-        val result = orchestrator.verifyPostAction(observation, popup, 1_400L)
+        orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 3_100L)
+        orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 3_200L)
+        orchestrator.verifyPostAction(observation, popup, 3_300L)
+        val result = orchestrator.verifyPostAction(observation, popup, 3_400L)
 
         assertEquals(1, dispatches)
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
