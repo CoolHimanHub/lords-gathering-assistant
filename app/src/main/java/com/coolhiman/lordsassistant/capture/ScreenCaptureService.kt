@@ -598,9 +598,9 @@ class ScreenCaptureService : Service() {
         )
 
         reader?.setOnImageAvailableListener({ source ->
-            val now = System.currentTimeMillis()
-            captureHealth.frameArrived(now)
-            captureWatchdog.frameArrived(now)
+            val frameArrivedAtMs = System.currentTimeMillis()
+            captureHealth.frameArrived(frameArrivedAtMs)
+            captureWatchdog.frameArrived(frameArrivedAtMs)
             if (now - lastScanMs < 300L || !busy.compareAndSet(false, true)) {
                 source.acquireLatestImage()?.close()
                 captureHealth.frameDropped()
@@ -722,6 +722,12 @@ class ScreenCaptureService : Service() {
                             textRegions = result.textRegions,
                             popupState = result.popup
                         )
+                        // The frame-arrival timestamp is intentionally not reused for
+                        // scheduler/revalidation/dispatch decisions: OCR + vision can
+                        // finish much later. Use the actual post-scan time for all
+                        // action-boundary provenance while retaining arrival time for
+                        // capture-latency metrics and stale-frame checks.
+                        val now = System.currentTimeMillis()
                         gridLearningController.onFrame(
                             width = bitmap.width,
                             height = bitmap.height,
