@@ -73,7 +73,7 @@ class PostDispatchVerificationRecoveryIntegrationTest {
         val requested = orchestrator.request(
             automaticActionsEnabled = true,
             selected = target(),
-            validation = safeValidation(),
+            validation = safeValidation(baseMs),
             beforeObservation = null,
             popupBefore = null,
             baselineMarchSignals = emptyList(),
