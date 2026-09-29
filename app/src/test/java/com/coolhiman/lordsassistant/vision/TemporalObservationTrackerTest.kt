@@ -145,6 +145,30 @@ class TemporalObservationTrackerTest {
     }
 
     @Test
+    fun ambiguousSemanticCoordinateDriftDoesNotReuseTemporalTrack() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val first = observation().copy(
+            coordinate = WorldCoordinate(355, 10, 20),
+            screenPoint = ScreenPoint(100f, 100f),
+            label = "WOOD"
+        )
+        val second = first.copy(
+            coordinate = WorldCoordinate(355, 11, 21),
+            screenPoint = ScreenPoint(130f, 100f),
+            label = "WOOD"
+        )
+        val ambiguous = first.copy(
+            coordinate = WorldCoordinate(355, 12, 22),
+            screenPoint = ScreenPoint(114f, 100f),
+            label = "WOOD"
+        )
+
+        assertEquals(0, tracker.update(listOf(first, second), 1000L).size)
+        assertEquals(0, tracker.update(listOf(ambiguous), 1100L).size)
+        assertEquals(1, tracker.update(listOf(ambiguous), 1200L).size)
+    }
+
+    @Test
     fun coordinateDriftStillConfirmsSameVisibleNode() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         val first = observation()
