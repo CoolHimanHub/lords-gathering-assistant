@@ -80,7 +80,7 @@ class ActionSafetySimulationTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        orchestrator.dispatch(1_001L) {
+        orchestrator.dispatch(1_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
@@ -105,7 +105,7 @@ class ActionSafetySimulationTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        orchestrator.dispatch(2_001L) {
+        orchestrator.dispatch(2_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
@@ -126,7 +126,7 @@ class ActionSafetySimulationTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        orchestrator.dispatch(3_001L) {
+        orchestrator.dispatch(3_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
@@ -160,7 +160,7 @@ class ActionSafetySimulationTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        orchestrator.dispatch(4_001L) {
+        orchestrator.dispatch(4_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
@@ -184,7 +184,7 @@ class ActionSafetySimulationTest {
             freshValidation(),
             ActionButton(ActionKind.GATHER, selected.point, 0.95f)
         )
-        orchestrator.dispatch(5_001L) { true }
+        orchestrator.dispatch(5_001L, automaticActionsEnabled = true) { true }
 
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 5_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 5_200L)
@@ -210,7 +210,7 @@ class ActionSafetySimulationTest {
         val result = orchestrator.request(
             true, selected, safeValidation, observation, popup, emptyList(), 6_000L
         )
-        orchestrator.dispatch(6_001L) {
+        orchestrator.dispatch(6_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
@@ -228,7 +228,7 @@ class ActionSafetySimulationTest {
         val result = orchestrator.request(
             true, selected, safeValidation, observation, popup, emptyList(), 7_000L
         )
-        orchestrator.dispatch(7_001L) {
+        orchestrator.dispatch(7_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
@@ -248,7 +248,7 @@ class ActionSafetySimulationTest {
         val retry = orchestrator.request(
             true, selected, safeValidation, observation, popup, emptyList(), 8_000L
         )
-        orchestrator.dispatch(8_001L) {
+        orchestrator.dispatch(8_001L, automaticActionsEnabled = true) {
             dispatches++
             true
         }
