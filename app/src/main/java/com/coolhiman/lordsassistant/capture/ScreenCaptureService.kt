@@ -1021,13 +1021,13 @@ class ScreenCaptureService : Service() {
                                                     nowMs = now,
                                                     captureSessionId = liveCaptureSessionId,
                                                     automaticActionsEnabled = prefs.automaticActions
-                                                ) {
+                                                ) { finalContext ->
                                                     runCatching {
                                                         LmAccessibilityService.instance?.tapRevalidated(
-                                                            selected = currentCandidate.target,
-                                                            latestObservation = currentCandidate.observation,
-                                                            latestValidation = currentCandidate.validation,
-                                                            latestAction = currentCandidate.actionButton
+                                                            selected = finalContext.selected,
+                                                            latestObservation = finalContext.latestObservation,
+                                                            latestValidation = finalContext.latestValidation,
+                                                            latestAction = finalContext.latestAction
                                                         ) == true
                                                     }.getOrDefault(false)
                                                 }.also { result ->
