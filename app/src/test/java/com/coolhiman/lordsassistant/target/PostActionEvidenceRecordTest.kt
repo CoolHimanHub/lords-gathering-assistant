@@ -50,15 +50,17 @@ class PostActionEvidenceRecordTest {
         )
 
         val orchestrator = ActionOrchestrator()
-        val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT, validatedAtMs = 10_000L)
-        orchestrator.request(true, selected, validation, observation, popup, emptyList(), 10_000L)
-        orchestrator.revalidate(observation, validation, ActionButton(ActionKind.GATHER, selected.point, 0.95f))
-        orchestrator.dispatch(10_001L) { true }
+        val baseMs = System.currentTimeMillis()
+        val currentObservation = observation.copy(timestampMs = baseMs)
+        val validation = TargetValidationResult(true, TargetValidationStage.SAFE_TO_INTERACT, validatedAtMs = baseMs)
+        orchestrator.request(true, selected, validation, currentObservation, popup, emptyList(), baseMs)
+        orchestrator.revalidate(currentObservation, validation, ActionButton(ActionKind.GATHER, selected.point, 0.95f), nowMs = baseMs)
+        orchestrator.dispatch(baseMs + 1L) { true }
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 10_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 10_200L)
 
-        orchestrator.verifyPostAction(observation, popup, 10_300L)
-        orchestrator.verifyPostAction(observation, popup, 10_400L)
+        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 300L)
+        orchestrator.verifyPostAction(currentObservation, popup, baseMs + 400L)
 
         val record = orchestrator.lastPostActionEvidence
         assertTrue(record != null)
