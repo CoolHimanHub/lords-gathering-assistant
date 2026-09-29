@@ -18,6 +18,7 @@ data class TextClassification(
 object GameTextClassifier {
     private val levelRegex = Regex("""(?:LV|LEVEL)\s*\.?\s*(\d{1,2})""", RegexOption.IGNORE_CASE)
     private val quantityRegex = Regex("""(?:^|\s)(\d{1,3}(?:,\d{3})+|\d{4,})(?:\s|$)""")
+    private val compactQuantityRegex = Regex("""(?<![A-Z0-9])([0-9]{1,3}(?:[.,][0-9]{1,2})?)\s*([KMB])(?:\+)?(?![A-Z0-9])""", RegexOption.IGNORE_CASE)
 
     fun classify(raw: String): TextClassification {
         val text = OcrParser.normalize(raw)
@@ -46,8 +47,14 @@ object GameTextClassifier {
         val explicitLevel = levelRegex.find(text)?.groupValues?.get(1)?.toIntOrNull()
         val badgeLevel = text.trim().toIntOrNull()?.takeIf { it in 1..5 }
         val level = explicitLevel ?: badgeLevel
-        val quantity = quantityRegex.findAll(text)
-            .mapNotNull { it.groupValues[1].replace(",", "").toLongOrNull() }.maxOrNull()
+        val quantity = sequenceOf(
+            quantityRegex.findAll(text).mapNotNull {
+                it.groupValues[1].replace(",", "").toLongOrNull()
+            },
+            compactQuantityRegex.findAll(text).mapNotNull {
+                parseCompactQuantity(it.groupValues[1], it.groupValues[2])
+            }
+        ).flatten().maxOrNull()
         val occupied = when {
             "unoccupied" in lower || "available" in lower -> false
             "occupied" in lower || "gathering" in lower || "occupier" in lower -> true
@@ -62,5 +69,20 @@ object GameTextClassifier {
             resource = resource, monsterName = monster?.replaceFirstChar { it.uppercase() }, level = level, quantity = quantity,
             occupied = occupied, incomingTroops = incoming, ignored = ignored
         )
+    }
+
+    private fun parseCompactQuantity(number: String, suffix: String): Long? {
+        val multiplier = when (suffix.uppercase()) {
+            "K" -> 1_000L
+            "M" -> 1_000_000L
+            "B" -> 1_000_000_000L
+            else -> return null
+        }
+        val normalized = number.replace(',', '.')
+        val value = normalized.toDoubleOrNull() ?: return null
+        if (!value.isFinite() || value < 0.0) return null
+        val scaled = value * multiplier.toDouble()
+        if (!scaled.isFinite() || scaled > Long.MAX_VALUE.toDouble()) return null
+        return scaled.toLong()
     }
 }
