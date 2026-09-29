@@ -334,8 +334,8 @@ class LiveMapScanner(context: Context) {
             }
             .values
             .mapNotNull { matches ->
-                matches.minByOrNull { (_, button) ->
-                    distance(button.point, matches.first().first.screenPoint)
+                matches.minByOrNull { (observation, button) ->
+                    distance(button.point, observation.screenPoint)
                 }
             }
 
