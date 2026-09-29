@@ -239,6 +239,23 @@ class PreActionRevalidatorTest {
     }
 
     @Test
+    fun futureDatedObservationBlocksEvenIfValidationClaimsSafe() {
+        val nowMs = 1_000_000L
+        val latest = observation().copy(timestampMs = nowMs + 1L)
+
+        val result = PreActionRevalidator.revalidate(
+            snapshot(),
+            latest,
+            validation().copy(validatedAtMs = nowMs),
+            action(),
+            nowMs = nowMs
+        )
+
+        assertFalse(result.safe)
+        assertTrue(TargetBlockReason.STATE_UNKNOWN in result.reasons)
+    }
+
+    @Test
     fun changedActionIsBlocked() {
         val latestAction = action().copy(kind = ActionKind.HUNT)
 
