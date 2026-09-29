@@ -18,6 +18,8 @@ data class ActionButton(
 }
 
 object ActionButtonDetector {
+    private const val POPUP_ANCHOR_AMBIGUITY_MARGIN_PX = 18f
+
     private val labels = mapOf(
         ActionKind.GATHER to listOf("gather", "gath"),
         ActionKind.HUNT to listOf("hunt", "hunting"),
@@ -69,8 +71,19 @@ object ActionButtonDetector {
         return actionCandidates.mapNotNull { candidate ->
             if (anchors.isEmpty()) return@mapNotNull null
 
-            val nearest = anchors.minOf { distance(candidate.bounds, it) }
+            val rankedAnchors = anchors
+                .map { it to distance(candidate.bounds, it) }
+                .sortedBy { it.second }
+            val nearest = rankedAnchors.firstOrNull()?.second ?: return@mapNotNull null
+            val secondNearest = rankedAnchors.getOrNull(1)?.second
             if (nearest > popupAnchorMaxDistancePx) return@mapNotNull null
+
+            // If two popup-semantic anchors are effectively equally close,
+            // do not guess which popup the action belongs to. The action
+            // candidate can otherwise inherit the wrong target context.
+            if (secondNearest != null &&
+                secondNearest - nearest < POPUP_ANCHOR_AMBIGUITY_MARGIN_PX
+            ) return@mapNotNull null
 
             ActionButton(
                 kind = candidate.kind,
