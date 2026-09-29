@@ -18,7 +18,8 @@ import kotlin.math.hypot
 class TemporalObservationTracker(
     private val confirmHits: Int = 2,
     private val maxGapMs: Long = 2500L,
-    private val maxScreenMatchDistancePx: Float = 90f
+    private val maxScreenMatchDistancePx: Float = 90f,
+    private val semanticAmbiguityMarginPx: Float = 12f
 ) {
     private data class Track(
         var observation: MapObservation,
@@ -44,7 +45,7 @@ class TemporalObservationTracker(
             // remains stationary. Re-associate by semantic identity + screen
             // proximity before creating a new temporal track.
             if (old == null && observation.screenPoint != null) {
-                val match = tracks.entries
+                val rankedMatches = tracks.entries
                     .asSequence()
                     .filter { (_, track) ->
                         nowMs - track.lastSeen <= maxGapMs &&
@@ -60,7 +61,20 @@ class TemporalObservationTracker(
                         entry to distance
                     }
                     .filter { it.second <= maxScreenMatchDistancePx }
-                    .minByOrNull { it.second }
+                    .sortedBy { it.second }
+                    .toList()
+
+                // Identical semantic targets can be close enough that nearest
+                // neighbour alone is not reliable. Never transfer temporal
+                // confirmation, occupancy, or quantity history when the two
+                // best tracks are effectively tied; fail closed and require
+                // fresh confirmation on the new coordinate instead.
+                val nearest = rankedMatches.firstOrNull()
+                val secondNearest = rankedMatches.getOrNull(1)
+                val match = nearest?.takeIf {
+                    secondNearest == null ||
+                        secondNearest.second - it.second >= semanticAmbiguityMarginPx
+                }
                 if (match != null) {
                     tracks.remove(match.first.key)
                     old = match.first.value
