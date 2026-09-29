@@ -649,8 +649,10 @@ class ScreenCaptureService : Service() {
                     busy.compareAndSet(true, false)
                 ) {
                     processingToken.compareAndSet(frameToken, frameToken + 1L)
+                    val diagnostic = analyzer.diagnosticState()
+                    analyzer.cancelInFlight("frame analysis timeout")
                     captureRuntime.recordFailure(
-                        "Frame analysis timeout: " + analyzer.diagnosticState()
+                        "Frame analysis timeout: " + diagnostic
                     )
                     captureStage = "TIMEOUT"
                     captureHealth.frameDropped()
