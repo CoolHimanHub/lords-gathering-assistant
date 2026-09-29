@@ -28,7 +28,8 @@ object PostActionStateVerifier {
         val popupBeforeMatchesTarget = popupBefore?.isPopup == true &&
             popupBefore.coordinate == selected.coordinate &&
             popupBefore.kind == selected.kind &&
-            popupBefore.level == selected.level
+            popupBefore.level == selected.level &&
+            semanticMatches(selected, popupBefore.resource?.name)
         val popupAfterIsVisible = popupAfter?.isPopup == true
         if (popupBeforeMatchesTarget && !popupAfterIsVisible) {
             evidence += PostActionEvidence.POPUP_DISAPPEARED
@@ -36,10 +37,12 @@ object PostActionStateVerifier {
 
         val beforeMatchesTarget = before?.coordinate == selected.coordinate &&
             before.kind == selected.kind &&
-            before.level == selected.level
+            before.level == selected.level &&
+            semanticMatches(selected, before.label)
         val sameTarget = after?.coordinate == selected.coordinate &&
             after.kind == selected.kind &&
-            after.level == selected.level
+            after.level == selected.level &&
+            semanticMatches(selected, after.label)
 
         if (sameTarget) {
             if (after.occupied == true || after.incomingTroops == true) {
@@ -58,5 +61,12 @@ object PostActionStateVerifier {
     fun isSameTarget(observation: MapObservation?, selected: ActionTargetSnapshot): Boolean =
         observation?.coordinate == selected.coordinate &&
             observation?.kind == selected.kind &&
-            observation?.level == selected.level
+            observation?.level == selected.level &&
+            semanticMatches(selected, observation.label)
+
+    private fun semanticMatches(selected: ActionTargetSnapshot, observedIdentity: String?): Boolean =
+        when (val expected = selected.semanticIdentity?.trim()) {
+            null, "" -> true
+            else -> observedIdentity?.trim()?.equals(expected, ignoreCase = true) == true
+        }
 }
