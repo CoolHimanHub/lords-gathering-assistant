@@ -33,7 +33,7 @@ class LevelBadgeSemanticAssociator(
         // Equal/similar-distance OCR labels are ambiguous even when they
         // contain the same level. Require a clear geometric winner.
         if (second.second <= 0f) return null
-        if (nearest.second / second.second < maxNearestToSecondRatio) return null
+        if (nearest.second / second.second > maxNearestToSecondRatio) return null
 
         return nearest.first
     }
