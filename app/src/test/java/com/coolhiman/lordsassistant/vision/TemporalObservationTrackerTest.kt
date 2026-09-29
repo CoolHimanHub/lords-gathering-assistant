@@ -149,4 +149,17 @@ class TemporalObservationTrackerTest {
     }
 
 
+    @Test
+    fun semanticMismatchCannotReusePreviousFreeOrOccupiedEvidence() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val wood = observation().copy(label = "WOOD", occupied = false, incomingTroops = false)
+        val stoneOccupied = observation().copy(label = "STONE", occupied = true, incomingTroops = true)
+
+        assertEquals(0, tracker.update(listOf(wood), 1000L).size)
+        assertEquals(1, tracker.update(listOf(stoneOccupied), 1100L).size)
+
+        val freeStone = stoneOccupied.copy(occupied = false, incomingTroops = false)
+        assertEquals(true, tracker.update(listOf(freeStone), 1200L).single().occupied)
+    }
+
 }
