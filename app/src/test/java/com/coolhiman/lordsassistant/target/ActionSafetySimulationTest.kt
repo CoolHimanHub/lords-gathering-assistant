@@ -78,9 +78,10 @@ class ActionSafetySimulationTest {
         orchestrator.revalidate(
             freshObservation(),
             freshValidation(),
-            ActionButton(ActionKind.GATHER, selected.point, 0.95f)
+            ActionButton(ActionKind.GATHER, selected.point, 0.95f),
+            nowMs = 3_000L
         )
-        orchestrator.dispatch(System.currentTimeMillis(), automaticActionsEnabled = true) { _ ->
+        orchestrator.dispatch(3_001L, automaticActionsEnabled = true) { _ ->
             dispatches++
             true
         }
