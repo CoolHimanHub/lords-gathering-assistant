@@ -49,4 +49,16 @@ class TargetStabilityRegistryTest {
         registry.update(key, target, CameraState.PANNING)
         assertFalse(registry.update(key, target, CameraState.STABLE).stable)
     }
+    @Test
+    fun repeatedUpdatesWithinOneFrameWouldNotBeStableFromRegistryAlone() {
+        val registry = TargetStabilityRegistry(requiredFrames = 2)
+        val key = "1:200,300:RESOURCE:3"
+
+        // The scanner must call the registry once per logical target per frame.
+        // This test documents the invariant and prevents changing the registry
+        // contract into a same-frame frame counter.
+        assertFalse(registry.update(key, target, CameraState.STABLE).stable)
+        assertTrue(registry.update(key, target, CameraState.STABLE).stable)
+    }
+
 }
