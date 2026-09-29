@@ -87,6 +87,9 @@ object PreActionRevalidator {
             !selectedIdentity.equals(latestIdentity, ignoreCase = true)
         ) {
             reasons += TargetBlockReason.SEMANTIC_IDENTITY_INVALID
+            // A semantic mismatch is also concrete evidence that the selected
+            // target is no longer the same target represented by the latest frame.
+            reasons += TargetBlockReason.TARGET_CHANGED
         }
 
         // Coordinate provenance is a direct pre-dispatch requirement. Do not
