@@ -73,6 +73,32 @@ class TemporalObservationTrackerTest {
     }
 
     @Test
+    fun semanticIdentityDropoutDoesNotCarryOldIdentityIntoConfirmation() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val wood = observation().copy(label = "WOOD")
+        val unlabeled = wood.copy(label = null)
+
+        assertEquals(0, tracker.update(listOf(wood), 1000L).size)
+        assertEquals(0, tracker.update(listOf(unlabeled), 1100L).size)
+
+        val reidentified = tracker.update(listOf(wood), 1200L)
+        assertEquals(0, reidentified.size)
+        assertEquals(1, tracker.update(listOf(wood), 1300L).size)
+    }
+
+    @Test
+    fun semanticIdentityChangeRequiresFreshConfirmation() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val wood = observation().copy(label = "WOOD")
+        val stone = wood.copy(label = "STONE")
+
+        assertEquals(0, tracker.update(listOf(wood), 1000L).size)
+        assertEquals(0, tracker.update(listOf(stone), 1100L).size)
+        assertEquals(0, tracker.update(listOf(wood), 1200L).size)
+        assertEquals(1, tracker.update(listOf(wood), 1300L).size)
+    }
+
+    @Test
     fun highConfidenceUnknownDoesNotBecomeOccupied() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         val unknown = observation(0.95f).copy(occupied = null, incomingTroops = null)
