@@ -55,6 +55,16 @@ class TargetStabilityTrackerTest {
     }
 
     @Test
+    fun semanticIdentityDropoutResetsStability() {
+        val tracker = TargetStabilityTracker(requiredFrames = 2)
+        tracker.update(target, CameraState.STABLE)
+        val result = tracker.update(target.copy(label = null), CameraState.STABLE)
+        assertFalse(result.sameTarget)
+        assertFalse(result.stable)
+        assertTrue(result.consecutiveFrames == 1)
+    }
+
+    @Test
     fun genericMonsterLabelDoesNotForceIdentityMismatch() {
         val tracker = TargetStabilityTracker(requiredFrames = 2)
         val first = target.copy(kind = TargetKind.MONSTER, label = "MONSTER")
