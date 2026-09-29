@@ -317,17 +317,18 @@ class LiveMapScanner(context: Context) {
         // tracker more than once and manufacture a two-frame confirmation.
         val candidateMatches = uniqueActionButtons
             .flatMap { button ->
-                stateAware
-                    .filter { observation ->
-                        observation.coordinate != null && observation.kind != null && observation.level != null &&
-                            when (observation.kind) {
-                                com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
-                                com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
-                                null -> false
-                            } &&
-                            distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX
-                    }
-                    .map { it to button }
+                val matching = stateAware.filter { observation ->
+                    observation.coordinate != null && observation.kind != null && observation.level != null &&
+                        when (observation.kind) {
+                            com.coolhiman.lordsassistant.model.TargetKind.RESOURCE -> button.kind == ActionKind.GATHER
+                            com.coolhiman.lordsassistant.model.TargetKind.MONSTER -> button.kind == ActionKind.HUNT || button.kind == ActionKind.ATTACK
+                            null -> false
+                        } &&
+                        distance(button.point, observation.screenPoint) <= ACTION_BUTTON_TARGET_MAX_DISTANCE_PX
+                }
+                // A single button that is close to multiple world targets is
+                // ambiguous and must not become an action candidate.
+                if (matching.size == 1) matching.map { it to button } else emptyList()
             }
             .groupBy { (observation, _) ->
                 "${observation.coordinate}:${observation.kind}:${observation.level}"
