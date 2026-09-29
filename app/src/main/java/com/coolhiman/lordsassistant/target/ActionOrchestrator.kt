@@ -183,7 +183,7 @@ class ActionOrchestrator(
         return Result(lifecycleResult, session)
     }
 
-    fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?, nowMs: Long = latestObservation?.timestampMs ?: latestValidation.validatedAtMs ?: System.currentTimeMillis(), captureSessionId: Long? = null): Result {
+    fun revalidate(latestObservation: MapObservation?, latestValidation: TargetValidationResult, latestAction: ActionButton?, nowMs: Long = System.currentTimeMillis(), captureSessionId: Long? = null): Result {
         val current = session
         val selected = lifecycle.snapshot.selected
         if (current == null || selected == null || selected.identity() != current.selected.identity()) {
