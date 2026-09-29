@@ -208,7 +208,7 @@ class LmAccessibilityService : AccessibilityService() {
      * The only public gesture entry point. It refuses to dispatch a tap unless
      * the latest target passed the complete interaction gate.
      */
-    fun tapValidated(point: ScreenPoint, validation: TargetValidationResult): Boolean {
+    private fun tapValidated(point: ScreenPoint, validation: TargetValidationResult): Boolean {
         if (!InteractionGate.allow(validation, point)) return false
         val path = Path().apply { moveTo(point.x, point.y) }
         val gesture = GestureDescription.Builder()
