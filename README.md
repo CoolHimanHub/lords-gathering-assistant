@@ -1,3 +1,15 @@
+## V2.8.0 — Fail-closed live semantic association
+
+V2.8 strengthens the live vision boundary before any target can reach guarded action validation.
+
+- Level-badge OCR association now rejects similarly spaced candidate levels instead of guessing.
+- Target text/OCR association now applies the same nearest-vs-second-nearest ambiguity guard.
+- Ambiguous compatible target labels leave the detector's structural semantics intact rather than borrowing a nearby resource/monster identity.
+- Clear nearest target labels continue to associate normally.
+- Popup provenance, temporal confirmation, coordinate authority, and guarded action validation remain unchanged.
+- Android metadata is aligned to **2.8.0 (versionCode 280)**.
+- Automatic Gather/Hunt actions remain disabled by default.
+
 ## V2.7.1 — Normalized semantic validation
 
 V2.7.1 closes a consistency gap between canonical scheduler admission and popup validation.
