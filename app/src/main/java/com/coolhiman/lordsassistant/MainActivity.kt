@@ -44,7 +44,7 @@ class MainActivity : Activity() {
             insets
         }
         ViewCompat.requestApplyInsets(root)
-        root.addView(TextView(this).apply { text = "LM Companion  •  V2.6.0"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
+        root.addView(TextView(this).apply { text = "LM Companion  •  V2.7.0"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,0,0,12) })
         root.addView(TextView(this).apply { text = "Resource + monster companion • live map intelligence • compact overlay"; setTextColor(0xFFB8BBC4.toInt()); setPadding(0,0,0,14) })
         root.addView(Switch(this).apply { text = "Always-on-top overlay"; setTextColor(Color.WHITE); isChecked=current.overlayEnabled; setOnCheckedChangeListener { _,checked -> if (checked && !Settings.canDrawOverlays(this@MainActivity)) { isChecked = false; store.setOverlayEnabled(false); Toast.makeText(this@MainActivity, "Grant overlay permission first", Toast.LENGTH_SHORT).show(); startOverlayPermission() } else { store.setOverlayEnabled(checked); if (checked) startOverlayServiceSafely() else stopService(Intent(this@MainActivity,OverlayService::class.java)) } } })
         root.addView(TextView(this).apply {
