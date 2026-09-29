@@ -137,7 +137,7 @@ class ActionOrchestratorTest {
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, firstResult.lifecycle.state)
 
         val result = orchestrator.verifyPostAction(
-            afterObservation = observation,
+            afterObservation = observation.copy(timestampMs = observation.timestampMs + 1L),
             popupAfter = popup,
             nowMs = 10_400L
         )
@@ -352,7 +352,7 @@ class ActionOrchestratorTest {
             captureSessionId = 501L
         )
         val verified = orchestrator.verifyPostAction(
-            afterObservation = afterObservation,
+            afterObservation = afterObservation.copy(timestampMs = afterObservation.timestampMs + 1L),
             popupAfter = null,
             nowMs = 84_200L,
             captureSessionId = 501L
@@ -456,7 +456,7 @@ class ActionOrchestratorTest {
         orchestrator.observeMarch(listOf(oldFirst), 60_100L)
         orchestrator.observeMarch(listOf(oldSecond), 60_200L)
         orchestrator.verifyPostAction(observation, popup, 60_300L)
-        orchestrator.verifyPostAction(observation, popup, 60_400L)
+        orchestrator.verifyPostAction(observation.copy(timestampMs = observation.timestampMs + 1L), popup, 60_400L)
         assertEquals(ActionLifecycleState.SUCCEEDED, orchestrator.lifecycleSnapshot.state)
         assertEquals(1L, orchestrator.lastPostActionEvidence?.attemptId)
 
@@ -481,7 +481,7 @@ class ActionOrchestratorTest {
         orchestrator.observeMarch(listOf(MarchSignal(930f, 600f, 20.0, 0.9f)), 61_200L)
         orchestrator.observeMarch(listOf(MarchSignal(940f, 600f, 20.0, 0.9f)), 61_300L)
         orchestrator.verifyPostAction(observation, popup, 61_400L)
-        val result = orchestrator.verifyPostAction(observation, popup, 61_500L)
+        val result = orchestrator.verifyPostAction(observation.copy(timestampMs = observation.timestampMs + 1L), popup, 61_500L)
 
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
         assertEquals(2L, orchestrator.lastPostActionEvidence?.attemptId)
@@ -525,7 +525,7 @@ class ActionOrchestratorTest {
         val first = orchestrator.verifyPostAction(after, null, 20_100L)
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, first.lifecycle.state)
 
-        val result = orchestrator.verifyPostAction(after, null, 20_200L)
+        val result = orchestrator.verifyPostAction(after.copy(timestampMs = after.timestampMs + 1L), null, 20_200L)
         assertEquals(ActionLifecycleState.SUCCEEDED, result.lifecycle.state)
     }
 
@@ -538,7 +538,7 @@ class ActionOrchestratorTest {
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 40_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 40_200L)
         orchestrator.verifyPostAction(observation, popup, 40_300L)
-        orchestrator.verifyPostAction(observation, popup, 40_400L)
+        orchestrator.verifyPostAction(observation.copy(timestampMs = observation.timestampMs + 1L), popup, 40_400L)
 
         var dispatched = false
         val result = orchestrator.request(true, selected, safeValidation, observation, popup, emptyList(), 40_500L)
@@ -578,7 +578,7 @@ class ActionOrchestratorTest {
         orchestrator.observeMarch(listOf(MarchSignal(910f, 600f, 20.0, 0.9f)), 41_100L)
         orchestrator.observeMarch(listOf(MarchSignal(920f, 600f, 20.0, 0.9f)), 41_200L)
         orchestrator.verifyPostAction(observation, popup, 41_300L)
-        orchestrator.verifyPostAction(observation, popup, 41_400L)
+        orchestrator.verifyPostAction(observation.copy(timestampMs = observation.timestampMs + 1L), popup, 41_400L)
 
         val result = orchestrator.request(true, moved, safeValidation, observation, popup, emptyList(), 41_500L)
 
