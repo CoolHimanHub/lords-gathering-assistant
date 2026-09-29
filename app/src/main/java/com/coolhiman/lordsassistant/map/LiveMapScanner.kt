@@ -302,7 +302,15 @@ class LiveMapScanner(context: Context) {
             targetKind = null
         )
 
-        val candidateTargets = detectedActionButtons
+        // OCR/template button detection can return duplicate representations
+        // of the same visible action. Never let duplicates advance temporal
+        // target stability twice within one bitmap; doing so would make a
+        // first-frame target appear stable after a single captured frame.
+        val uniqueActionButtons = detectedActionButtons.distinctBy {
+            "${it.kind}:${it.point.x}:${it.point.y}"
+        }
+
+        val candidateTargets = uniqueActionButtons
             .flatMap { button ->
                 val matching = stateAware.filter { observation ->
                     observation.coordinate != null && observation.kind != null && observation.level != null &&
