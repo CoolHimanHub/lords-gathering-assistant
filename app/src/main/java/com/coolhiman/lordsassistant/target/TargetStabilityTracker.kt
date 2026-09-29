@@ -47,7 +47,12 @@ class TargetStabilityTracker(
         // level could inherit the previous frame's stability.
         val first = semanticIdentity(a)
         val second = semanticIdentity(b)
-        return first == null || second == null || first.equals(second, ignoreCase = true)
+        // A concrete identity cannot survive an OCR dropout. Anonymous
+        // observations may continue only when both frames are anonymous.
+        if (first == null || second == null) {
+            return first == null && second == null
+        }
+        return first.equals(second, ignoreCase = true)
     }
 
     private fun semanticIdentity(observation: MapObservation): String? =
