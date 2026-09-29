@@ -68,6 +68,7 @@ class PostDispatchVerificationRecoveryIntegrationTest {
     @Test
     fun timeoutProducesUnknownAndBlocksAutomaticRetryUntilRecoveryReset() {
         val orchestrator = ActionOrchestrator()
+        val baseMs = System.currentTimeMillis()
 
         val requested = orchestrator.request(
             automaticActionsEnabled = true,
@@ -76,7 +77,7 @@ class PostDispatchVerificationRecoveryIntegrationTest {
             beforeObservation = null,
             popupBefore = null,
             baselineMarchSignals = emptyList(),
-            nowMs = 3_000L
+            nowMs = baseMs
         )
         assertEquals(ActionLifecycleState.REQUESTED, requested.lifecycle.state)
 
@@ -94,18 +95,18 @@ class PostDispatchVerificationRecoveryIntegrationTest {
                 evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
                 timestampMs = 3_000L
             ),
-            latestValidation = safeValidation(3_000L),
+            latestValidation = safeValidation(baseMs),
             latestAction = ActionButton(ActionKind.GATHER, ScreenPoint(500f, 400f), 1f)
         )
         assertEquals(ActionLifecycleState.REVALIDATED, orchestrator.lifecycleSnapshot.state)
 
-        orchestrator.dispatch(3_001L) { true }
+        orchestrator.dispatch(baseMs + 1L) { true }
         assertEquals(ActionLifecycleState.WAITING_FOR_RESULT, orchestrator.lifecycleSnapshot.state)
 
         val timedOut = orchestrator.verifyPostAction(
             afterObservation = null,
             popupAfter = null,
-            nowMs = 7_001L
+            nowMs = baseMs + 10_000L
         )
         assertEquals(ActionLifecycleState.UNKNOWN, timedOut.lifecycle.state)
         assertEquals(ActionLifecycleFailure.VERIFICATION_TIMEOUT, timedOut.lifecycle.failure)
@@ -118,7 +119,7 @@ class PostDispatchVerificationRecoveryIntegrationTest {
             beforeObservation = null,
             popupBefore = null,
             baselineMarchSignals = emptyList(),
-            nowMs = 7_002L
+            nowMs = baseMs + 10_001L
         )
         assertEquals(ActionLifecycleState.UNKNOWN, blocked.lifecycle.state)
 
