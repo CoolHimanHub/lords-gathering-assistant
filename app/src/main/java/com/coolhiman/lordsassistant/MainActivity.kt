@@ -21,7 +21,7 @@ import com.coolhiman.lordsassistant.overlay.OverlayService
 class MainActivity : Activity() {
     companion object {
         const val ACTION_START_CAPTURE = "com.coolhiman.lordsassistant.action.START_CAPTURE"
-        const val APP_VERSION = "2.7.0"
+        const val APP_VERSION = "2.7.1"
     }
     private lateinit var store: PreferencesStore
     private lateinit var readinessStatus: TextView
