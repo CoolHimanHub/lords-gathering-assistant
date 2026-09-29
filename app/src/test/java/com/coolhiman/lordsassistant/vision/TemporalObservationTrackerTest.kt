@@ -113,6 +113,18 @@ class TemporalObservationTrackerTest {
     }
 
     @Test
+    fun lowerConfidenceFrameStillUpdatesFreshQuantity() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val first = observation(0.95f).copy(quantity = 100_000L)
+        val second = observation(0.60f).copy(quantity = 850_000L)
+
+        assertEquals(0, tracker.update(listOf(first), 1000L).size)
+        val stable = tracker.update(listOf(second), 1100L).single()
+
+        assertEquals(850_000L, stable.quantity)
+    }
+
+    @Test
     fun highConfidenceUnknownDoesNotBecomeOccupied() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         val unknown = observation(0.95f).copy(occupied = null, incomingTroops = null)
