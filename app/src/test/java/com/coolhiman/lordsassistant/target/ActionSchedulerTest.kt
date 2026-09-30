@@ -476,6 +476,32 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun adapterSelectionSynchronizesRecoveryEpochWithoutExplicitReset() {
+        val scheduler = ActionScheduler()
+        scheduler.resetForCaptureSession(61L)
+        scheduler.resetForRecoveryEpoch(3L)
+        val adapter = LiveActionSchedulerAdapter(scheduler)
+        val stale = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(
+            captureSessionId = 61L,
+            recoveryEpoch = 3L
+        )
+        scheduler.offer(stale)
+        assertEquals(1, scheduler.queuedCount())
+
+        val decision = adapter.select(
+            60_001L,
+            ActionSchedulerSafetyState(
+                captureSessionId = 61L,
+                recoveryEpoch = 4L
+            )
+        )
+
+        assertEquals(ActionScheduleBlockReason.EMPTY_QUEUE, decision.reason)
+        assertEquals(null, decision.candidate)
+        assertEquals(0, scheduler.queuedCount())
+    }
+
+    @Test
     fun staleRecoveryEpochCandidateCannotEnterQueue() {
         val scheduler = ActionScheduler()
         scheduler.resetForRecoveryEpoch(8L)
