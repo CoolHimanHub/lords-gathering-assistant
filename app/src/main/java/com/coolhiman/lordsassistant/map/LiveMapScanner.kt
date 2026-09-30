@@ -358,7 +358,8 @@ class LiveMapScanner(context: Context) {
         val candidateTargets = candidateMatches
             .mapNotNull { (observation, button) ->
 
-                val key = "${observation.coordinate}:${observation.kind}:${observation.level}"
+                val semanticIdentity = ActionSemanticIdentity.fromObservation(observation)
+                val key = "${observation.coordinate}:${observation.kind}:${observation.level}:${semanticIdentity ?: "<missing>"}"
                 val stability = targetStabilityRegistry.update(key, observation, camera.state)
                 val fused = result.fused.firstOrNull { item ->
                     item.coordinate == observation.coordinate &&
@@ -399,7 +400,7 @@ class LiveMapScanner(context: Context) {
 
         targetStabilityRegistry.removeExcept(
             candidateTargets.mapTo(linkedSetOf()) {
-                "${it.target.coordinate}:${it.target.kind}:${it.target.level}"
+                "${it.target.coordinate}:${it.target.kind}:${it.target.level}:${it.target.semanticIdentity ?: "<missing>"}"
             }
         )
 
