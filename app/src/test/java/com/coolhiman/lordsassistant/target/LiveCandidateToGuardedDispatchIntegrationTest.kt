@@ -194,6 +194,51 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun activeCaptureSessionRejectsUnboundActionRequest() {
+        val target = target()
+        val orchestrator = ActionOrchestrator()
+        val started = orchestrator.beginCaptureSession(51L)
+        assertEquals(ActionLifecycleState.IDLE, started.lifecycle.state)
+
+        val result = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidationAt(51_000L),
+            beforeObservation = observationAt(target, 51_000L),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 51_000L,
+            captureSessionId = null
+        )
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, result.lifecycle.failure)
+        assertEquals(null, result.session)
+    }
+
+    @Test
+    fun activeCaptureSessionRejectsActionRequestFromDifferentSession() {
+        val target = target()
+        val orchestrator = ActionOrchestrator()
+        orchestrator.beginCaptureSession(52L)
+
+        val result = orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidationAt(52_000L),
+            beforeObservation = observationAt(target, 52_000L),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 52_000L,
+            captureSessionId = 53L
+        )
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, result.lifecycle.failure)
+        assertEquals(null, result.session)
+    }
+
+    @Test
     fun failedClaimedTargetDoesNotDiscardIndependentQueuedCandidate() {
         val first = target()
         val second = target(ScreenPoint(620f, 400f)).copy(
