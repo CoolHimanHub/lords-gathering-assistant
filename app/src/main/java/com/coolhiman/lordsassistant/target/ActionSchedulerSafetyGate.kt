@@ -12,7 +12,8 @@ data class ActionSchedulerSafetyState(
     val automaticActionsEnabled: Boolean,
     val restartQuarantine: Boolean,
     val recoveryEpochPersistenceHealthy: Boolean,
-    val captureSessionId: Long? = null
+    val captureSessionId: Long? = null,
+    val recoveryEpoch: Long = 0L
 )
 
 enum class ActionSchedulerSafetyBlockReason {
