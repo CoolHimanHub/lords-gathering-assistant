@@ -359,7 +359,7 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
             confidence = 0.95f,
             occupied = false,
             incomingTroops = false,
-            label = "WOOD",
+            label = target.semanticIdentity,
             coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 4.0),
             evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
             timestampMs = System.currentTimeMillis()
