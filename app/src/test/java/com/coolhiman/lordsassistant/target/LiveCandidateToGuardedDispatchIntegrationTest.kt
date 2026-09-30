@@ -194,6 +194,50 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun failedClaimedTargetDoesNotDiscardIndependentQueuedCandidate() {
+        val first = target()
+        val second = target(ScreenPoint(620f, 400f)).copy(
+            coordinate = WorldCoordinate(356, 167, 511),
+            semanticIdentity = "STONE"
+        )
+        val scheduler = ActionScheduler()
+        scheduler.refresh(
+            listOf(
+                scheduleCandidate(first).copy(priority = 10, plannerRank = 0),
+                scheduleCandidate(second).copy(priority = 5, plannerRank = 1)
+            )
+        )
+
+        val decision = scheduler.claim(50_000L, safeState())
+        assertEquals(first, decision.candidate?.target)
+
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = decision.candidate?.target,
+            validation = safeValidationAt(50_000L),
+            beforeObservation = observationAt(first, 50_000L),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 50_000L
+        )
+
+        val failed = orchestrator.revalidate(
+            latestObservation = observationAt(first, 50_000L),
+            latestValidation = safeValidationAt(50_000L),
+            latestAction = action(ScreenPoint(700f, 400f)),
+            nowMs = 50_000L
+        )
+        assertEquals(ActionLifecycleState.FAILED, failed.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.REVALIDATION_FAILED, failed.lifecycle.failure)
+
+        // The claimed target is consumed, but an independently queued target
+        // must survive the failed revalidation of the first target.
+        val remaining = scheduler.peek(50_001L, safeState()).candidate?.target
+        assertEquals(second, remaining)
+    }
+
+    @Test
     fun disabledAutomationStopsAtOrchestratorBeforeDispatch() {
         val target = target()
         val scheduler = ActionScheduler()
