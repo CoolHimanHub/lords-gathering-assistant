@@ -64,9 +64,9 @@ class DeterministicScannerFrameReplayTest {
             ReplayFrame(1000L, listOf(a, b, c)),
             // Same visible scene: establishes camera continuity and temporal confirmation.
             ReplayFrame(1100L, listOf(a, b, c)),
-            // OCR dropout for C plus a duplicate A: camera continuity must not
-            // be claimed from an incomplete frame, and duplicate A must not add
-            // an extra temporal hit.
+            // OCR dropout for C plus a duplicate A: camera geometry can still use the
+            // exact world identity, while temporal semantic confirmation must
+            // reject the unlabeled C and duplicate A.
             ReplayFrame(1200L, listOf(
                 a.copy(timestampMs = 1200L),
                 a.copy(timestampMs = 1201L, quantity = 125_000L),
@@ -96,9 +96,9 @@ class DeterministicScannerFrameReplayTest {
         assertFalse(assessments[0].continuityForActions)
         assertTrue(assessments[1].continuityForActions)
 
-        // The incomplete/dropout frame cannot provide the three shared targets
-        // required for action-grade camera continuity.
-        assertFalse(assessments[2].continuityForActions)
+        // Exact world identity keeps camera geometry continuous despite the OCR
+        // dropout; temporal target identity remains separately fail-closed.
+        assertTrue(assessments[2].continuityForActions)
 
         assertEquals(CameraState.PANNING, assessments[3].state)
         assertFalse(assessments[3].continuityForActions)
