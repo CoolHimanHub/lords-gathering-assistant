@@ -335,8 +335,23 @@ class LiveMapScanner(context: Context) {
             }
             .values
             .mapNotNull { matches ->
-                matches.minByOrNull { (observation, button) ->
-                    distance(button.point, observation.screenPoint)
+                // Same coordinate/kind/level is not sufficient identity for
+                // action dispatch. If the same world target is represented by
+                // different semantic identities in one frame, selecting the
+                // nearest button would silently choose between conflicting
+                // observations. Reject the whole group and require a fresh,
+                // unambiguous frame instead.
+                val semanticIdentities = matches
+                    .map { (observation, _) ->
+                        ActionSemanticIdentity.fromObservation(observation)
+                    }
+                    .toSet()
+                if (semanticIdentities.size > 1 || semanticIdentities.contains(null)) {
+                    null
+                } else {
+                    matches.minByOrNull { (observation, button) ->
+                        distance(button.point, observation.screenPoint)
+                    }
                 }
             }
 
