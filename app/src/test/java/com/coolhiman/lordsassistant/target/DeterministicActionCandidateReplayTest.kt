@@ -10,30 +10,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Deterministic replay of the scanner -> live-action eligibility boundary.
- *
- * The replay deliberately changes one safety-critical property per frame.
- * A candidate may recover only when the latest frame independently satisfies
- * every live eligibility requirement.
- */
+/** Deterministic replay of the scanner -> live-action eligibility boundary. */
 class DeterministicActionCandidateReplayTest {
 
-    private data class ReplayFrame(
-        val candidate: LiveActionCandidate
-    )
+    private data class ReplayFrame(val candidate: LiveActionCandidate)
 
     private val coordinate = WorldCoordinate(355, 167, 511)
     private val point = ScreenPoint(900f, 600f)
 
-    private fun candidate(
+    private fun makeCandidate(
         cameraContinuityValid: Boolean = true,
         coordinateAuthoritative: Boolean = true,
         semanticIdentity: String? = "WOOD",
         safe: Boolean = true,
-        stage: TargetValidationStage = TargetValidationStage.SAFE_TO_INTERACT,
-        plannerRank: Int = 0,
-        plannerScore: Double = 10.0
+        stage: TargetValidationStage = TargetValidationStage.SAFE_TO_INTERACT
     ): LiveActionCandidate {
         val observation = MapObservation(
             coordinate = coordinate,
@@ -69,8 +59,8 @@ class DeterministicActionCandidateReplayTest {
             ),
             validation = TargetValidationResult(safe, stage),
             stability = TargetStability(stable = true, consecutiveFrames = 2),
-            plannerRank = plannerRank,
-            plannerScore = plannerScore,
+            plannerRank = 0,
+            plannerScore = 10.0,
             cameraContinuityValid = cameraContinuityValid
         )
     }
@@ -78,15 +68,10 @@ class DeterministicActionCandidateReplayTest {
     @Test
     fun replaySafetyBoundaryRejectsDropoutCameraLossAndOnlyThenRecovers() {
         val replay = listOf(
-            ReplayFrame(candidate()),
-            // OCR/semantic dropout: the target remains visible but no canonical
-            // action identity is available, so it must leave the eligible set.
-            ReplayFrame(candidate(semanticIdentity = null)),
-            // Camera boundary: even a fully identified target is not actionable
-            // while continuity is invalid.
-            ReplayFrame(candidate(cameraContinuityValid = false)),
-            // Fresh frame restores all independent evidence.
-            ReplayFrame(candidate())
+            ReplayFrame(makeCandidate()),
+            ReplayFrame(makeCandidate(semanticIdentity = null)),
+            ReplayFrame(makeCandidate(cameraContinuityValid = false)),
+            ReplayFrame(makeCandidate())
         )
 
         val decisions = replay.map { frame ->
@@ -115,12 +100,9 @@ class DeterministicActionCandidateReplayTest {
     @Test
     fun replayInvalidValidationNeverRecoversFromPriorEligibleFrame() {
         val replay = listOf(
-            candidate(),
-            candidate(
-                safe = false,
-                stage = TargetValidationStage.DETECTED
-            ),
-            candidate()
+            makeCandidate(),
+            makeCandidate(safe = false, stage = TargetValidationStage.DETECTED),
+            makeCandidate()
         )
 
         val decisions = replay.map {
