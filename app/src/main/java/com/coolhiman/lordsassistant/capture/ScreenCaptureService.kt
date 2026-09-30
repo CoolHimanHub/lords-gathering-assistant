@@ -69,6 +69,7 @@ class ScreenCaptureService : Service() {
     private val recoveryQuarantine = ActionRecoveryQuarantine()
     private var recoveryEpochPersistenceHealthy = true
     private var reconciledInitialEpoch = 0L
+    private var schedulerRecoveryEpoch = Long.MIN_VALUE
     private var previousScan: com.coolhiman.lordsassistant.map.LiveMapScanResult? = null
     private val busy = AtomicBoolean(false)
     private val processingToken = java.util.concurrent.atomic.AtomicLong(0L)
@@ -143,7 +144,12 @@ class ScreenCaptureService : Service() {
     }
 
     private fun persistRecoveryEpoch(): Boolean {
-        recoveryEpochPersistenceHealthy = recoveryEpochStore.write(actionOrchestrator.currentRecoveryEpoch)
+        val epoch = actionOrchestrator.currentRecoveryEpoch
+        if (epoch != schedulerRecoveryEpoch) {
+            actionSchedulerAdapter.resetForRecoveryEpoch(epoch)
+            schedulerRecoveryEpoch = epoch
+        }
+        recoveryEpochPersistenceHealthy = recoveryEpochStore.write(epoch)
         if (!recoveryEpochPersistenceHealthy) {
             actionAuditLog.appendIfChanged(
                 ActionAuditEvent(
@@ -437,6 +443,7 @@ class ScreenCaptureService : Service() {
         actionAuditLog = ActionAuditLogStore(this)
         actionSchedulerAdapter = LiveActionSchedulerAdapter(ActionScheduler())
         actionSchedulerAdapter.resetForRecoveryEpoch(reconciledInitialEpoch)
+        schedulerRecoveryEpoch = reconciledInitialEpoch
 
         // Reconcile all durable provenance sources before creating the live
         // orchestrator. A stale journal epoch must never be allowed to seed a
