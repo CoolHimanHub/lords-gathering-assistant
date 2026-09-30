@@ -105,8 +105,8 @@ class DeterministicActionCandidateReplayTest {
             makeCandidate()
         )
 
-        val decisions = replay.map {
-            LiveActionCandidateReconciler.reconcile(listOf(it.candidate))
+        val decisions = replay.map { candidate ->
+            LiveActionCandidateReconciler.reconcile(listOf(candidate))
         }
 
         assertEquals(1, decisions[0].eligible.size)
