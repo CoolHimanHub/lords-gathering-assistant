@@ -14,6 +14,10 @@ class LiveActionSchedulerAdapter(
     fun update(candidates: Collection<ActionScheduleCandidate>): List<ActionTargetSnapshot> =
         scheduler.refresh(candidates)
 
+    fun resetForRecoveryEpoch(recoveryEpoch: Long) {
+        scheduler.resetForRecoveryEpoch(recoveryEpoch)
+    }
+
     fun select(
         nowMs: Long,
         safetyState: ActionSchedulerSafetyState
