@@ -453,6 +453,29 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun sameCaptureRecoveryEpochBoundaryRequiresSchedulerReset() {
+        val scheduler = ActionScheduler()
+        scheduler.resetForCaptureSession(55L)
+        scheduler.resetForRecoveryEpoch(9L)
+
+        val old = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(
+            captureSessionId = 55L,
+            recoveryEpoch = 9L
+        )
+        scheduler.offer(old)
+        assertEquals(1, scheduler.queuedCount())
+
+        // A recovery boundary inside the same MediaProjection session must
+        // invalidate the old queue before the next action can be selected.
+        scheduler.resetForRecoveryEpoch(10L)
+        assertEquals(0, scheduler.queuedCount())
+
+        val fresh = old.copy(recoveryEpoch = 10L, queuedAtMs = 2_000L)
+        scheduler.offer(fresh)
+        assertEquals(fresh.target, scheduler.peek(2_000L).candidate?.target)
+    }
+
+    @Test
     fun staleRecoveryEpochCandidateCannotEnterQueue() {
         val scheduler = ActionScheduler()
         scheduler.resetForRecoveryEpoch(8L)
