@@ -100,6 +100,50 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun semanticTargetSwapAfterSchedulerClaimFailsClosedAndNeverInvokesDispatch() {
+        val target = target()
+        val scheduler = ActionScheduler()
+        scheduler.refresh(listOf(scheduleCandidate(target)))
+
+        val decision = scheduler.claim(25_000L, safeState())
+        assertEquals(target, decision.candidate?.target)
+
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = decision.candidate?.target,
+            validation = safeValidation(),
+            beforeObservation = observation(target),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 25_000L
+        )
+
+        // Same world coordinate/kind/level/action, but the semantic target
+        // changed. The scheduler identity includes semantics and the final
+        // revalidator must reject this as a different target.
+        val swapped = target.copy(semanticIdentity = "STONE")
+        val revalidation = orchestrator.revalidate(
+            latestObservation = observation(swapped).copy(timestampMs = 25_000L),
+            latestValidation = safeValidation().copy(validatedAtMs = 25_000L),
+            latestAction = action(swapped.point),
+            nowMs = 25_000L
+        )
+
+        assertEquals(ActionLifecycleState.FAILED, revalidation.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.REVALIDATION_FAILED, revalidation.lifecycle.failure)
+
+        var dispatches = 0
+        val result = orchestrator.dispatch(25_001L, automaticActionsEnabled = true) { _ ->
+            dispatches += 1
+            true
+        }
+
+        assertEquals(ActionLifecycleState.FAILED, result.lifecycle.state)
+        assertEquals(0, dispatches)
+    }
+
+    @Test
     fun disabledAutomationStopsAtOrchestratorBeforeDispatch() {
         val target = target()
         val scheduler = ActionScheduler()
