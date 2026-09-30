@@ -148,6 +148,7 @@ class ActionAuditLogStore(context: Context) {
                     put("kind", it.kind.name)
                     put("level", it.level)
                     put("actionKind", it.actionKind.name)
+                    it.semanticIdentity?.let { semantic -> put("semanticIdentity", semantic) }
                     put("pointX", it.point.x)
                     put("pointY", it.point.y)
                 })
@@ -172,6 +173,7 @@ class ActionAuditLogStore(context: Context) {
                     kind = TargetKind.valueOf(targetJson.getString("kind")),
                     level = targetJson.getInt("level"),
                     actionKind = ActionKind.valueOf(targetJson.getString("actionKind")),
+                    semanticIdentity = targetJson.optString("semanticIdentity").takeIf { it.isNotBlank() },
                     point = ScreenPoint(
                         targetJson.getDouble("pointX").toFloat(),
                         targetJson.getDouble("pointY").toFloat()
