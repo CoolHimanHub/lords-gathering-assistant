@@ -144,6 +144,56 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun captureSessionChangeAfterSchedulerClaimInvalidatesDispatch() {
+        val target = target()
+        val scheduler = ActionScheduler()
+        scheduler.resetForCaptureSession(41L)
+        scheduler.refresh(listOf(scheduleCandidate(target).copy(captureSessionId = 41L)))
+
+        val decision = scheduler.claim(
+            40_000L,
+            safeState().copy(captureSessionId = 41L)
+        )
+        assertEquals(target, decision.candidate?.target)
+
+        val orchestrator = ActionOrchestrator()
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = decision.candidate?.target,
+            validation = safeValidationAt(40_000L),
+            beforeObservation = observationAt(target, 40_000L),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 40_000L,
+            captureSessionId = 41L
+        )
+
+        val revalidation = orchestrator.revalidate(
+            latestObservation = observationAt(target, 40_000L),
+            latestValidation = safeValidationAt(40_000L),
+            latestAction = action(target.point),
+            nowMs = 40_000L,
+            captureSessionId = 42L
+        )
+
+        assertEquals(ActionLifecycleState.UNKNOWN, revalidation.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, revalidation.lifecycle.failure)
+
+        var dispatches = 0
+        val result = orchestrator.dispatch(
+            nowMs = 40_001L,
+            captureSessionId = 42L,
+            automaticActionsEnabled = true
+        ) { _ ->
+            dispatches += 1
+            true
+        }
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(0, dispatches)
+    }
+
+    @Test
     fun disabledAutomationStopsAtOrchestratorBeforeDispatch() {
         val target = target()
         val scheduler = ActionScheduler()
