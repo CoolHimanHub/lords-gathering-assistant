@@ -491,6 +491,10 @@ class ActionSchedulerTest {
         val decision = adapter.select(
             60_001L,
             ActionSchedulerSafetyState(
+                lifecycle = ActionLifecycleSnapshot(ActionLifecycleState.IDLE),
+                automaticActionsEnabled = true,
+                restartQuarantine = false,
+                recoveryEpochPersistenceHealthy = true,
                 captureSessionId = 61L,
                 recoveryEpoch = 4L
             )
