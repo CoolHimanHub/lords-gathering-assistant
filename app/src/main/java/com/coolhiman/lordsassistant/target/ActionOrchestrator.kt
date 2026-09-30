@@ -143,6 +143,17 @@ class ActionOrchestrator(
             return Result(lifecycle.snapshot, null)
         }
 
+        // Once MediaProjection has established an active capture session,
+        // every action request must carry the exact same provenance. A null
+        // or stale session ID must never create an unbound dispatchable
+        // session that could cross the capture-session safety boundary.
+        if (activeCaptureSessionId != null && captureSessionId != activeCaptureSessionId) {
+            session = null
+            clearRevalidationEvidence()
+            lifecycle.captureSessionChanged()
+            return Result(lifecycle.snapshot, null)
+        }
+
         // Keep the recovery invariant at the orchestration boundary itself.
         // The capture service also checks this policy, but callers must not be
         // able to bypass it by invoking request() directly after UNKNOWN or
