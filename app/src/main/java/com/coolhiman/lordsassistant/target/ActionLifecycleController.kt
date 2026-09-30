@@ -139,7 +139,12 @@ class ActionLifecycleController(
     }
 
     fun captureSessionChanged(): ActionLifecycleSnapshot {
+        // A capture-session mismatch is a provenance failure even when the
+        // lifecycle was still IDLE: the caller attempted to cross an active
+        // MediaProjection boundary without matching session evidence. Fail
+        // closed so the mismatch cannot be mistaken for a harmless no-op.
         snapshot = when (snapshot.state) {
+            ActionLifecycleState.IDLE,
             ActionLifecycleState.REQUESTED,
             ActionLifecycleState.REVALIDATED,
             ActionLifecycleState.WAITING_FOR_RESULT -> snapshot.copy(
