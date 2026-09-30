@@ -26,7 +26,8 @@ class ActionAuditProvenanceContinuityTest {
         kind = TargetKind.RESOURCE,
         level = 3,
         actionKind = ActionKind.GATHER,
-        point = ScreenPoint(500f, 400f)
+        point = ScreenPoint(500f, 400f),
+        semanticIdentity = "WOOD"
     )
 
     @Test
@@ -90,6 +91,29 @@ class ActionAuditProvenanceContinuityTest {
             assertEquals(101L, event.captureSessionId)
             assertEquals(target, event.target)
         }
+
+        store.clear()
+    }
+
+    @Test
+    fun semanticIdentitySurvivesAuditPersistence() {
+        val context = RuntimeEnvironment.getApplication()
+        val store = ActionAuditLogStore(context)
+        store.clear()
+
+        assertTrue(store.append(ActionAuditEvent(
+            timestampMs = 3_000L,
+            type = ActionAuditEventType.CANDIDATE_SELECTED,
+            attemptId = 31L,
+            recoveryEpoch = 7L,
+            captureSessionId = 202L,
+            target = target.copy(semanticIdentity = "STONE")
+        )))
+
+        val restored = store.readAll().single()
+        assertEquals("STONE", restored.target?.semanticIdentity)
+        assertEquals(target.coordinate, restored.target?.coordinate)
+        assertEquals(target.actionKind, restored.target?.actionKind)
 
         store.clear()
     }
