@@ -21,14 +21,18 @@ class LiveActionSchedulerAdapter(
     fun select(
         nowMs: Long,
         safetyState: ActionSchedulerSafetyState
-    ): ActionScheduleDecision =
-        scheduler.peek(nowMs, safetyState)
+    ): ActionScheduleDecision {
+        scheduler.resetForRecoveryEpoch(safetyState.recoveryEpoch)
+        return scheduler.peek(nowMs, safetyState)
+    }
 
     fun claim(
         nowMs: Long,
         safetyState: ActionSchedulerSafetyState
-    ): ActionScheduleDecision =
-        scheduler.claim(nowMs, safetyState)
+    ): ActionScheduleDecision {
+        scheduler.resetForRecoveryEpoch(safetyState.recoveryEpoch)
+        return scheduler.claim(nowMs, safetyState)
+    }
 
     fun markDispatchStarted(nowMs: Long) {
         scheduler.markDispatchStarted(nowMs)
