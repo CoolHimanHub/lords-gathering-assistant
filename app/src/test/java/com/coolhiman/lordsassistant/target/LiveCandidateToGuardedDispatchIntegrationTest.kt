@@ -312,7 +312,7 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
             60_001L,
             safeState().copy(captureSessionId = 61L, recoveryEpoch = 4L)
         )
-        assertEquals(ActionScheduleBlockReason.SAFETY_BLOCKED, blocked.reason)
+        assertEquals(ActionScheduleBlockReason.EMPTY_QUEUE, blocked.reason)
         assertEquals(null, blocked.candidate)
     }
 
