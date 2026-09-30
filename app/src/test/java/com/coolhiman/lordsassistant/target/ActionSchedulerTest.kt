@@ -453,6 +453,55 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun staleRecoveryEpochCandidateCannotEnterQueue() {
+        val scheduler = ActionScheduler()
+        scheduler.resetForRecoveryEpoch(8L)
+
+        scheduler.offer(candidate(priority = 10, stabilityFrames = 3, safe = true).copy(recoveryEpoch = 7L))
+        assertEquals(0, scheduler.queuedCount())
+
+        val fresh = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(recoveryEpoch = 8L)
+        scheduler.offer(fresh)
+        assertEquals(fresh.target, scheduler.peek(10_000L).candidate?.target)
+    }
+
+    @Test
+    fun recoveryEpochResetClearsPreviouslyQueuedSameSessionCandidate() {
+        val scheduler = ActionScheduler()
+        val old = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(recoveryEpoch = 4L)
+        scheduler.resetForRecoveryEpoch(4L)
+        scheduler.offer(old)
+        assertEquals(1, scheduler.queuedCount())
+
+        scheduler.resetForRecoveryEpoch(5L)
+
+        assertEquals(0, scheduler.queuedCount())
+        val fresh = old.copy(recoveryEpoch = 5L, queuedAtMs = 2_000L)
+        scheduler.offer(fresh)
+        assertEquals(fresh.target, scheduler.peek(2_000L).candidate?.target)
+    }
+
+    @Test
+    fun schedulerSelectionBlocksRecoveryEpochMismatch() {
+        val scheduler = ActionScheduler()
+        scheduler.resetForRecoveryEpoch(6L)
+        val fresh = candidate(priority = 10, stabilityFrames = 3, safe = true).copy(recoveryEpoch = 6L)
+        scheduler.offer(fresh)
+
+        val safety = ActionSchedulerSafetyState(
+            lifecycle = ActionLifecycleSnapshot(ActionLifecycleState.IDLE),
+            automaticActionsEnabled = true,
+            restartQuarantine = false,
+            recoveryEpochPersistenceHealthy = true,
+            recoveryEpoch = 5L
+        )
+
+        val decision = scheduler.peek(10_000L, safety)
+        assertEquals(ActionScheduleBlockReason.SAFETY_BLOCKED, decision.reason)
+        assertEquals(null, decision.candidate)
+    }
+
+    @Test
     fun schedulerSelectionBlocksSafetySessionMismatch() {
         val scheduler = ActionScheduler()
         scheduler.resetForCaptureSession(200L)
