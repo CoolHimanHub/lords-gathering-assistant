@@ -37,7 +37,31 @@ class TemporalObservationTracker(
     ): List<MapObservation> {
         val output = ArrayList<MapObservation>()
 
-        for (observation in observations) {
+        // A single capture frame may contain duplicate OCR/template detections
+        // for the same world node. Collapse those duplicates before temporal
+        // accounting so one bitmap can never manufacture multiple confirmation
+        // hits. Quantity is merged from the freshest duplicate while the
+        // highest-confidence observation supplies the remaining frame evidence.
+        val frameObservations = observations
+            .groupBy { observation ->
+                listOf(
+                    observation.coordinate,
+                    observation.kind,
+                    observation.level,
+                    observation.label?.trim()?.uppercase()
+                )
+            }
+            .values
+            .mapNotNull { duplicates ->
+                val selected = duplicates.maxByOrNull { it.confidence } ?: return@mapNotNull null
+                val freshestQuantity = duplicates
+                    .filter { it.quantity != null }
+                    .maxByOrNull { it.timestampMs }
+                    ?.quantity
+                selected.copy(quantity = freshestQuantity ?: selected.quantity)
+            }
+
+        for (observation in frameObservations) {
             val key = observation.coordinate ?: continue
             var old = tracks[key]
 
@@ -178,6 +202,7 @@ class TemporalObservationTracker(
         tracks.entries.removeIf { nowMs - it.value.lastSeen > maxGapMs * 4 }
         return output
     }
+
     private fun semanticCompatible(
         previous: MapObservation,
         current: MapObservation
