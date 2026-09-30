@@ -3,7 +3,6 @@ package com.coolhiman.lordsassistant.vision
 import com.coolhiman.lordsassistant.model.CoordinateAuthority
 import com.coolhiman.lordsassistant.model.CoordinateConfidence
 import com.coolhiman.lordsassistant.model.MapObservation
-import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.model.ScreenPoint
@@ -31,6 +30,15 @@ class TemporalObservationTrackerTest {
         val tracker = TemporalObservationTracker(confirmHits = 2)
         assertEquals(0, tracker.update(listOf(observation()), 1000L).size)
         assertEquals(1, tracker.update(listOf(observation()), 1100L).size)
+    }
+
+    @Test
+    fun duplicateDetectionsInOneFrameCannotManufactureConfirmation() {
+        val tracker = TemporalObservationTracker(confirmHits = 2)
+        val duplicate = observation()
+
+        assertEquals(0, tracker.update(listOf(duplicate, duplicate.copy(timestampMs = 1001L)), 1000L).size)
+        assertEquals(1, tracker.update(listOf(duplicate.copy(timestampMs = 1100L)), 1100L).size)
     }
 
     @Test
@@ -133,6 +141,7 @@ class TemporalObservationTrackerTest {
         assertNull(stable.occupied)
         assertNull(stable.incomingTroops)
     }
+
     @Test
     fun occupiedNodeNeedsRepeatedFreeEvidenceBeforeClearing() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
@@ -184,7 +193,6 @@ class TemporalObservationTrackerTest {
         assertEquals(second.screenPoint, stable.screenPoint)
     }
 
-
     @Test
     fun semanticMismatchCannotReusePreviousFreeOrOccupiedEvidence() {
         val tracker = TemporalObservationTracker(confirmHits = 2)
@@ -197,5 +205,4 @@ class TemporalObservationTrackerTest {
         val freeStone = stoneOccupied.copy(occupied = false, incomingTroops = false)
         assertEquals(true, tracker.update(listOf(freeStone), 1200L).single().occupied)
     }
-
 }
