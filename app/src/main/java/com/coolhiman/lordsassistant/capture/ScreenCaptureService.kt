@@ -436,6 +436,7 @@ class ScreenCaptureService : Service() {
         actionJournal = ActionExecutionJournal(this)
         actionAuditLog = ActionAuditLogStore(this)
         actionSchedulerAdapter = LiveActionSchedulerAdapter(ActionScheduler())
+        actionSchedulerAdapter.resetForRecoveryEpoch(reconciledInitialEpoch)
 
         // Reconcile all durable provenance sources before creating the live
         // orchestrator. A stale journal epoch must never be allowed to seed a
@@ -807,7 +808,8 @@ class ScreenCaptureService : Service() {
                                 stabilityFrames = candidate.stability.consecutiveFrames,
                                 validationSafe = true,
                                 queuedAtMs = now,
-                                captureSessionId = captureRuntime.snapshot().sessionId
+                                captureSessionId = captureRuntime.snapshot().sessionId,
+                                recoveryEpoch = actionOrchestrator.currentRecoveryEpoch
                             )
                         }
                         actionSchedulerAdapter.update(currentCandidates).forEach { droppedTarget ->
