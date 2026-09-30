@@ -131,6 +131,50 @@ class PostDispatchVerificationRecoveryIntegrationTest {
     }
 
     @Test
+    fun postActionEvidenceFromDifferentCaptureSessionInvalidatesVerification() {
+        val orchestrator = ActionOrchestrator()
+        orchestrator.beginCaptureSession(61L)
+        val target = target()
+
+        orchestrator.request(
+            automaticActionsEnabled = true,
+            selected = target,
+            validation = safeValidation(61_000L),
+            beforeObservation = observation(target, 61_000L),
+            popupBefore = null,
+            baselineMarchSignals = emptyList(),
+            nowMs = 61_000L,
+            captureSessionId = 61L
+        )
+        orchestrator.revalidate(
+            latestObservation = observation(target, 61_001L),
+            latestValidation = safeValidation(61_001L),
+            latestAction = ActionButton(ActionKind.GATHER, target.point, 1f),
+            nowMs = 61_001L,
+            captureSessionId = 61L
+        )
+        assertEquals(
+            ActionLifecycleState.WAITING_FOR_RESULT,
+            orchestrator.dispatch(
+                nowMs = 61_002L,
+                captureSessionId = 61L,
+                automaticActionsEnabled = true
+            ) { true }.lifecycle.state
+        )
+
+        val result = orchestrator.verifyPostAction(
+            afterObservation = observation(target, 61_003L),
+            popupAfter = null,
+            nowMs = 61_003L,
+            captureSessionId = 62L
+        )
+
+        assertEquals(ActionLifecycleState.UNKNOWN, result.lifecycle.state)
+        assertEquals(ActionLifecycleFailure.CAPTURE_SESSION_CHANGED, result.lifecycle.failure)
+        assertEquals(null, orchestrator.lastPostActionEvidence)
+    }
+
+    @Test
     fun failedDispatchCannotEnterPostActionVerificationOrCreateRetryableSuccess() {
         val orchestrator = ActionOrchestrator()
 
