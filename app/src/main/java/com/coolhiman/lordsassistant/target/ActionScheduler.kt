@@ -18,7 +18,9 @@ data class ActionScheduleCandidate(
     /** Zero-based order from TargetPlanner; lower is more preferred. */
     val plannerRank: Int = Int.MAX_VALUE,
     /** Planner's native score, retained as a tie-breaker inside the same rank. */
-    val plannerScore: Double = Double.NEGATIVE_INFINITY
+    val plannerScore: Double = Double.NEGATIVE_INFINITY,
+    /** Recovery epoch that produced this candidate; stale epochs are never selectable. */
+    val recoveryEpoch: Long = 0L
 )
 
 data class ActionScheduleDecision(
@@ -43,9 +45,11 @@ class ActionScheduler(
     private var inFlight = false
     private var lastDispatchAtMs: Long? = null
     private var currentCaptureSessionId: Long? = null
+    private var currentRecoveryEpoch: Long = 0L
 
     fun offer(candidate: ActionScheduleCandidate) {
         if (!sessionMatches(candidate)) return
+        if (!recoveryEpochMatches(candidate)) return
         if (!candidate.validationSafe) return
         if (candidate.stabilityFrames < minimumStabilityFrames) return
         if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return
@@ -70,7 +74,7 @@ class ActionScheduler(
         val latestSafe = linkedMapOf<ActionTargetIdentity, ActionScheduleCandidate>()
 
         current.forEach { candidate ->
-            if (!sessionMatches(candidate)) return@forEach
+            if (!sessionMatches(candidate) || !recoveryEpochMatches(candidate)) return@forEach
             if (!candidate.validationSafe || candidate.stabilityFrames < minimumStabilityFrames) return@forEach
             if (isCompletedAndSuppressed(candidate.target, candidate.queuedAtMs)) return@forEach
 
@@ -114,8 +118,21 @@ class ActionScheduler(
         lastDispatchAtMs = null
     }
 
+    /** Candidates from an earlier recovery attempt are invalid evidence even when the capture session is unchanged. */
+    fun resetForRecoveryEpoch(recoveryEpoch: Long) {
+        if (recoveryEpoch == currentRecoveryEpoch) return
+        currentRecoveryEpoch = recoveryEpoch
+        candidates.clear()
+        completedUntilMs.clear()
+        inFlight = false
+        lastDispatchAtMs = null
+    }
+
     private fun sessionMatches(candidate: ActionScheduleCandidate): Boolean =
         currentCaptureSessionId == null || candidate.captureSessionId == currentCaptureSessionId
+
+    private fun recoveryEpochMatches(candidate: ActionScheduleCandidate): Boolean =
+        candidate.recoveryEpoch == currentRecoveryEpoch
 
     fun markDispatchStarted(nowMs: Long) {
         inFlight = true
@@ -144,6 +161,9 @@ class ActionScheduler(
         if (currentCaptureSessionId != null &&
             safetyState.captureSessionId != currentCaptureSessionId
         ) {
+            return ActionScheduleDecision(null, ActionScheduleBlockReason.SAFETY_BLOCKED)
+        }
+        if (safetyState.recoveryEpoch != currentRecoveryEpoch) {
             return ActionScheduleDecision(null, ActionScheduleBlockReason.SAFETY_BLOCKED)
         }
         val blockReason = ActionSchedulerSafetyGate().blockReason(safetyState)
