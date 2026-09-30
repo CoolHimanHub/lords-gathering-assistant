@@ -212,6 +212,23 @@ class ActionSchedulerTest {
     }
 
     @Test
+    fun semanticIdentitySwapAtSameWorldCoordinateDropsPreviousTarget() {
+        val scheduler = ActionScheduler()
+        val wood = candidate(priority = 10, stabilityFrames = 3, safe = true, targetX = 1)
+            .copy(target = target(1).copy(semanticIdentity = "WOOD"))
+        val stone = wood.copy(
+            target = wood.target.copy(semanticIdentity = "STONE"),
+            queuedAtMs = 2_000L
+        )
+
+        scheduler.refresh(listOf(wood))
+        val dropped = scheduler.refresh(listOf(stone))
+
+        assertEquals(listOf(wood.target), dropped)
+        assertEquals(stone.target, scheduler.peek(10_000L).candidate?.target)
+    }
+
+    @Test
     fun sameWorldTargetWithMovedActionPointReplacesTransientMetadata() {
         val scheduler = ActionScheduler()
         val first = ActionScheduleCandidate(
