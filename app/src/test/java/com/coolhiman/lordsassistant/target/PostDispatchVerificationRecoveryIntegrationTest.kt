@@ -217,6 +217,20 @@ class PostDispatchVerificationRecoveryIntegrationTest {
         semanticIdentity = "WOOD"
     )
 
+    private fun observation(target: ActionTargetSnapshot, timestampMs: Long) = MapObservation(
+        coordinate = target.coordinate,
+        screenPoint = target.point,
+        occupied = false,
+        incomingTroops = false,
+        kind = target.kind,
+        level = target.level,
+        confidence = 1f,
+        label = target.semanticIdentity,
+        coordinateConfidence = CoordinateConfidence.observed(true, true, residualPx = 2.0),
+        evidence = setOf(ObservationEvidence.TEMPORALLY_CONFIRMED),
+        timestampMs = timestampMs
+    )
+
     private fun safeValidation(validatedAtMs: Long = System.currentTimeMillis()) = TargetValidationResult(
         safe = true,
         stage = TargetValidationStage.SAFE_TO_INTERACT,
