@@ -283,6 +283,40 @@ class LiveCandidateToGuardedDispatchIntegrationTest {
     }
 
     @Test
+    fun recoveryEpochChangeAfterSchedulerClaimInvalidatesSameSessionCandidate() {
+        val target = target()
+        val scheduler = ActionScheduler()
+        scheduler.resetForCaptureSession(61L)
+        scheduler.resetForRecoveryEpoch(3L)
+        scheduler.refresh(listOf(scheduleCandidate(target).copy(captureSessionId = 61L, recoveryEpoch = 3L)))
+
+        val decision = scheduler.claim(
+            60_000L,
+            safeState().copy(captureSessionId = 61L, recoveryEpoch = 3L)
+        )
+        assertEquals(target, decision.candidate?.target)
+
+        val orchestrator = ActionOrchestrator(initialRecoveryEpoch = 3L)
+        orchestrator.beginCaptureSession(61L)
+        val reset = orchestrator.reset()
+        assertEquals(ActionLifecycleState.IDLE, reset.lifecycle.state)
+        assertEquals(4L, orchestrator.currentRecoveryEpoch)
+
+        // The scheduler boundary must be advanced with the same recovery epoch.
+        // A candidate from the previous epoch must not become dispatchable merely
+        // because the MediaProjection session itself is unchanged.
+        scheduler.resetForRecoveryEpoch(orchestrator.currentRecoveryEpoch)
+        val stale = decision.candidate!!.copy(recoveryEpoch = 3L)
+        scheduler.refresh(listOf(stale))
+        val blocked = scheduler.peek(
+            60_001L,
+            safeState().copy(captureSessionId = 61L, recoveryEpoch = 4L)
+        )
+        assertEquals(ActionSchedulerDecisionReason.SAFETY_BLOCKED, blocked.reason)
+        assertEquals(null, blocked.candidate)
+    }
+
+    @Test
     fun disabledAutomationStopsAtOrchestratorBeforeDispatch() {
         val target = target()
         val scheduler = ActionScheduler()
