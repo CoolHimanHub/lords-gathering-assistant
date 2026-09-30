@@ -243,7 +243,9 @@ class ScreenCaptureService : Service() {
                 "Session #" + sessionId + " • " + totalFrames + " frames\n" +
                 "Accepted " + acceptedFrames + " • Processed " + processedFrames + " • Dropped " + droppedFrames + "\n" +
                 "Quality: " + quality
-            OverlayService.instance?.showStatus(hudText)
+            // OverlayService has a dedicated capture-health panel. Do not
+            // overwrite its richer live-scan status here; otherwise the watchdog
+            // replaces camera/validation/grid-learning diagnostics every second.
             if (OverlayService.instance == null) {
                 ensureScannerHud()
                 scannerHud?.post { scannerHud?.text = hudText }
