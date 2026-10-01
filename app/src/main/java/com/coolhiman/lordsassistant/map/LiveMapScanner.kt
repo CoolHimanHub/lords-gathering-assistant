@@ -14,6 +14,7 @@ import com.coolhiman.lordsassistant.target.TargetStability
 import com.coolhiman.lordsassistant.target.TargetStabilityTracker
 import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.vision.BlueMarchDetector
+import com.coolhiman.lordsassistant.vision.AiSceneDetector
 import com.coolhiman.lordsassistant.target.ActionButton
 import com.coolhiman.lordsassistant.target.ActionButtonDetector
 import com.coolhiman.lordsassistant.target.ActionSemanticIdentity
