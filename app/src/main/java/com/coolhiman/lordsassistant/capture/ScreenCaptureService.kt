@@ -299,13 +299,33 @@ class ScreenCaptureService : Service() {
     fun startGridLearning(): Boolean {
         if (!captureSessionActive) {
             OverlayService.instance?.setGridLearningUi(false)
-            OverlayService.instance?.showStatus("GRID LEARN • start screen scanner first")
+            OverlayService.instance?.showStatus("GRID LEARN • START FAILED • start screen scanner first")
             return false
         }
-        gridLearningController.start()
-        OverlayService.instance?.setGridLearningUi(true)
-        OverlayService.instance?.showStatus("GRID LEARN • ACTIVE • probing map tiles only")
-        return true
+
+        return runCatching {
+            gridLearningController.start()
+            gridLearningController.isActive()
+        }.getOrElse { error ->
+            OverlayService.instance?.setGridLearningUi(false)
+            OverlayService.instance?.showStatus(
+                "GRID LEARN • START FAILED • " +
+                    (error.message ?: error.javaClass.simpleName).take(120)
+            )
+            false
+        }.also { active ->
+            if (active) {
+                OverlayService.instance?.setGridLearningUi(true)
+                OverlayService.instance?.showStatus(
+                    "GRID LEARN • ACTIVE • probing map tiles only"
+                )
+            } else {
+                OverlayService.instance?.setGridLearningUi(false)
+                OverlayService.instance?.showStatus(
+                    "GRID LEARN • START FAILED • controller inactive"
+                )
+            }
+        }
     }
 
     fun stopGridLearning() {
