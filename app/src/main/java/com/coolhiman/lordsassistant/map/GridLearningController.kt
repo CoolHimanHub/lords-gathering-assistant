@@ -44,6 +44,8 @@ class GridLearningController(private val context: Context) {
     private var lastProbeIssue: String? = null
     private var candidateDetections = 0
     private var safeCandidateDetections = 0
+    private var acceptedSamples = 0
+    private var rejectedSamples = 0
 
     companion object {
         private const val MIN_CANDIDATE_FRAMES = 2
@@ -86,6 +88,8 @@ class GridLearningController(private val context: Context) {
         lastProbeIssue = null
         candidateDetections = 0
         safeCandidateDetections = 0
+        acceptedSamples = 0
+        rejectedSamples = 0
     }
 
     @Synchronized
@@ -276,6 +280,7 @@ class GridLearningController(private val context: Context) {
             calibrator.addSample(actual, probe.point)
         }
         sessionSamples++
+        if (accepted) acceptedSamples++ else rejectedSamples++
         learnedCoordinates.add(worldKey(actual))
         enqueueNeighbors(actual)
     }
@@ -366,8 +371,11 @@ class GridLearningController(private val context: Context) {
         val dispatch = "dispatch=" + dispatchSuccesses + "/" + probeAttempts
         val issue = lastProbeIssue?.let { " • " + it } ?: ""
         val candidate = " • candidates=" + candidateDetections + "/" + safeCandidateDetections
-        return "GRID LEARN • probes=" + sessionSamples +
+        val samples = " • accepted=" + acceptedSamples + " • rejected=" + rejectedSamples
+        return "GRID LEARN • probes=" + probeAttempts +
             " • saved=" + store.sampleCount() +
+            " • samples=" + sessionSamples +
+            samples +
             " • frontier=" + frontier.size +
             candidate +
             " • " + dispatch +
