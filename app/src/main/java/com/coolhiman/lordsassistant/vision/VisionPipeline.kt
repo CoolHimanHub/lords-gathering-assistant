@@ -9,7 +9,8 @@ data class VisionPipelineResult(
     val fused: List<FusionCandidate>,
     val badgeDetections: Int = 0,
     val openCvReady: Boolean = false,
-    val aiScene: AiSceneResult = AiSceneResult()
+    val aiScene: AiSceneResult = AiSceneResult(),
+    val gameSceneHypotheses: List<GameSceneHypothesis> = emptyList()
 )
 
 class VisionPipeline(
@@ -42,7 +43,8 @@ class VisionPipeline(
             fused = fused,
             badgeDetections = tileDetector.lastBadgeDetections,
             openCvReady = OpenCvRuntime.isLoaded(),
-            aiScene = aiScene
+            aiScene = aiScene,
+            gameSceneHypotheses = GameSceneTaxonomy.hypotheses(aiScene.objects)
         )
     }
     private fun enrichBadgeLevels(detection: DetectionFrame, textRegions: List<TextRegion>): DetectionFrame {

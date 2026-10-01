@@ -23,6 +23,8 @@ object GameSceneTaxonomy {
         return GameSceneHypothesis(objectDetection.bounds, sceneClass, objectDetection.confidence, objectDetection.category)
     }
 
+    fun hypotheses(objects: List<AiSceneObject>): List<GameSceneHypothesis> = objects.map(::classify)
+
     fun summarize(objects: List<AiSceneObject>): String {
         val counts = objects.map(::classify).groupingBy { it.sceneClass }.eachCount()
         return listOf(
