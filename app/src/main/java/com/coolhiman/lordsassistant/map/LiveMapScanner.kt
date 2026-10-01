@@ -195,11 +195,14 @@ class LiveMapScanner(context: Context) {
         // camera fitting already happened above.
         cameraAnchorTracker.update(observations)
 
-        // Temporal stabilization and camera-state assessment happen exactly
-        // once for the final coordinate pass, so one bitmap cannot advance
-        // stability or fabricate a stable camera state.
+        // Temporal stabilization is intentionally strict about OCR identity
+        // because its output can become action-authoritative. Camera continuity
+        // is different: it must observe raw current-frame screen geometry so a
+        // transient OCR label dropout does not turn a stationary camera into
+        // "shared=0". This assessment is diagnostic/grid-learning evidence only;
+        // action authorization remains gated by camera.continuityForActions below.
         val stable = tracker.update(observations)
-        val camera = cameraStateTracker.update(stable)
+        val camera = cameraStateTracker.update(observations)
         previousCameraState = camera.state
         val stateAware = if (camera.state == CameraState.STABLE) stable else stable.map {
             it.copy(evidence = it.evidence + com.coolhiman.lordsassistant.model.ObservationEvidence.CAMERA_UNSTABLE)
