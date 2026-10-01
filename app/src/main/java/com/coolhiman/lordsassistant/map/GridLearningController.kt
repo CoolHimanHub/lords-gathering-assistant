@@ -152,11 +152,14 @@ class GridLearningController(private val context: Context) {
 
         if (sessionSamples >= MAX_SESSION_PROBES) return
         // A popup may remain open after a successful probe. Lords Mobile can
-        // replace that popup when another map cell is tapped, so learning may
-        // continue without requiring a manual close. We only permit the next
-        // probe in the upper map-safe band while a popup is visible; detected
-        // action controls still hard-stop probing.
-        if (actionButtonDetections > 0) return
+        // replace that popup when another map cell is tapped, so learning should
+        // continue without requiring a manual close. While a popup is visible,
+        // probes are restricted to the lower map-safe band so the learner never
+        // taps the popup's Transfer/Occupy controls.
+        // Action buttons on a popup are expected while the learner is waiting
+        // to replace that popup with the next tile. Outside a popup, any detected
+        // action control is a hard safety stop.
+        if (actionButtonDetections > 0 && currentPopup == null) return
         if (nowMs - lastTapMs < MIN_TAP_INTERVAL_MS) return
 
         // Seed the learner from current semantic tile centers. The observation
@@ -177,7 +180,10 @@ class GridLearningController(private val context: Context) {
         if (selected == null) return
 
         val point = selected.point
-        if (currentPopup != null && point.y > height * 0.58f) return
+        // Keep taps away from the visible popup/action controls. The lower map
+        // band is deliberately used while a popup is open; once the popup closes
+        // the normal safe-map geometry is restored.
+        if (currentPopup != null && point.y < height * 0.62f) return
         if (lastCandidate != null && distance(lastCandidate, point) <= POINT_DEDUP_PX) {
             candidateFrames++
         } else {
