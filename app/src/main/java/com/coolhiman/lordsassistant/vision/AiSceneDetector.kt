@@ -57,7 +57,8 @@ class AiSceneDetector(context: Context) : AutoCloseable {
                 TimeUnit.MILLISECONDS
             )
             val mapped = objects.mapNotNull(::mapObject)
-            AiSceneResult(mapped, System.currentTimeMillis() - started, true, "AI OK • objects=${mapped.size}").also { lastResult = it }
+            val taxonomy = GameSceneTaxonomy.summarize(mapped)
+            AiSceneResult(mapped, System.currentTimeMillis() - started, true, "AI OK • objects=${mapped.size} • game=$taxonomy").also { lastResult = it }
         } catch (error: Throwable) {
             lastResult.copy(available = false, diagnostic = "AI FALLBACK • " + (error.message ?: error.javaClass.simpleName).take(100))
         } finally {
