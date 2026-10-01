@@ -148,8 +148,11 @@ class CameraStateTrackerTest {
             )
         )
 
-        assertEquals(CameraState.UNSTABLE, result.state)
-        assertEquals(0, result.sharedTargets)
+        assertEquals(CameraState.STABLE, result.state)
+        assertEquals(3, result.sharedTargets)
+        // Label dropout is enough for visual/grid continuity, but not for
+        // action-grade continuity. A later frame with a strong identity match
+        // is required before gameplay actions can be authorized.
         assertEquals(false, result.continuityForActions)
     }
 
