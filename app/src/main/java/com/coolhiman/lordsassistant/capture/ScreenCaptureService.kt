@@ -791,6 +791,11 @@ class ScreenCaptureService : Service() {
                             append(" discovered / ")
                             append(scan.plan.ranked.size + scan.plan.rankedMonsters.size)
                             append(" ranked")
+                            if (gridLearningActive) {
+                                // Keep grid-learning diagnostics near the top of the
+                                // compact overlay; the lower status area can be clipped.
+                                append("\n").append(gridLearningController.statusLine())
+                            }
                             if (origin != null) {
                                 append("\nK").append(origin.kingdom)
                                 append(" X").append(origin.x)
@@ -826,9 +831,7 @@ class ScreenCaptureService : Service() {
                                 .append(scan.actionCandidates.size).append(" candidates")
                             append("\n").append(scan.processingMs).append("ms")
                             append("\nCapture quality: ").append(captureQuality.name)
-                            if (gridLearningActive) {
-                                append("\n").append(gridLearningController.statusLine())
-                            }
+
                         }
                         val prefs = com.coolhiman.lordsassistant.data.PreferencesStore(this@ScreenCaptureService).load()
 
