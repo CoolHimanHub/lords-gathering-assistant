@@ -150,12 +150,14 @@ class CameraStateTracker(
         val firstLabel = a.label?.trim()?.takeIf { it.isNotEmpty() }
         val secondLabel = b.label?.trim()?.takeIf { it.isNotEmpty() }
 
-        // A concrete semantic identity cannot be carried through an OCR
-        // dropout. If either side has an identity, require both sides to have
-        // the same normalized identity; only anonymous observations may use
-        // kind/level as the fallback continuity key.
+        // OCR labels are not a reliable frame-to-frame identity: a label may be
+        // present in one processed frame and absent in the next. When either
+        // side is anonymous, fall back to kind + level + nearest screen point.
+        // This is only camera-continuity evidence; it does not authorize an
+        // action. When both labels are present, retain the stronger identity
+        // check to avoid matching different named targets.
         if (firstLabel == null || secondLabel == null) {
-            return firstLabel == null && secondLabel == null
+            return true
         }
         return firstLabel.equals(secondLabel, ignoreCase = true)
     }
