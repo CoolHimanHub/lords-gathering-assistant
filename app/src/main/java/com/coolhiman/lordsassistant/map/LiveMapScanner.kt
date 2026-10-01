@@ -94,6 +94,9 @@ class LiveMapScanner(context: Context) {
     private val cameraModelStabilityTracker = CameraModelStabilityTracker()
     private val targetStabilityTracker = TargetStabilityTracker()
     private var previousCameraState: CameraState? = null
+    // The map HUD can OCR only X/Y and supply kingdom=0. Popup K/X/Y is
+    // authoritative, so retain the last non-zero kingdom for calibration.
+    private var activeKingdom: Int? = null
     private val targetStabilityRegistry = com.coolhiman.lordsassistant.target.TargetStabilityRegistry()
     private val templateLibrary = TemplateLibrary(DatasetStore(context))
     private var templates = templateLibrary.loadTileTemplates()
@@ -129,7 +132,9 @@ class LiveMapScanner(context: Context) {
             targetStabilityTracker.reset()
             targetStabilityRegistry.resetForCameraBoundary()
         }
-        val kingdom = ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
+        popupState?.coordinate?.kingdom?.takeIf { it > 0 }?.let { activeKingdom = it }
+        ocrCoordinate?.kingdom?.takeIf { it > 0 }?.let { activeKingdom = it }
+        val kingdom = activeKingdom ?: ocrCoordinate?.kingdom ?: popupState?.coordinate?.kingdom ?: defaultKingdom
         val resolver = CoordinateResolver(calibrationStore, kingdom)
         // March contours are screen-space evidence. Once the camera has moved,
         // tracks from the previous view must not survive into the next stable frame.
@@ -209,7 +214,15 @@ class LiveMapScanner(context: Context) {
         }
         mapMemory.upsertAll(stateAware)
 
-        val origin = ocrCoordinate
+        // Prefer popup K/X/Y when present. It is direct game evidence and avoids
+        // treating an OCR-only K=0 placeholder as authoritative.
+        val origin = popupState?.coordinate ?: ocrCoordinate?.let { coordinate ->
+            if (coordinate.kingdom == 0 && activeKingdom != null) {
+                coordinate.copy(kingdom = activeKingdom!!)
+            } else {
+                coordinate
+            }
+        }
         val preferences = preferencesStore.load()
         val snapshot = mapMemory.snapshot()
         // MapMemory is intentionally keyed by world coordinate, so an
@@ -540,6 +553,7 @@ class LiveMapScanner(context: Context) {
         targetStabilityTracker.reset()
         targetStabilityRegistry.resetForCameraBoundary()
         previousCameraState = null
+        activeKingdom = null
     }
 
     private fun reloadTemplates() {
