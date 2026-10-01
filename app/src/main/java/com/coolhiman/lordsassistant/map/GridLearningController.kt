@@ -156,10 +156,12 @@ class GridLearningController(private val context: Context) {
         // continue without requiring a manual close. While a popup is visible,
         // probes are restricted to the lower map-safe band so the learner never
         // taps the popup's Transfer/Occupy controls.
-        // Action buttons on a popup are expected while the learner is waiting
-        // to replace that popup with the next tile. Outside a popup, any detected
-        // action control is a hard safety stop.
-        if (actionButtonDetections > 0 && currentPopup == null) return
+        // Do not use the global action-button count as a learning stop condition.
+        // The game's fixed HUD can legitimately produce action-button detections
+        // even when the selected point is a safe map cell. A count-only gate
+        // therefore deadlocked learning before the first probe. Probe geometry
+        // below is the authoritative safety boundary; popup controls are handled
+        // separately by the lower-band rule.
         if (nowMs - lastTapMs < MIN_TAP_INTERVAL_MS) return
 
         // Seed the learner from current semantic tile centers. The observation
