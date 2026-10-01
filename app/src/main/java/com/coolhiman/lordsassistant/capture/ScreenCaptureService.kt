@@ -779,7 +779,12 @@ class ScreenCaptureService : Service() {
                                 append("\nCalibrate + expose K/X/Y for ranking")
                             }
                             append("\nCamera: ").append(scan.cameraState.name)
-                            append("  Validation: ").append(scan.validation.stage.name)
+                                .append(" • shared=").append(scan.cameraSharedTargets)
+                                .append(" • shift=").append("%.1f".format(scan.cameraMedianShiftPx))
+                                .append(" • spread=").append("%.1f".format(scan.cameraSpreadPx))
+                                .append(" • scale=").append("%.1f%%".format(scan.cameraScaleChangePercent))
+                                .append(" • action=").append(if (scan.cameraContinuityForActions) "READY" else "BLOCKED")
+                            append("\nValidation: ").append(scan.validation.stage.name)
                             append("\nAction: ").append(scan.actionButton?.kind?.name ?: "NOT DETECTED")
                             if (scan.plan.rankedDiscoveries.isNotEmpty()) {
                                 val top = scan.plan.rankedDiscoveries.first().observation
