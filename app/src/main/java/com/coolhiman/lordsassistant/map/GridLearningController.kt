@@ -38,6 +38,10 @@ class GridLearningController(private val context: Context) {
     private val attemptedScreen = linkedMapOf<String, Long>()
     private val frontier = ArrayDeque<WorldCoordinate>()
     private var candidateQueue: Probe? = null
+    private var probeAttempts = 0
+    private var dispatchSuccesses = 0
+    private var dispatchFailures = 0
+    private var lastProbeIssue: String? = null
 
     companion object {
         private const val MIN_CANDIDATE_FRAMES = 2
@@ -74,6 +78,10 @@ class GridLearningController(private val context: Context) {
         frontier.clear()
         attemptedScreen.clear()
         candidateQueue = null
+        probeAttempts = 0
+        dispatchSuccesses = 0
+        dispatchFailures = 0
+        lastProbeIssue = null
     }
 
     @Synchronized
@@ -198,7 +206,8 @@ class GridLearningController(private val context: Context) {
         pendingSinceMs = nowMs
         pendingRetries = 0
         lastTapMs = nowMs
-        attemptedScreen[pointKey(point)] = nowMs
+        probeAttempts++
+        lastProbeIssue = null
         while (attemptedScreen.size > 512) {
             val oldest = attemptedScreen.entries.minByOrNull { it.value }?.key ?: break
             attemptedScreen.remove(oldest)
@@ -302,7 +311,11 @@ class GridLearningController(private val context: Context) {
     private fun dispatchProbe(probe: Probe) {
         val service = LmAccessibilityService.instance
         if (service == null) {
+            dispatchFailures++
+            lastProbeIssue = "ACCESSIBILITY OFF"
             pending = null
+            pendingSinceMs = 0L
+            attemptedScreen.remove(pointKey(probe.point))
             return
         }
         service.tapGridProbe(
@@ -311,6 +324,15 @@ class GridLearningController(private val context: Context) {
             screenHeight = lastHeight
         ) { dispatched ->
             synchronized(this) {
+                if (dispatched) {
+                    dispatchSuccesses++
+                    attemptedScreen[pointKey(probe.point)] = System.currentTimeMillis()
+                    lastProbeIssue = null
+                } else {
+                    dispatchFailures++
+                    lastProbeIssue = "PROBE DISPATCH FAILED"
+                    attemptedScreen.remove(pointKey(probe.point))
+                }
                 if (!dispatched && pending?.point == probe.point) {
                     pending = null
                     pendingSinceMs = 0L
@@ -325,11 +347,14 @@ class GridLearningController(private val context: Context) {
         if (!active) return "Grid learning: OFF"
         val fit = calibrator.fit()
         val rms = fit?.rmsErrorPx?.let { " • RMS %.1fpx".format(it) } ?: ""
+        val dispatch = "dispatch=" + dispatchSuccesses + "/" + probeAttempts
+        val issue = lastProbeIssue?.let { " • " + it } ?: ""
         return "GRID LEARN • probes=" + sessionSamples +
             " • saved=" + store.sampleCount() +
             " • frontier=" + frontier.size +
+            " • " + dispatch +
             " • camera=" + if (lastCameraStable) "STABLE" else "UNSTABLE" +
-            " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms
+            " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms + issue
     }
 
     private fun safeMapPoint(point: ScreenPoint, width: Int, height: Int): Boolean {
