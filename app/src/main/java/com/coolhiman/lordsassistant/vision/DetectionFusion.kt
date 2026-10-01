@@ -32,12 +32,14 @@ data class FusionCandidate(
 class DetectionFusion(
     private val maxTextDistancePx: Float = 180f,
     private val maxMarchDistancePx: Float = 75f,
-    private val maxTextNearestToSecondRatio: Float = 0.72f
+    private val maxTextNearestToSecondRatio: Float = 0.72f,
+    private val minAiSupportConfidence: Double = 0.55
 ) {
     fun fuse(
         frame: DetectionFrame,
         textRegions: List<TextRegion>,
         marchSignals: List<MarchSignal>,
+        aiSceneHypotheses: List<GameSceneHypothesis> = emptyList(),
         popupState: PopupState? = null,
         coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
         coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
@@ -83,7 +85,6 @@ class DetectionFusion(
                 }
             val coordinate = resolution?.coordinate
             var coordinateConfidence = resolution?.confidence ?: CoordinateConfidence.none()
-            val popup = popupState
             val popupMatches = popupMatchesExactly(
                 tile = tile,
                 classification = classification,
@@ -129,11 +130,18 @@ class DetectionFusion(
                 }
             }
 
+            val aiSupport = aiSceneHypotheses.any { hypothesis ->
+                hypothesis.sceneClass == GameSceneClass.RESOURCE_CANDIDATE &&
+                    hypothesis.confidence >= minAiSupportConfidence &&
+                    distance(tile.bounds, hypothesis.bounds) <= maxTextDistancePx
+            }
+
             val evidence = listOf(
                 tile.confidence,
                 if (text != null) 0.90 else 0.0,
                 if (associatedMarch != null) associatedMarch.confidence.toDouble() else 0.0,
-                if (popupMatches) 0.98 else 0.0
+                if (popupMatches) 0.98 else 0.0,
+                if (aiSupport) 0.65 else 0.0
             ).filter { it > 0.0 }
             val confidence = evidence.average().coerceIn(0.0, 1.0)
 
@@ -152,12 +160,6 @@ class DetectionFusion(
         }
     }
 
-    /**
-     * Popup K/X/Y is global OCR evidence, so a coordinate match alone is not
-     * sufficient when two detected tiles collapse onto the same rounded world
-     * coordinate. Require a unique semantic match among all tiles that resolve
-     * to that coordinate; otherwise leave every candidate calibrated-only.
-     */
     private fun popupMatchesExactly(
         tile: DetectedTile,
         classification: TextClassification,
@@ -217,11 +219,6 @@ class DetectionFusion(
 
         val nearest = compatible.firstOrNull() ?: return selectIgnoredTextForTile(tile, textRegions)
         val second = compatible.getOrNull(1)
-
-        // Multiple semantically compatible OCR regions at nearly the same
-        // distance are not safe to resolve by nearest-neighbour alone.
-        // Returning null preserves the tile's detector semantics instead of
-        // silently borrowing another target's label.
         if (second != null) {
             if (second.second <= 0f) return null
             if (nearest.second / second.second > maxTextNearestToSecondRatio) return null
@@ -231,8 +228,6 @@ class DetectionFusion(
     }
 
     private fun selectIgnoredTextForTile(tile: DetectedTile, textRegions: List<TextRegion>): TextRegion? {
-        // Structure/UI labels may be very close to a badge, but must never
-        // override target semantics at the broader OCR association radius.
         return textRegions
             .map { it to distance(tile.bounds, it.bounds) }
             .filter { (region, d) -> region.classification.ignored && d <= 70f }
