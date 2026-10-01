@@ -53,6 +53,8 @@ data class LiveMapScanResult(
     val detectedTiles: Int,
     val templateCount: Int = 0,
     val semanticTargetDetections: Int = 0,
+    val aiSceneObjects: Int = 0,
+    val aiSceneDiagnostic: String = "AI IDLE",
     val badgeDetections: Int = 0,
     val openCvReady: Boolean = false,
     val openCvDiagnostic: String = "NOT_INITIALIZED",
@@ -100,7 +102,7 @@ class LiveMapScanner(context: Context) {
     private val targetStabilityRegistry = com.coolhiman.lordsassistant.target.TargetStabilityRegistry()
     private val templateLibrary = TemplateLibrary(DatasetStore(context))
     private var templates = templateLibrary.loadTileTemplates()
-    private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion())
+    private val pipeline = VisionPipeline(TemplateTileDetector(), DetectionFusion(), AiSceneDetector(context))
 
     companion object {
         private const val ACTION_BUTTON_TARGET_MAX_DISTANCE_PX = 420f
@@ -473,6 +475,8 @@ class LiveMapScanner(context: Context) {
             // Coordinates remain mandatory for ranking/action, but badge/OCR
             // semantics are useful diagnostic evidence before calibration.
             semanticTargetDetections = observations.count { it.kind != null },
+            aiSceneObjects = result.aiScene.objects.size,
+            aiSceneDiagnostic = result.aiScene.diagnostic,
             badgeDetections = result.badgeDetections,
             openCvReady = result.openCvReady,
             openCvDiagnostic = OpenCvRuntime.diagnostic(),
@@ -567,5 +571,6 @@ class LiveMapScanner(context: Context) {
         templates.forEach { (_, bitmap) ->
             if (!bitmap.isRecycled) bitmap.recycle()
         }
+        pipeline.close()
     }
 }

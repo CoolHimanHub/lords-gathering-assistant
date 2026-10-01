@@ -8,12 +8,14 @@ data class VisionPipelineResult(
     val detection: DetectionFrame,
     val fused: List<FusionCandidate>,
     val badgeDetections: Int = 0,
-    val openCvReady: Boolean = false
+    val openCvReady: Boolean = false,
+    val aiScene: AiSceneResult = AiSceneResult()
 )
 
 class VisionPipeline(
     private val tileDetector: TemplateTileDetector,
-    private val fusion: DetectionFusion
+    private val fusion: DetectionFusion,
+    private val aiSceneDetector: AiSceneDetector
 ) {
     fun analyze(
         bitmap: Bitmap,
@@ -24,6 +26,7 @@ class VisionPipeline(
         coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
         coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null }
     ): VisionPipelineResult {
+        val aiScene = aiSceneDetector.analyze(bitmap)
         val detection = tileDetector.detect(bitmap, templates)
         val levelEnrichedDetection = enrichBadgeLevels(detection, textRegions)
         val fused = fusion.fuse(
@@ -38,7 +41,8 @@ class VisionPipeline(
             detection = levelEnrichedDetection,
             fused = fused,
             badgeDetections = tileDetector.lastBadgeDetections,
-            openCvReady = OpenCvRuntime.isLoaded()
+            openCvReady = OpenCvRuntime.isLoaded(),
+            aiScene = aiScene
         )
     }
     private fun enrichBadgeLevels(detection: DetectionFrame, textRegions: List<TextRegion>): DetectionFrame {
@@ -50,6 +54,8 @@ class VisionPipeline(
         }
         return detection.copy(tiles = enriched)
     }
+
+    fun close() = aiSceneDetector.close()
 
     private fun distance(a: RectF, b: RectF): Float = kotlin.math.hypot(
         (a.centerX() - b.centerX()).toDouble(),
