@@ -19,6 +19,12 @@ object GridProbeAcceptancePolicy {
     ): Boolean {
         if (actual == null) return false
         if (expected == null) return true
+        // The live HUD can expose X/Y without a reliable K value; OcrParser
+        // represents that missing kingdom as 0. A semantic probe remains useful
+        // because the popup coordinate is authoritative. Predicted-grid probes
+        // must never use this wildcard because their expected cell comes from
+        // the established calibration.
+        if (expected.kingdom == 0 && source != "predicted-grid") return true
         if (expected.kingdom != actual.kingdom) return false
 
         return if (source == "predicted-grid") {
