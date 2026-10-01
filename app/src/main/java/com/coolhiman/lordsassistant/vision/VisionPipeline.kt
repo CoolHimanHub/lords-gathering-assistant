@@ -34,6 +34,7 @@ class VisionPipeline(
             frame = levelEnrichedDetection,
             textRegions = textRegions,
             marchSignals = marchSignals,
+            aiSceneHypotheses = GameSceneTaxonomy.hypotheses(aiScene.objects),
             popupState = popupState,
             coordinateResolver = coordinateResolver,
             coordinateEvidenceResolver = coordinateEvidenceResolver

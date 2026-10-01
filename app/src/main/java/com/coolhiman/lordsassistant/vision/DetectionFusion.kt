@@ -25,6 +25,7 @@ data class FusionCandidate(
     val confidence: Double,
     val coordinateConfidence: CoordinateConfidence = CoordinateConfidence.none(),
     val ignored: Boolean = false,
+    val aiSceneSupported: Boolean = false,
     val marchAssociation: MarchAssociationDiagnostics = MarchAssociationDiagnostics(MarchAssociationStatus.NO_MARCH)
 )
 
@@ -145,6 +146,7 @@ class DetectionFusion(
                 confidence = confidence,
                 coordinateConfidence = coordinateConfidence,
                 ignored = textClassification?.ignored == true,
+                aiSceneSupported = aiSupport,
                 marchAssociation = marchAssociation
             )
         }

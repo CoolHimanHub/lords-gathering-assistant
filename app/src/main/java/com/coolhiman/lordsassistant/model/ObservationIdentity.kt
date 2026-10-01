@@ -6,7 +6,8 @@ enum class ObservationEvidence {
     MARCH_CONFIRMED,
     TEMPORALLY_CONFIRMED,
     STATE_UNKNOWN,
-    CAMERA_UNSTABLE
+    CAMERA_UNSTABLE,
+    AI_SCENE_SUPPORTED
 }
 
 data class ObservationIdentity(

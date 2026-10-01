@@ -18,6 +18,7 @@ fun mapObservation(candidate: FusionCandidate): MapObservation {
         val evidence = buildSet {
             if (candidate.classification.kind != null || candidate.classification.resource != null || candidate.classification.level != null) add(ObservationEvidence.OCR_CONFIRMED)
             if (candidate.incomingTroops == true) add(ObservationEvidence.MARCH_CONFIRMED)
+            if (candidate.aiSceneSupported) add(ObservationEvidence.AI_SCENE_SUPPORTED)
             if (candidate.occupied == null || candidate.incomingTroops == null) add(ObservationEvidence.STATE_UNKNOWN)
         }
         return MapObservation(
