@@ -42,6 +42,8 @@ class GridLearningController(private val context: Context) {
     private var dispatchSuccesses = 0
     private var dispatchFailures = 0
     private var lastProbeIssue: String? = null
+    private var candidateDetections = 0
+    private var safeCandidateDetections = 0
 
     companion object {
         private const val MIN_CANDIDATE_FRAMES = 2
@@ -82,6 +84,8 @@ class GridLearningController(private val context: Context) {
         dispatchSuccesses = 0
         dispatchFailures = 0
         lastProbeIssue = null
+        candidateDetections = 0
+        safeCandidateDetections = 0
     }
 
     @Synchronized
@@ -172,17 +176,29 @@ class GridLearningController(private val context: Context) {
         // separately by the lower-band rule.
         if (nowMs - lastTapMs < MIN_TAP_INTERVAL_MS) return
 
-        // Seed the learner from current semantic tile centers. The observation
-        // coordinate is only an expectation; the popup coordinate remains truth.
+        // Seed learning from detected map-cell geometry, not only from semantic
+        // classifications. Empty/unknown cells are part of the grid and often
+        // have no TargetKind at all. Requiring kind != null here made a fresh
+        // learning run depend on the very classification that calibration is
+        // supposed to help establish, producing probes=0 while tile detection
+        // itself was healthy.
+        candidateDetections = frameObservations.count {
+            it.screenPoint != null && it.confidence >= 0.45f
+        }
+        safeCandidateDetections = frameObservations.count {
+            val point = it.screenPoint
+            point != null && it.confidence >= 0.45f && safeMapPoint(point, width, height)
+        }
         frameObservations
             .asSequence()
-            .filter { it.kind != null && it.screenPoint != null && it.confidence >= 0.45f }
+            .filter { it.screenPoint != null && it.confidence >= 0.45f }
             .filter { safeMapPoint(it.screenPoint!!, width, height) }
             .forEach { observation ->
                 val point = observation.screenPoint!!
                 val key = pointKey(point)
                 if (!attemptedScreen.containsKey(key) && candidateQueue == null) {
-                    candidateQueue = Probe(point, observation.coordinate, "semantic", cameraEpoch, cameraStable)
+                    val source = if (observation.kind != null) "semantic" else "visual-grid"
+                    candidateQueue = Probe(point, observation.coordinate, source, cameraEpoch, cameraStable)
                 }
             }
 
@@ -349,9 +365,11 @@ class GridLearningController(private val context: Context) {
         val rms = fit?.rmsErrorPx?.let { " • RMS %.1fpx".format(it) } ?: ""
         val dispatch = "dispatch=" + dispatchSuccesses + "/" + probeAttempts
         val issue = lastProbeIssue?.let { " • " + it } ?: ""
+        val candidate = " • candidates=" + candidateDetections + "/" + safeCandidateDetections
         return "GRID LEARN • probes=" + sessionSamples +
             " • saved=" + store.sampleCount() +
             " • frontier=" + frontier.size +
+            candidate +
             " • " + dispatch +
             " • camera=" + if (lastCameraStable) "STABLE" else "UNSTABLE" +
             " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms + issue
