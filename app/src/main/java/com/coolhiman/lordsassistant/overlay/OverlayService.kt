@@ -340,14 +340,14 @@ class OverlayService : Service() {
 
     fun setGridLearningUiStarting() {
         gridLearningButton?.post {
-            gridLearningButton?.text = "…  GRID LEARNING STARTING"
+            gridLearningButton?.text = "…  GRID STARTING"
         }
     }
 
     fun setGridLearningUi(active: Boolean) {
         gridLearningButton?.post {
             gridLearningButton?.text = if (active) {
-                "●  GRID LEARNING ACTIVE"
+                "●  GRID ACTIVE"
             } else {
                 "◎  LEARN GRID"
             }
