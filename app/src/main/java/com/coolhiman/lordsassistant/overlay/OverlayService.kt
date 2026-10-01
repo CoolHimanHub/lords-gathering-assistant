@@ -181,6 +181,11 @@ class OverlayService : Service() {
         if (diagnostics) {
             val gridStart = actionButton("◎  LEARN GRID", 0xFF245C78.toInt()).apply {
                 setOnClickListener {
+                    // Acknowledge the tap immediately. The capture service then
+                    // performs the authoritative activation check and confirms
+                    // ACTIVE only after GridLearningController.start() succeeds.
+                    setGridLearningUiStarting()
+                    showStatus("GRID LEARN • START REQUESTED")
                     val service = ScreenCaptureService.instance
                     if (service == null) {
                         setGridLearningUi(false)
@@ -332,6 +337,12 @@ class OverlayService : Service() {
 
     private fun timerStatusText(): String =
         "TEST: ${selectedTestDurationMinutes} min • READY"
+
+    fun setGridLearningUiStarting() {
+        gridLearningButton?.post {
+            gridLearningButton?.text = "…  GRID LEARNING STARTING"
+        }
+    }
 
     fun setGridLearningUi(active: Boolean) {
         gridLearningButton?.post {
