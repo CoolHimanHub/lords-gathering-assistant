@@ -71,13 +71,27 @@ class CameraStateTracker(
             else -> CameraState.STABLE
         }
 
+        // Anonymous/label-dropped observations may establish visual camera
+        // continuity for grid learning, but they are not sufficient evidence
+        // to authorize a gameplay action. Require at least one strong
+        // label-to-label identity match in addition to the geometric checks.
+        val strongIdentityMatches = matches.count { (oldObservation, currentObservation) ->
+            val oldLabel = oldObservation.label?.trim()?.takeIf { it.isNotEmpty() }
+            val currentLabel = currentObservation.label?.trim()?.takeIf { it.isNotEmpty() }
+            oldLabel != null &&
+                currentLabel != null &&
+                oldLabel.equals(currentLabel, ignoreCase = true)
+        }
+
         return CameraAssessment(
             state = state,
             sharedTargets = shifts.size,
             medianShiftPx = median,
             spreadPx = spread,
             scaleChangePercent = scaleChangePercent,
-            continuityForActions = state == CameraState.STABLE && shifts.size >= minSharedTargets
+            continuityForActions = state == CameraState.STABLE &&
+                shifts.size >= minSharedTargets &&
+                strongIdentityMatches >= 1
         )
     }
 
