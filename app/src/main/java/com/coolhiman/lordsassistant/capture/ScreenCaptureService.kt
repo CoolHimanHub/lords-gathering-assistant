@@ -747,6 +747,11 @@ class ScreenCaptureService : Service() {
                             cameraStable = scan.cameraState == com.coolhiman.lordsassistant.map.CameraState.STABLE,
                             nowMs = now
                         )
+                        // Keep the diagnostic control synchronized with the controller's
+                        // authoritative state. A capture-session/UI refresh must not make
+                        // an active learning run appear stopped (or vice versa).
+                        val gridLearningActive = gridLearningController.isActive()
+                        OverlayService.instance?.setGridLearningUi(gridLearningActive)
                         val scanProcessingMs = System.currentTimeMillis() - scanStartedAt
                         val totalProcessingMs = System.currentTimeMillis() - frameStartedAt
                         processingLatency.record(result.ocrProcessingMs, scanProcessingMs, totalProcessingMs)
@@ -796,7 +801,7 @@ class ScreenCaptureService : Service() {
                                 .append(scan.actionCandidates.size).append(" candidates")
                             append("\n").append(scan.processingMs).append("ms")
                             append("\nCapture quality: ").append(captureQuality.name)
-                            if (gridLearningController.isActive()) {
+                            if (gridLearningActive) {
                                 append("\n").append(gridLearningController.statusLine())
                             }
                         }
