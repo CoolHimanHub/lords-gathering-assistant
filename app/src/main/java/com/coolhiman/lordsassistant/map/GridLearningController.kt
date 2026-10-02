@@ -49,6 +49,8 @@ class GridLearningController(private val context: Context) {
     private var dispatchSuccesses = 0
     private var dispatchFailures = 0
     private var lastProbeIssue: String? = null
+    private var popupSeenWhilePending = 0
+    private var popupTimeouts = 0
     private var candidateDetections = 0
     private var safeCandidateDetections = 0
     private var acceptedSamples = 0
@@ -100,6 +102,8 @@ class GridLearningController(private val context: Context) {
         trainingSamplesSaved = 0
         trainingSamplesRejected = 0
         lastTrainingRejection = null
+        popupSeenWhilePending = 0
+        popupTimeouts = 0
     }
 
     @Synchronized
@@ -154,6 +158,7 @@ class GridLearningController(private val context: Context) {
 
         if (currentPending != null) {
             if (currentPopup != null) {
+                popupSeenWhilePending++
                 recordPopup(currentPending, currentPopup, nowMs, frameBitmap)
                 pending = null
                 pendingSinceMs = 0L
@@ -168,6 +173,7 @@ class GridLearningController(private val context: Context) {
                     dispatchProbe(currentPending)
                     return
                 }
+                popupTimeouts++
                 pending = null
                 pendingSinceMs = 0L
                 pendingRetries = 0
@@ -414,6 +420,7 @@ class GridLearningController(private val context: Context) {
             " • frontier=" + frontier.size +
             candidate +
             " • " + dispatch +
+            " • popup=" + popupSeenWhilePending + "seen/" + popupTimeouts + "timeout" +
             " • camera=" + if (lastCameraStable) "STABLE" else "UNSTABLE" +
             " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms + issue
     }

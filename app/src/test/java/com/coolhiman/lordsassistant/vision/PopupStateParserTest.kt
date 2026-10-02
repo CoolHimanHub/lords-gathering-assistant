@@ -43,6 +43,18 @@ class PopupStateParserTest {
     }
 
     @Test
+    fun occupyCoordinatePopupIsRecognizedEvenWithMinimalOcr() {
+        val state = PopupStateParser.parse(
+            "K:348 X:1 Y:715 Occupy",
+            0
+        )
+        assertTrue(state.isPopup)
+        assertEquals(348, state.coordinate?.kingdom)
+        assertEquals(1, state.coordinate?.x)
+        assertEquals(715, state.coordinate?.y)
+    }
+
+    @Test
     fun emptyTileRelocatePopupIsRecognized() {
         val state = PopupStateParser.parse(
             "X:200 Y:420 Relocate Bookmark",
