@@ -97,6 +97,9 @@ class GridLearningController(private val context: Context) {
         safeCandidateDetections = 0
         acceptedSamples = 0
         rejectedSamples = 0
+        trainingSamplesSaved = 0
+        trainingSamplesRejected = 0
+        lastTrainingRejection = null
     }
 
     @Synchronized
