@@ -52,3 +52,6 @@ jobs:
         with:
           name: lm-companion-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify build output
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
