@@ -39,20 +39,16 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
         semanticConfidence: Float = semanticConfidence(popup)
     ): CaptureResult {
         if (frame == null || frame.isRecycled) return CaptureResult(rejection = "FRAME_UNAVAILABLE")
-        if (!acceptedForCalibration) return CaptureResult(rejection = "COORDINATE_NOT_ACCEPTED")
-        if (!cameraStable) return CaptureResult(rejection = "CAMERA_UNSTABLE")
-        if (coordinateAuthority != "OBSERVED") return CaptureResult(rejection = "COORDINATE_NOT_OBSERVED")
-        if (!popup.isPopup) return CaptureResult(rejection = "NOT_A_TILE_POPUP")
 
-        val label = labelFor(popup) ?: return CaptureResult(rejection = "SEMANTIC_LABEL_MISSING")
-        val confidence = semanticConfidence.coerceIn(0f, 1f)
-        if (label != "EMPTY" && confidence < MIN_SEMANTIC_CONFIDENCE) {
-            return CaptureResult(rejection = "SEMANTIC_CONFIDENCE_LOW")
-        }
-        if (popup.level != null && popup.level !in MIN_LEVEL..MAX_LEVEL) {
-            return CaptureResult(rejection = "LEVEL_OUT_OF_RANGE")
-        }
-
+        val decision = TrainingSamplePolicy.decide(
+            popup = popup,
+            acceptedForCalibration = acceptedForCalibration,
+            cameraStable = cameraStable,
+            coordinateAuthority = coordinateAuthority
+        )
+        if (decision.rejection != null) return CaptureResult(rejection = decision.rejection)
+        val label = decision.label ?: return CaptureResult(rejection = "SEMANTIC_LABEL_MISSING")
+        val confidence = decision.confidence
         val centerX = pointX.toInt().coerceIn(0, frame.width - 1)
         val centerY = pointY.toInt().coerceIn(0, frame.height - 1)
         val left = max(0, centerX - HALF_CROP)
@@ -97,22 +93,4 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
         return CaptureResult(saved = saved)
     }
 
-    private fun labelFor(popup: PopupState): String? {
-        return when {
-            popup.kind?.name == "RESOURCE" && popup.resource != null -> popup.resource.name
-            popup.kind?.name == "MONSTER" -> popup.monsterName?.takeIf { it.isNotBlank() } ?: "MONSTER"
-            popup.kind == null && popup.resource == null && popup.monsterName == null -> "EMPTY"
-            else -> null
-        }
-    }
-
-    private fun semanticConfidence(popup: PopupState): Float {
-        return when {
-            popup.kind?.name == "RESOURCE" && popup.resource != null -> 0.98f
-            popup.kind?.name == "MONSTER" && !popup.monsterName.isNullOrBlank() -> 0.96f
-            popup.kind?.name == "MONSTER" -> 0.82f
-            popup.kind == null && popup.resource == null && popup.monsterName == null -> 0.90f
-            else -> 0.60f
-        }
-    }
 }
