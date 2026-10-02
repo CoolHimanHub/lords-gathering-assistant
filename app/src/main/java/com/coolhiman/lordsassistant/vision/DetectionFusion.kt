@@ -35,6 +35,10 @@ class DetectionFusion(
     private val maxTextNearestToSecondRatio: Float = 0.72f,
     private val minAiSupportConfidence: Double = 0.55
 ) {
+    /**
+     * Backward-compatible fusion entry point. The final parameter remains the
+     * coordinate resolver so existing trailing-lambda callers keep compiling.
+     */
     fun fuse(
         frame: DetectionFrame,
         textRegions: List<TextRegion>,
@@ -42,8 +46,27 @@ class DetectionFusion(
         aiSceneHypotheses: List<GameSceneHypothesis> = emptyList(),
         popupState: PopupState? = null,
         coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
-        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null },
-        gameSceneHypotheses: List<LordsMobileObjectHypothesis> = emptyList()
+        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
+    ): List<FusionCandidate> = fuseWithGameSceneHypotheses(
+        frame = frame,
+        textRegions = textRegions,
+        marchSignals = marchSignals,
+        aiSceneHypotheses = aiSceneHypotheses,
+        popupState = popupState,
+        coordinateEvidenceResolver = coordinateEvidenceResolver,
+        coordinateResolver = coordinateResolver
+    )
+
+    /** Game-specific perception seam; never grants coordinate/action authority. */
+    fun fuseWithGameSceneHypotheses(
+        frame: DetectionFrame,
+        textRegions: List<TextRegion>,
+        marchSignals: List<MarchSignal>,
+        aiSceneHypotheses: List<GameSceneHypothesis> = emptyList(),
+        gameSceneHypotheses: List<LordsMobileObjectHypothesis> = emptyList(),
+        popupState: PopupState? = null,
+        coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
+        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
     ): List<FusionCandidate> {
         return frame.tiles.map { tile ->
             val text = selectTextForTile(tile, textRegions)
