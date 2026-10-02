@@ -154,7 +154,7 @@ class GridLearningController(private val context: Context) {
 
         if (currentPending != null) {
             if (currentPopup != null) {
-                recordPopup(currentPending, currentPopup, nowMs)
+                recordPopup(currentPending, currentPopup, nowMs, frameBitmap)
                 pending = null
                 pendingSinceMs = 0L
                 pendingRetries = 0
@@ -246,7 +246,7 @@ class GridLearningController(private val context: Context) {
         dispatchProbe(selected)
     }
 
-    private fun recordPopup(probe: Probe, popup: PopupState, nowMs: Long) {
+    private fun recordPopup(probe: Probe, popup: PopupState, nowMs: Long, frameBitmap: Bitmap?) {
         val actual = popup.coordinate ?: return
         val expected = probe.expected
         val delta = if (expected != null && expected.kingdom == actual.kingdom) {
