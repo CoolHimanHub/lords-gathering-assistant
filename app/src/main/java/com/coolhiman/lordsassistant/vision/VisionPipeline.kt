@@ -35,7 +35,7 @@ class VisionPipeline(
         val gameSceneHypotheses = gameSceneModel?.detect(bitmap).orEmpty()
         val detection = tileDetector.detect(bitmap, templates)
         val levelEnrichedDetection = enrichBadgeLevels(detection, textRegions)
-        val fused = fusion.fuse(
+        val fused = fusion.fuseWithGameSceneHypotheses(
             frame = levelEnrichedDetection,
             textRegions = textRegions,
             marchSignals = marchSignals,
