@@ -22,9 +22,6 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
 
     companion object {
         private const val HALF_CROP = 96
-        private const val MIN_LEVEL = 1
-        private const val MAX_LEVEL = 5
-        private const val MIN_SEMANTIC_CONFIDENCE = 0.80f
     }
 
     fun record(
@@ -35,8 +32,7 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
         popup: PopupState,
         acceptedForCalibration: Boolean,
         cameraStable: Boolean,
-        coordinateAuthority: String = "OBSERVED",
-        semanticConfidence: Float = semanticConfidence(popup)
+        coordinateAuthority: String = "OBSERVED"
     ): CaptureResult {
         if (frame == null || frame.isRecycled) return CaptureResult(rejection = "FRAME_UNAVAILABLE")
 
