@@ -10,7 +10,9 @@ data class VisionPipelineResult(
     val badgeDetections: Int = 0,
     val openCvReady: Boolean = false,
     val aiScene: AiSceneResult = AiSceneResult(),
-    val gameSceneHypotheses: List<GameSceneHypothesis> = emptyList()
+    val gameSceneHypotheses: List<GameSceneHypothesis> = emptyList(),
+    /** Optional Lords Mobile-specific model output; never coordinate/action authority. */
+    val lordsMobileSceneHypotheses: List<LordsMobileObjectHypothesis> = emptyList()
 )
 
 class VisionPipeline(
@@ -49,7 +51,8 @@ class VisionPipeline(
             badgeDetections = tileDetector.lastBadgeDetections,
             openCvReady = OpenCvRuntime.isLoaded(),
             aiScene = aiScene,
-            gameSceneHypotheses = gameSceneHypotheses
+            gameSceneHypotheses = GameSceneTaxonomy.hypotheses(aiScene.objects),
+            lordsMobileSceneHypotheses = gameSceneHypotheses
         )
     }
     private fun enrichBadgeLevels(detection: DetectionFrame, textRegions: List<TextRegion>): DetectionFrame {
