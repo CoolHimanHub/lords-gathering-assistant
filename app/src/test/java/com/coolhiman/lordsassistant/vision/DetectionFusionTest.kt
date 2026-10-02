@@ -414,5 +414,61 @@ class DetectionFusionTest {
         assertEquals(false, result.single().ignored)
     }
 
+    @Test
+    fun gameSpecificResourceHypothesisSuppliesResourceAndLevel() {
+        val tile = DetectedTile(
+            "UNKNOWN", TileClass.RESOURCE, null, RectF(100f, 100f, 140f, 140f), 0.9
+        )
+        val hypothesis = LordsMobileObjectHypothesis(
+            bounds = RectF(98f, 98f, 142f, 142f),
+            objectClass = LordsMobileObjectClass.RESOURCE,
+            confidence = 0.92,
+            resourceType = LordsMobileResourceType.WOOD,
+            level = 4,
+            levelConfidence = 0.91
+        )
+
+        val result = DetectionFusion().fuseWithGameSceneHypotheses(
+            frame = DetectionFrame(listOf(tile), 1),
+            textRegions = emptyList(),
+            marchSignals = emptyList(),
+            gameSceneHypotheses = listOf(hypothesis)
+        ).single()
+
+        assertEquals(TargetKind.RESOURCE, result.classification.kind)
+        assertEquals(com.coolhiman.lordsassistant.model.ResourceType.WOOD, result.classification.resource)
+        assertEquals(4, result.classification.level)
+        assertFalse(result.coordinateConfidence.actionAuthoritative)
+    }
+
+    @Test
+    fun gameSpecificUnknownDoesNotOverrideExistingSemanticClassification() {
+        val tile = DetectedTile(
+            "WOOD", TileClass.RESOURCE, 3, RectF(100f, 100f, 140f, 140f), 0.9
+        )
+        val hypothesis = LordsMobileObjectHypothesis(
+            bounds = RectF(100f, 100f, 140f, 140f),
+            objectClass = LordsMobileObjectClass.UNKNOWN,
+            confidence = 0.99
+        )
+
+        val result = DetectionFusion().fuseWithGameSceneHypotheses(
+            frame = DetectionFrame(listOf(tile), 1),
+            textRegions = listOf(
+                TextRegion(
+                    RectF(100f, 100f, 140f, 140f),
+                    GameTextClassifier.classify("WOOD LV 3"),
+                    "WOOD LV 3"
+                )
+            ),
+            marchSignals = emptyList(),
+            gameSceneHypotheses = listOf(hypothesis)
+        ).single()
+
+        assertEquals(TargetKind.RESOURCE, result.classification.kind)
+        assertEquals(com.coolhiman.lordsassistant.model.ResourceType.WOOD, result.classification.resource)
+        assertEquals(3, result.classification.level)
+    }
+
 }
 
