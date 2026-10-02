@@ -16,7 +16,9 @@ data class VisionPipelineResult(
 class VisionPipeline(
     private val tileDetector: TemplateTileDetector,
     private val fusion: DetectionFusion,
-    private val aiSceneDetector: AiSceneDetector
+    private val aiSceneDetector: AiSceneDetector,
+    /** Optional game-specific LiteRT/TFLite model. Generic ML Kit remains the fallback. */
+    private val gameSceneModel: LordsMobileSceneModel? = null
 ) {
     fun analyze(
         bitmap: Bitmap,
@@ -28,6 +30,7 @@ class VisionPipeline(
         coordinateResolver: (Float, Float) -> com.coolhiman.lordsassistant.model.WorldCoordinate? = { _, _ -> null }
     ): VisionPipelineResult {
         val aiScene = aiSceneDetector.analyze(bitmap)
+        val gameSceneHypotheses = gameSceneModel?.detect(bitmap).orEmpty()
         val detection = tileDetector.detect(bitmap, templates)
         val levelEnrichedDetection = enrichBadgeLevels(detection, textRegions)
         val fused = fusion.fuse(
@@ -35,6 +38,7 @@ class VisionPipeline(
             textRegions = textRegions,
             marchSignals = marchSignals,
             aiSceneHypotheses = GameSceneTaxonomy.hypotheses(aiScene.objects),
+            gameSceneHypotheses = gameSceneHypotheses,
             popupState = popupState,
             coordinateResolver = coordinateResolver,
             coordinateEvidenceResolver = coordinateEvidenceResolver
@@ -45,7 +49,7 @@ class VisionPipeline(
             badgeDetections = tileDetector.lastBadgeDetections,
             openCvReady = OpenCvRuntime.isLoaded(),
             aiScene = aiScene,
-            gameSceneHypotheses = GameSceneTaxonomy.hypotheses(aiScene.objects)
+            gameSceneHypotheses = gameSceneHypotheses.ifEmpty { GameSceneTaxonomy.hypotheses(aiScene.objects) }
         )
     }
     private fun enrichBadgeLevels(detection: DetectionFrame, textRegions: List<TextRegion>): DetectionFrame {
