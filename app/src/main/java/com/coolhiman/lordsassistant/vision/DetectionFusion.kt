@@ -40,6 +40,7 @@ class DetectionFusion(
         textRegions: List<TextRegion>,
         marchSignals: List<MarchSignal>,
         aiSceneHypotheses: List<GameSceneHypothesis> = emptyList(),
+        gameSceneHypotheses: List<LordsMobileObjectHypothesis> = emptyList(),
         popupState: PopupState? = null,
         coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
         coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
@@ -47,6 +48,9 @@ class DetectionFusion(
         return frame.tiles.map { tile ->
             val text = selectTextForTile(tile, textRegions)
             val textClassification = text?.classification
+            val gameScene = gameSceneHypotheses
+                .filter { it.confidence >= 0.60 && distance(tile.bounds, it.bounds) <= maxTextDistancePx }
+                .maxByOrNull { it.confidence }
             var classification = textClassification ?: TextClassification(
                 kind = when (tile.tileClass) {
                     TileClass.RESOURCE -> TargetKind.RESOURCE
@@ -54,6 +58,9 @@ class DetectionFusion(
                 },
                 level = tile.level
             )
+            if (gameScene != null) {
+                classification = classificationFromGameScene(gameScene, classification)
+            }
 
             val nearbyMarches = marchSignals.mapNotNull { signal ->
                 val tileCenterX = (tile.bounds.left + tile.bounds.right) / 2f
@@ -158,6 +165,30 @@ class DetectionFusion(
                 marchAssociation = marchAssociation
             )
         }
+    }
+
+    private fun classificationFromGameScene(
+        scene: LordsMobileObjectHypothesis,
+        fallback: TextClassification
+    ): TextClassification {
+        val kind = when (scene.objectClass) {
+            LordsMobileObjectClass.RESOURCE -> TargetKind.RESOURCE
+            LordsMobileObjectClass.MONSTER -> TargetKind.MONSTER
+            else -> fallback.kind
+        }
+        val resource = when (scene.resourceType) {
+            LordsMobileResourceType.FOOD -> com.coolhiman.lordsassistant.model.ResourceType.FOOD
+            LordsMobileResourceType.WOOD -> com.coolhiman.lordsassistant.model.ResourceType.WOOD
+            LordsMobileResourceType.STONE -> com.coolhiman.lordsassistant.model.ResourceType.STONE
+            LordsMobileResourceType.ORE -> com.coolhiman.lordsassistant.model.ResourceType.ORE
+            LordsMobileResourceType.GOLD -> com.coolhiman.lordsassistant.model.ResourceType.GOLD
+            else -> fallback.resource
+        }
+        return fallback.copy(
+            kind = kind,
+            resource = resource,
+            level = scene.level ?: fallback.level
+        )
     }
 
     private fun popupMatchesExactly(
