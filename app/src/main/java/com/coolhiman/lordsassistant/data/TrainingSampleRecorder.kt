@@ -88,7 +88,7 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
             top = top,
             right = right,
             bottom = bottom,
-            source = source,
+            captureSource = source,
             confidence = confidence,
             coordinateAuthority = coordinateAuthority,
             cameraStable = cameraStable,
