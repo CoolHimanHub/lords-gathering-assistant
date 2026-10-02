@@ -40,10 +40,10 @@ class DetectionFusion(
         textRegions: List<TextRegion>,
         marchSignals: List<MarchSignal>,
         aiSceneHypotheses: List<GameSceneHypothesis> = emptyList(),
-        gameSceneHypotheses: List<LordsMobileObjectHypothesis> = emptyList(),
         popupState: PopupState? = null,
         coordinateEvidenceResolver: ((Float, Float) -> CoordinateResolution?)? = null,
-        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null }
+        coordinateResolver: (Float, Float) -> WorldCoordinate? = { _, _ -> null },
+        gameSceneHypotheses: List<LordsMobileObjectHypothesis> = emptyList()
     ): List<FusionCandidate> {
         return frame.tiles.map { tile ->
             val text = selectTextForTile(tile, textRegions)
