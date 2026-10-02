@@ -765,7 +765,8 @@ class ScreenCaptureService : Service() {
                             popupState = scan.popupState,
                             actionButtonDetections = scan.actionButtonDetections,
                             cameraStable = scan.cameraState == com.coolhiman.lordsassistant.map.CameraState.STABLE,
-                            nowMs = now
+                            nowMs = now,
+                            frameBitmap = bitmap
                         )
                         // Keep the diagnostic control synchronized with the controller's
                         // authoritative state. A capture-session/UI refresh must not make

@@ -13,5 +13,10 @@ data class TrainingSample(
     val top: Int,
     val right: Int,
     val bottom: Int,
+    val captureSource: String = "UNKNOWN",
+    val confidence: Float = 0f,
+    val coordinateAuthority: String = "NONE",
+    val cameraStable: Boolean = false,
+    val modelVersion: String = "unknown",
     val createdAtMs: Long = System.currentTimeMillis()
 )

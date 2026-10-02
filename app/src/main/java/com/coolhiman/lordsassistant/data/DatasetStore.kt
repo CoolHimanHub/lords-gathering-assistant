@@ -23,7 +23,12 @@ class DatasetStore(private val context: Context) {
         left: Int,
         top: Int,
         right: Int,
-        bottom: Int
+        bottom: Int,
+        captureSource: String = "UNKNOWN",
+        confidence: Float = 0f,
+        coordinateAuthority: String = "NONE",
+        cameraStable: Boolean = false,
+        modelVersion: String = "unknown"
     ): TrainingSample {
         require(right > left && bottom > top)
         val id = UUID.randomUUID().toString()
@@ -33,7 +38,8 @@ class DatasetStore(private val context: Context) {
         crop.recycle()
         val sample = TrainingSample(
             id, labelType, label, level, kingdom, worldX, worldY,
-            imageFile.relativeTo(root).path, left, top, right, bottom
+            imageFile.relativeTo(root).path, left, top, right, bottom,
+            captureSource, confidence, coordinateAuthority, cameraStable, modelVersion
         )
         val o = JSONObject().apply {
             put("id", sample.id)
@@ -49,6 +55,11 @@ class DatasetStore(private val context: Context) {
             put("right", sample.right)
             put("bottom", sample.bottom)
             put("createdAtMs", sample.createdAtMs)
+            put("captureSource", sample.captureSource)
+            put("confidence", sample.confidence)
+            put("coordinateAuthority", sample.coordinateAuthority)
+            put("cameraStable", sample.cameraStable)
+            put("modelVersion", sample.modelVersion)
         }
         metadataFile.appendText(o.toString() + "\n")
         return sample
@@ -77,7 +88,12 @@ class DatasetStore(private val context: Context) {
                         top = o.getInt("top"),
                         right = o.getInt("right"),
                         bottom = o.getInt("bottom"),
-                        createdAtMs = o.optLong("createdAtMs", System.currentTimeMillis())
+                        createdAtMs = o.optLong("createdAtMs", System.currentTimeMillis()),
+                        captureSource = o.optString("captureSource", "UNKNOWN"),
+                        confidence = o.optDouble("confidence", 0.0).toFloat(),
+                        coordinateAuthority = o.optString("coordinateAuthority", "NONE"),
+                        cameraStable = o.optBoolean("cameraStable", false),
+                        modelVersion = o.optString("modelVersion", "unknown")
                     )
                     if ((labelType == null || sample.labelType == labelType) &&
                         (label == null || sample.label == label)) sample else null

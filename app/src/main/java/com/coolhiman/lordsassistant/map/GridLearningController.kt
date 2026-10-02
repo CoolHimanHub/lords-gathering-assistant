@@ -1,7 +1,10 @@
 package com.coolhiman.lordsassistant.map
 
 import android.content.Context
+import android.graphics.Bitmap
 import com.coolhiman.lordsassistant.accessibility.LmAccessibilityService
+import com.coolhiman.lordsassistant.data.DatasetStore
+import com.coolhiman.lordsassistant.data.TrainingSampleRecorder
 import com.coolhiman.lordsassistant.model.MapObservation
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.WorldCoordinate
@@ -16,6 +19,10 @@ import kotlin.math.hypot
  */
 class GridLearningController(private val context: Context) {
     private val store = GridLearningStore(context)
+    private val trainingSampleRecorder = TrainingSampleRecorder(DatasetStore(context))
+    private var trainingSamplesSaved = 0
+    private var trainingSamplesRejected = 0
+    private var lastTrainingRejection: String? = null
     private val calibrationStore = CalibrationStore(context)
     private val calibrator = AffineGridCalibrator()
 
@@ -90,6 +97,9 @@ class GridLearningController(private val context: Context) {
         safeCandidateDetections = 0
         acceptedSamples = 0
         rejectedSamples = 0
+        trainingSamplesSaved = 0
+        trainingSamplesRejected = 0
+        lastTrainingRejection = null
     }
 
     @Synchronized
@@ -114,7 +124,8 @@ class GridLearningController(private val context: Context) {
         popupState: PopupState?,
         actionButtonDetections: Int,
         cameraStable: Boolean = false,
-        nowMs: Long = System.currentTimeMillis()
+        nowMs: Long = System.currentTimeMillis(),
+        frameBitmap: Bitmap? = null
     ) {
         if (!active || width <= 0 || height <= 0) return
         lastWidth = width
@@ -143,7 +154,7 @@ class GridLearningController(private val context: Context) {
 
         if (currentPending != null) {
             if (currentPopup != null) {
-                recordPopup(currentPending, currentPopup, nowMs)
+                recordPopup(currentPending, currentPopup, nowMs, frameBitmap)
                 pending = null
                 pendingSinceMs = 0L
                 pendingRetries = 0
@@ -235,7 +246,7 @@ class GridLearningController(private val context: Context) {
         dispatchProbe(selected)
     }
 
-    private fun recordPopup(probe: Probe, popup: PopupState, nowMs: Long) {
+    private fun recordPopup(probe: Probe, popup: PopupState, nowMs: Long, frameBitmap: Bitmap?) {
         val actual = popup.coordinate ?: return
         val expected = probe.expected
         val delta = if (expected != null && expected.kingdom == actual.kingdom) {
@@ -280,9 +291,31 @@ class GridLearningController(private val context: Context) {
             calibrator.addSample(actual, probe.point)
         }
         sessionSamples++
-        if (accepted) acceptedSamples++ else rejectedSamples++
-        learnedCoordinates.add(worldKey(actual))
-        enqueueNeighbors(actual)
+        if (accepted) {
+            acceptedSamples++
+            learnedCoordinates.add(worldKey(actual))
+            enqueueNeighbors(actual)
+        } else {
+            rejectedSamples++
+        }
+
+        val trainingCapture = trainingSampleRecorder.record(
+            frame = frameBitmap,
+            pointX = probe.point.x,
+            pointY = probe.point.y,
+            coordinate = actual,
+            popup = popup,
+            acceptedForCalibration = accepted,
+            cameraStable = probe.stableAtDispatch && lastCameraStable,
+            coordinateAuthority = "OBSERVED"
+        )
+        if (trainingCapture.saved != null) {
+            trainingSamplesSaved++
+            lastTrainingRejection = null
+        } else {
+            trainingSamplesRejected++
+            lastTrainingRejection = trainingCapture.rejection
+        }
     }
 
     private fun enqueueNeighbors(center: WorldCoordinate) {
@@ -371,7 +404,9 @@ class GridLearningController(private val context: Context) {
         val dispatch = "dispatch=" + dispatchSuccesses + "/" + probeAttempts
         val issue = lastProbeIssue?.let { " • " + it } ?: ""
         val candidate = " • candidates=" + candidateDetections + "/" + safeCandidateDetections
-        val samples = " • accepted=" + acceptedSamples + " • rejected=" + rejectedSamples
+        val samples = " • accepted=" + acceptedSamples + " • rejected=" + rejectedSamples +
+            " • train=" + trainingSamplesSaved + "/" + trainingSamplesRejected +
+            (lastTrainingRejection?.let { " • " + it } ?: "")
         return "GRID LEARN • probes=" + probeAttempts +
             " • saved=" + store.sampleCount() +
             " • samples=" + sessionSamples +
