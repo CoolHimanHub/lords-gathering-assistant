@@ -49,7 +49,7 @@ class VisionPipeline(
             badgeDetections = tileDetector.lastBadgeDetections,
             openCvReady = OpenCvRuntime.isLoaded(),
             aiScene = aiScene,
-            gameSceneHypotheses = gameSceneHypotheses.ifEmpty { GameSceneTaxonomy.hypotheses(aiScene.objects) }
+            gameSceneHypotheses = gameSceneHypotheses
         )
     }
     private fun enrichBadgeLevels(detection: DetectionFrame, textRegions: List<TextRegion>): DetectionFrame {
