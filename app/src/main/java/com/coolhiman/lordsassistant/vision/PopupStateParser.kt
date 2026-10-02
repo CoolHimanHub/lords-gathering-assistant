@@ -47,7 +47,9 @@ object PopupStateParser {
         // X/Y alone is the persistent map HUD, so it must not be treated as a popup.
         // A popup is established by its action/state vocabulary or a named target + level.
         val isPopup = popupWords.any { it in lower } ||
-            (kind != null && popupLevel.containsMatchIn(text))
+            listOf("occup", "gather", "attack", "hunt", "transfer", "relocat", "bookmark", "share", "migrat").any { it in lower } ||
+            (kind != null && popupLevel.containsMatchIn(text)) ||
+            (coord != null && listOf("occup", "unoccup", "occupier", "available", "transfer", "bookmark", "share").any { it in lower })
 
         val occupied = when {
             "unoccupied" in lower || "available" in lower -> false
