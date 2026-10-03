@@ -39,6 +39,19 @@ object OcrBitmapPreprocessor {
      * it clearly. Enlarge only that ROI for a fallback pass; the primary full
      * frame remains the source of semantic/tile OCR regions.
      */
+    fun preparePopupRegion(source: Bitmap): Bitmap? {
+        if (source.width < 32 || source.height < 32) return null
+        val left = (source.width * 0.32f).toInt().coerceAtLeast(0)
+        val top = (source.height * 0.02f).toInt().coerceAtLeast(0)
+        val right = (source.width * 0.68f).toInt().coerceAtMost(source.width)
+        val bottom = (source.height * 0.58f).toInt().coerceAtMost(source.height)
+        if (right <= left || bottom <= top) return null
+        val crop = Bitmap.createBitmap(source, left, top, right - left, bottom - top)
+        val enlarged = Bitmap.createScaledBitmap(crop, crop.width * 2, crop.height * 2, true)
+        if (enlarged !== crop && !crop.isRecycled) crop.recycle()
+        return enlarged
+    }
+
     fun prepareCoordinateHud(source: Bitmap): Bitmap? {
         if (source.width < 32 || source.height < 32) return null
 
@@ -89,7 +102,7 @@ class FrameAnalyzer {
         return stage + failure
     }
 
-    fun analyze(bitmap: Bitmap, defaultKingdom: Int, callback: (FrameAnalysis) -> Unit): Boolean {
+    fun analyze(bitmap: Bitmap, defaultKingdom: Int, capturePopupEvidence: Boolean = false, callback: (FrameAnalysis) -> Unit): Boolean {
         if (!inFlight.compareAndSet(false, true)) {
             stage = "BUSY"
             return false
