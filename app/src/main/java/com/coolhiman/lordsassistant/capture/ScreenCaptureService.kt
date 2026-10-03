@@ -735,7 +735,11 @@ class ScreenCaptureService : Service() {
                 captureStage = "ANALYZING"
 
                 try {
-                    val analysisStarted = analyzer.analyze(bitmap, defaultKingdom = 0) { result ->
+                    val analysisStarted = analyzer.analyze(
+                        bitmap = bitmap,
+                        defaultKingdom = 0,
+                        capturePopupEvidence = gridLearningController.isActive()
+                    ) { result ->
                         frameTimeoutFuture?.cancel(false)
                         frameTimeoutFuture = null
                         if (processingToken.get() != frameToken) {
