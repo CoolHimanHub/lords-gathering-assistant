@@ -179,17 +179,87 @@ class FrameAnalyzer {
                             val coordinate = OcrParser.parseHudCoordinate(text, regions, ocrBitmap.width, ocrBitmap.height, defaultKingdom)
 
                             if (coordinate != null) {
-                                stage = "SUCCESS"
-                                complete(
-                                    FrameAnalysis(
-                                        text = text,
-                                        coordinate = coordinate,
-                                        classification = GameTextClassifier.classify(text),
-                                        textRegions = regions,
-                                        popup = PopupStateParser.parse(text, defaultKingdom),
-                                        ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                val primaryPopup = PopupStateParser.parse(text, defaultKingdom)
+                                if (!capturePopupEvidence || primaryPopup.isPopup) {
+                                    stage = "SUCCESS"
+                                    complete(
+                                        FrameAnalysis(
+                                            text = text,
+                                            coordinate = coordinate,
+                                            classification = GameTextClassifier.classify(text),
+                                            textRegions = regions,
+                                            popup = primaryPopup,
+                                            ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                        )
                                     )
-                                )
+                                    return@addOnSuccessListener
+                                }
+
+                                val popupBitmap = try { OcrBitmapPreprocessor.preparePopupRegion(ocrBitmap) } catch (_: Throwable) { null }
+                                if (popupBitmap == null) {
+                                    stage = "SUCCESS_NO_POPUP_REGION"
+                                    complete(
+                                        FrameAnalysis(
+                                            text = text,
+                                            coordinate = coordinate,
+                                            classification = GameTextClassifier.classify(text),
+                                            textRegions = regions,
+                                            popup = primaryPopup,
+                                            ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                        )
+                                    )
+                                    return@addOnSuccessListener
+                                }
+
+                                stage = "POPUP_FALLBACK_SUBMITTING"
+                                try {
+                                    recognizer.process(InputImage.fromBitmap(popupBitmap, 0))
+                                        .addOnSuccessListener(callbackExecutor) { popupResult ->
+                                            val popupText = OcrParser.normalize(popupResult.text)
+                                            val targetedPopup = PopupStateParser.parse(popupText, defaultKingdom)
+                                            stage = if (targetedPopup.isPopup) "POPUP_FALLBACK_SUCCESS" else "POPUP_FALLBACK_NO_POPUP"
+                                            complete(
+                                                FrameAnalysis(
+                                                    text = text,
+                                                    coordinate = coordinate,
+                                                    classification = GameTextClassifier.classify(text),
+                                                    textRegions = regions,
+                                                    popup = if (targetedPopup.isPopup) targetedPopup else primaryPopup,
+                                                    ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                                ),
+                                                popupBitmap
+                                            )
+                                        }
+                                        .addOnFailureListener(callbackExecutor) { error ->
+                                            stage = "POPUP_FALLBACK_FAILURE"
+                                            lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
+                                            complete(
+                                                FrameAnalysis(
+                                                    text = text,
+                                                    coordinate = coordinate,
+                                                    classification = GameTextClassifier.classify(text),
+                                                    textRegions = regions,
+                                                    popup = primaryPopup,
+                                                    ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                                ),
+                                                popupBitmap
+                                            )
+                                        }
+                                } catch (error: Throwable) {
+                                    stage = "POPUP_FALLBACK_EXCEPTION"
+                                    lastFailure = (error.message ?: error.javaClass.simpleName).take(180)
+                                    complete(
+                                        FrameAnalysis(
+                                            text = text,
+                                            coordinate = coordinate,
+                                            classification = GameTextClassifier.classify(text),
+                                            textRegions = regions,
+                                            popup = primaryPopup,
+                                            ocrProcessingMs = System.currentTimeMillis() - startedAt
+                                        ),
+                                        popupBitmap
+                                    )
+                                }
                                 return@addOnSuccessListener
                             }
 
