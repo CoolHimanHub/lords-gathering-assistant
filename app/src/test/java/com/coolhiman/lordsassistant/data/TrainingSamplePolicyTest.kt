@@ -32,15 +32,18 @@ class TrainingSamplePolicyTest {
     }
 
     @Test
-    fun acceptsAuthoritativeEmptyTile() {
+    fun rejectsTerrainPopupInsteadOfCallingItEmpty() {
         val decision = TrainingSamplePolicy.decide(
-            PopupState(coordinate = coordinate, isPopup = true),
+            PopupState(
+                terrainName = "forest",
+                coordinate = coordinate,
+                isPopup = true
+            ),
             acceptedForCalibration = true,
             cameraStable = true,
             coordinateAuthority = "OBSERVED"
         )
-        assertEquals("EMPTY", decision.label)
-        assertEquals("EMPTY", decision.labelType)
+        assertEquals("TERRAIN_POPUP", decision.rejection)
     }
 
     @Test

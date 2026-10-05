@@ -64,4 +64,28 @@ class PopupStateParserTest {
         assertEquals(200, state.coordinate?.x)
         assertEquals(420, state.coordinate?.y)
     }
+    @Test
+    fun terrainCoordinatePopupIsRecognizedWithoutActionWord() {
+        val state = PopupStateParser.parse(
+            "Forest Kingdom of Klinghofen K:348 X:240 Y:708",
+            0
+        )
+        assertTrue(state.isPopup)
+        assertEquals("forest", state.terrainName)
+        assertEquals(240, state.coordinate?.x)
+        assertEquals(708, state.coordinate?.y)
+    }
+
 }
+
+    @Test
+    fun terrainCoordinatePopupIsRecognizedWithoutActionWord() {
+        val state = PopupStateParser.parse(
+            "Forest Kingdom of Klinghofen K:348 X:240 Y:708",
+            0
+        )
+        assertTrue(state.isPopup)
+        assertEquals("forest", state.terrainName)
+        assertEquals(240, state.coordinate?.x)
+        assertEquals(708, state.coordinate?.y)
+    }

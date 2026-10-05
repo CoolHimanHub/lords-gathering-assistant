@@ -8,6 +8,7 @@ data class PopupState(
     val kind: TargetKind? = null,
     val resource: ResourceType? = null,
     val monsterName: String? = null,
+    val terrainName: String? = null,
     val level: Int? = null,
     val quantity: Long? = null,
     val occupied: Boolean? = null,
@@ -31,6 +32,10 @@ object PopupStateParser {
             listOf("monster", "blackwing", "frostwing", "gryphon", "hell drider", "noceros", "mecha trojan", "trojan horse", "cottageroar").any { it in lower } -> TargetKind.MONSTER
             else -> null
         }
+        val terrain = listOf(
+            "forest", "grassland", "tundra", "magma path", "lava hill",
+            "rock pile", "wonder's province", "wonders province", "lake", "shore"
+        ).firstOrNull { it in lower }
         val coord = coordinate.find(text)?.let {
             WorldCoordinate(it.groupValues[1].toInt(), it.groupValues[2].toInt(), it.groupValues[3].toInt())
         } ?: xy.find(text)?.let {
@@ -49,6 +54,7 @@ object PopupStateParser {
         val isPopup = popupWords.any { it in lower } ||
             listOf("occup", "gather", "attack", "hunt", "transfer", "relocat", "bookmark", "share", "migrat").any { it in lower } ||
             (kind != null && popupLevel.containsMatchIn(text)) ||
+            (coord != null && terrain != null) ||
             (coord != null && listOf("occup", "unoccup", "occupier", "available", "transfer", "bookmark", "share").any { it in lower })
 
         val occupied = when {
@@ -67,6 +73,7 @@ object PopupStateParser {
             kind = kind,
             resource = classification.resource,
             monsterName = classification.monsterName,
+            terrainName = terrain,
             level = popupLevel.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: classification.level,
             quantity = parsedQuantity,
             occupied = occupied,

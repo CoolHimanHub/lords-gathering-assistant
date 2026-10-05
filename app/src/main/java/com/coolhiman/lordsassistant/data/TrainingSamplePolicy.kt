@@ -20,10 +20,12 @@ object TrainingSamplePolicy {
         if (!cameraStable) return TrainingSampleDecision(rejection = "CAMERA_UNSTABLE")
         if (coordinateAuthority != "OBSERVED") return TrainingSampleDecision(rejection = "COORDINATE_NOT_OBSERVED")
         if (!popup.isPopup || popup.coordinate == null) return TrainingSampleDecision(rejection = "NOT_A_TILE_POPUP")
+        if (popup.terrainName != null && popup.kind == null && popup.resource == null && popup.monsterName == null) {
+            return TrainingSampleDecision(rejection = "TERRAIN_POPUP")
+        }
         val label = when {
             popup.kind?.name == "RESOURCE" && popup.resource != null -> popup.resource.name
             popup.kind?.name == "MONSTER" -> popup.monsterName?.takeIf { it.isNotBlank() } ?: "MONSTER"
-            popup.kind == null && popup.resource == null && popup.monsterName == null -> "EMPTY"
             else -> null
         } ?: return TrainingSampleDecision(rejection = "SEMANTIC_LABEL_MISSING")
         val confidence = when {
@@ -41,7 +43,6 @@ object TrainingSamplePolicy {
         val labelType = when {
             popup.kind?.name == "RESOURCE" -> "RESOURCE"
             popup.kind?.name == "MONSTER" -> "MONSTER"
-            label == "EMPTY" -> "EMPTY"
             else -> "UNKNOWN"
         }
         return TrainingSampleDecision(labelType, label, confidence)
