@@ -41,10 +41,16 @@ object OcrBitmapPreprocessor {
      */
     fun preparePopupRegion(source: Bitmap): Bitmap? {
         if (source.width < 32 || source.height < 32) return null
-        val left = (source.width * 0.32f).toInt().coerceAtLeast(0)
+        // Popup K/X/Y is rendered well below the persistent map HUD on the
+        // 1536x704 capture used by current devices. The previous ROI stopped
+        // at 58% of the already-downscaled frame, so it clipped the popup's
+        // coordinate/action area and Grid Learning never received PopupState.
+        // Keep this fallback broad enough to cover the full tile popup while
+        // still avoiding the extreme left/right HUD chrome.
+        val left = (source.width * 0.22f).toInt().coerceAtLeast(0)
         val top = (source.height * 0.02f).toInt().coerceAtLeast(0)
-        val right = (source.width * 0.68f).toInt().coerceAtMost(source.width)
-        val bottom = (source.height * 0.58f).toInt().coerceAtMost(source.height)
+        val right = (source.width * 0.82f).toInt().coerceAtMost(source.width)
+        val bottom = (source.height * 0.88f).toInt().coerceAtMost(source.height)
         if (right <= left || bottom <= top) return null
         val crop = Bitmap.createBitmap(source, left, top, right - left, bottom - top)
         val enlarged = Bitmap.createScaledBitmap(crop, crop.width * 2, crop.height * 2, true)
