@@ -49,6 +49,8 @@ class GridLearningController(private val context: Context) {
     private var dispatchSuccesses = 0
     private var dispatchFailures = 0
     private var lastProbeIssue: String? = null
+    private var lastProbePoint: ScreenPoint? = null
+    private var lastProbeGesture: String? = null
     private var popupSeenWhilePending = 0
     private var popupTimeouts = 0
     private var candidateDetections = 0
@@ -95,6 +97,8 @@ class GridLearningController(private val context: Context) {
         dispatchSuccesses = 0
         dispatchFailures = 0
         lastProbeIssue = null
+        lastProbePoint = null
+        lastProbeGesture = null
         candidateDetections = 0
         safeCandidateDetections = 0
         acceptedSamples = 0
@@ -244,6 +248,8 @@ class GridLearningController(private val context: Context) {
         pendingRetries = 0
         lastTapMs = nowMs
         probeAttempts++
+        lastProbePoint = selected.point
+        lastProbeGesture = "DISPATCHING"
         lastProbeIssue = null
         while (attemptedScreen.size > 512) {
             val oldest = attemptedScreen.entries.minByOrNull { it.value }?.key ?: break
@@ -386,10 +392,12 @@ class GridLearningController(private val context: Context) {
             synchronized(this) {
                 if (dispatched) {
                     dispatchSuccesses++
+                    lastProbeGesture = "COMPLETED"
                     attemptedScreen[pointKey(probe.point)] = System.currentTimeMillis()
                     lastProbeIssue = null
                 } else {
                     dispatchFailures++
+                    lastProbeGesture = "CANCELLED"
                     lastProbeIssue = "PROBE DISPATCH FAILED"
                     attemptedScreen.remove(pointKey(probe.point))
                 }
@@ -409,6 +417,10 @@ class GridLearningController(private val context: Context) {
         val rms = fit?.rmsErrorPx?.let { " • RMS %.1fpx".format(it) } ?: ""
         val dispatch = "dispatch=" + dispatchSuccesses + "/" + probeAttempts
         val issue = lastProbeIssue?.let { " • " + it } ?: ""
+        val probe = lastProbePoint?.let {
+            " • probe=(%.0f,%.0f)".format(it.x, it.y)
+        } ?: ""
+        val gesture = lastProbeGesture?.let { " • gesture=$it" } ?: ""
         val candidate = " • candidates=" + candidateDetections + "/" + safeCandidateDetections
         val samples = " • accepted=" + acceptedSamples + " • rejected=" + rejectedSamples +
             " • train=" + trainingSamplesSaved + "/" + trainingSamplesRejected +
@@ -419,7 +431,7 @@ class GridLearningController(private val context: Context) {
             samples +
             " • frontier=" + frontier.size +
             candidate +
-            " • " + dispatch +
+            " • " + dispatch + probe + gesture +
             " • popup=" + popupSeenWhilePending + "seen/" + popupTimeouts + "timeout" +
             " • camera=" + if (lastCameraStable) "STABLE" else "UNSTABLE" +
             " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms + issue
