@@ -280,7 +280,16 @@ class LmAccessibilityService : AccessibilityService() {
             }
             val path = Path().apply { moveTo(point.x, point.y) }
             val gesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
+                // Use Android's platform tap timeout instead of a shorter
+                // hard-coded stroke. Some games do not treat a very short
+                // accessibility stroke as a normal tap.
+                .addStroke(
+                    GestureDescription.StrokeDescription(
+                        path,
+                        0,
+                        android.view.ViewConfiguration.getTapTimeout().toLong()
+                    )
+                )
                 .build()
             val dispatched = runCatching {
                 dispatchGesture(gesture, object : GestureResultCallback() {
