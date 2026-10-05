@@ -257,32 +257,54 @@ class LmAccessibilityService : AccessibilityService() {
         screenHeight: Int,
         onResult: (Boolean) -> Unit = {}
     ) {
-        fun safe(): Boolean {
-            if (screenWidth <= 0 || screenHeight <= 0) return false
-            val x = point.x
-            val y = point.y
-            if (x < screenWidth * 0.10f || x > screenWidth * 0.90f) return false
-            if (y < screenHeight * 0.16f || y > screenHeight * 0.82f) return false
-            // Final defense-in-depth gate: never dispatch a learning gesture
-            // into the touchable diagnostics overlay itself.
+        // Map scanner-frame coordinates into the actual display coordinate
+        // space used by AccessibilityService.dispatchGesture(). MediaProjection
+        // can expose a frame whose dimensions differ from the physical display
+        // (system bars, compatibility/window bounds, or capture scaling). Using
+        // the raw frame point as a gesture coordinate can therefore land on the
+        // diagnostics overlay even when the frame-space point was inside the map.
+        fun displayPoint(): ScreenPoint? {
+            if (screenWidth <= 0 || screenHeight <= 0) return null
+            val metrics = resources.displayMetrics
+            val displayWidth = metrics.widthPixels
+            val displayHeight = metrics.heightPixels
+            if (displayWidth <= 0 || displayHeight <= 0) return null
+            return ScreenPoint(
+                x = point.x * displayWidth.toFloat() / screenWidth.toFloat(),
+                y = point.y * displayHeight.toFloat() / screenHeight.toFloat()
+            )
+        }
+
+        fun safe(mapped: ScreenPoint?): Boolean {
+            if (mapped == null) return false
+            val metrics = resources.displayMetrics
+            val displayWidth = metrics.widthPixels
+            val displayHeight = metrics.heightPixels
+            if (displayWidth <= 0 || displayHeight <= 0) return false
+            val x = mapped.x
+            val y = mapped.y
+            if (x < displayWidth * 0.10f || x > displayWidth * 0.90f) return false
+            if (y < displayHeight * 0.16f || y > displayHeight * 0.82f) return false
+            // Final defense-in-depth gate: evaluate the overlay in the same
+            // display coordinate space in which its WindowManager bounds live.
             if (OverlayService.isPointInsideInteractiveOverlay(x, y)) return false
-            if (y < screenHeight * 0.30f && x in (screenWidth * 0.34f)..(screenWidth * 0.76f)) return false
+            if (y < displayHeight * 0.30f && x in (displayWidth * 0.34f)..(displayWidth * 0.76f)) return false
             return true
         }
-        if (!safe()) {
+
+        val mapped = displayPoint()
+        if (!safe(mapped)) {
             onResult(false)
             return
         }
         mainHandler.post {
-            if (!safe()) {
+            val dispatchPoint = displayPoint()
+            if (!safe(dispatchPoint)) {
                 onResult(false)
                 return@post
             }
-            val path = Path().apply { moveTo(point.x, point.y) }
+            val path = Path().apply { moveTo(dispatchPoint.x, dispatchPoint.y) }
             val gesture = GestureDescription.Builder()
-                // Use Android's platform tap timeout instead of a shorter
-                // hard-coded stroke. Some games do not treat a very short
-                // accessibility stroke as a normal tap.
                 .addStroke(
                     GestureDescription.StrokeDescription(
                         path,
