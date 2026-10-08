@@ -66,7 +66,7 @@ object PopupStateParser {
             listOf("your castle", "enemy castle", "castle").any { it in lower } -> PopupSemantic.CASTLE
             classification.kind == TargetKind.RESOURCE -> PopupSemantic.RESOURCE
             classification.kind == TargetKind.MONSTER -> PopupSemantic.MONSTER
-            isPopup && coord != null && terrain != null && kind == null && classification.resource == null && classification.monsterName == null -> PopupSemantic.EMPTY
+            isPopup && coord != null && terrain != null && classification.resource == null && classification.monsterName == null -> PopupSemantic.EMPTY
             else -> PopupSemantic.UNKNOWN
         }
 
