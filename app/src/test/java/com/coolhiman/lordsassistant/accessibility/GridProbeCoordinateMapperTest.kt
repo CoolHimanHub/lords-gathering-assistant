@@ -45,6 +45,19 @@ class GridProbeCoordinateMapperTest {
     }
 
     @Test
+    fun rejectsPointOutsideSourceDisplayBeforeScaling() {
+        assertNull(
+            GridProbeCoordinateMapper.map(
+                ScreenPoint(1001f, 1000f),
+                1000,
+                2000,
+                1500,
+                3000
+            )
+        )
+    }
+
+    @Test
     fun checksMappedPointAgainstDisplayBounds() {
         assertEquals(
             true,
