@@ -53,14 +53,19 @@ class AffineGridCalibratorStabilityTest {
 
     @Test
     fun readinessAcceptsCleanSixSampleCalibration() {
+        val samples = listOf(
+            10 to 20, 11 to 20, 12 to 20,
+            10 to 21, 11 to 21, 10 to 22
+        )
         val calibrator = AffineGridCalibrator()
-        for (y in 20..21) {
-            for (x in 10..12) {
-                calibrator.addSample(
-                    WorldCoordinate(355, x, y),
-                    ScreenPoint((100f + (x - 10) * 20f + (y - 20) * 8f), (200f + (x - 10) * 10f + (y - 20) * 20f))
+        samples.forEach { (x, y) ->
+            calibrator.addSample(
+                WorldCoordinate(355, x, y),
+                ScreenPoint(
+                    100f + (x - 10) * 20f + (y - 20) * 8f,
+                    200f + (x - 10) * 10f + (y - 20) * 20f
                 )
-            }
+            )
         }
         val readiness = calibrator.readiness()
         assertTrue(readiness.ready)
