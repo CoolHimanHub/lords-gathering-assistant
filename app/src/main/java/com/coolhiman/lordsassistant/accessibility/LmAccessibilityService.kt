@@ -285,8 +285,9 @@ class LmAccessibilityService : AccessibilityService() {
             // point into the actual gesture display space and fail closed if the
             // aspect ratio/rotation is incompatible.
             val displayMetrics = android.util.DisplayMetrics()
+            val windowManager = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
             @Suppress("DEPRECATION")
-            display?.getMetrics(displayMetrics)
+            windowManager.defaultDisplay.getMetrics(displayMetrics)
             val mappedPoint = GridProbeCoordinateMapper.map(
                 point = point,
                 sourceWidth = screenWidth,
