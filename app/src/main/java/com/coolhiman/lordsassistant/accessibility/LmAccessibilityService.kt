@@ -22,7 +22,12 @@ import com.coolhiman.lordsassistant.target.TargetValidationResult
 import com.coolhiman.lordsassistant.target.PreActionRevalidator
 
 class LmAccessibilityService : AccessibilityService() {
-    companion object { @Volatile var instance: LmAccessibilityService? = null }
+    companion object {
+        @Volatile var instance: LmAccessibilityService? = null
+        @Volatile private var lastGridProbeDiagnostic: String = "probe=NONE"
+
+        fun gridProbeDiagnostic(): String = lastGridProbeDiagnostic
+    }
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var scannerHud: TextView? = null
@@ -270,11 +275,13 @@ class LmAccessibilityService : AccessibilityService() {
             return true
         }
         if (!safe()) {
+            lastGridProbeDiagnostic = "probe=REJECTED_PRECHECK"
             onResult(false)
             return
         }
         mainHandler.post {
             if (!safe()) {
+                lastGridProbeDiagnostic = "probe=REJECTED_FINAL_PRECHECK"
                 onResult(false)
                 return@post
             }
@@ -295,9 +302,14 @@ class LmAccessibilityService : AccessibilityService() {
                 targetWidth = displayMetrics.widthPixels,
                 targetHeight = displayMetrics.heightPixels
             ) ?: run {
+                lastGridProbeDiagnostic = "probe=REJECTED_COORD_MAP"
                 onResult(false)
                 return@post
             }
+            lastGridProbeDiagnostic = "src=(%.0f,%.0f)→display=(%.0f,%.0f) screen=%dx%d".format(
+                point.x, point.y, mappedPoint.x, mappedPoint.y,
+                displayMetrics.widthPixels, displayMetrics.heightPixels
+            )
 
             // Re-run all safety checks in the final gesture coordinate space.
             // This is the critical defense against analysis/display coordinate
@@ -317,6 +329,7 @@ class LmAccessibilityService : AccessibilityService() {
             if (mappedPoint.y < displayMetrics.heightPixels * 0.30f &&
                 mappedPoint.x in (displayMetrics.widthPixels * 0.34f)..(displayMetrics.widthPixels * 0.76f)
             ) {
+                lastGridProbeDiagnostic += " • REJECTED_HUD"
                 onResult(false)
                 return@post
             }
@@ -336,18 +349,25 @@ class LmAccessibilityService : AccessibilityService() {
                 .build()
             val dispatched = runCatching {
                 dispatchGesture(gesture, object : GestureResultCallback() {
+
                     override fun onCompleted(gestureDescription: GestureDescription?) {
+                        lastGridProbeDiagnostic += " • COMPLETED"
                         onResult(true)
                     }
                     override fun onCancelled(gestureDescription: GestureDescription?) {
+                        lastGridProbeDiagnostic += " • CANCELLED"
                         onResult(false)
                     }
                 }, mainHandler)
             }.getOrElse {
+                lastGridProbeDiagnostic += " • DISPATCH_EXCEPTION"
                 onResult(false)
                 false
             }
-            if (!dispatched) onResult(false)
+            if (!dispatched) {
+                lastGridProbeDiagnostic += " • DISPATCH_REJECTED"
+                onResult(false)
+            }
         }
     }
 

@@ -421,6 +421,10 @@ class GridLearningController(private val context: Context) {
             " • probe=(%.0f,%.0f)".format(it.x, it.y)
         } ?: ""
         val gesture = lastProbeGesture?.let { " • gesture=$it" } ?: ""
+        val gestureDiagnostic = LmAccessibilityService.gridProbeDiagnostic()
+            .takeIf { it != "probe=NONE" }
+            ?.let { " • " + it }
+            ?: ""
         val candidate = " • candidates=" + candidateDetections + "/" + safeCandidateDetections
         val samples = " • accepted=" + acceptedSamples + " • rejected=" + rejectedSamples +
             " • train=" + trainingSamplesSaved + "/" + trainingSamplesRejected +
@@ -429,6 +433,7 @@ class GridLearningController(private val context: Context) {
             " • saved=" + store.sampleCount() +
             " • samples=" + sessionSamples +
             samples +
+            gestureDiagnostic +
             " • frontier=" + frontier.size +
             candidate +
             " • " + dispatch + probe + gesture +
