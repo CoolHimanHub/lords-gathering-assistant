@@ -290,16 +290,15 @@ class LmAccessibilityService : AccessibilityService() {
         val displayWidth = display.first
         val displayHeight = display.second
 
-        fun toDisplayPoint(): ScreenPoint {
+        fun toDisplayPoint(): ScreenPoint? {
             if (screenWidth == displayWidth && screenHeight == displayHeight) return point
 
-            // Capture/display rotation mismatch. Preserve the coordinate's
-            // physical location in the default-display orientation.
+            // A 90-degree orientation mismatch requires an explicit rotation
+            // matrix tied to the capture/display orientation. Do not guess one
+            // at the final gesture boundary; fail closed until that transform is
+            // established by the viewport layer.
             if (screenWidth == displayHeight && screenHeight == displayWidth) {
-                return ScreenPoint(
-                    x = point.y,
-                    y = displayHeight - point.x
-                )
+                return null
             }
 
             return ScreenPoint(
@@ -308,7 +307,10 @@ class LmAccessibilityService : AccessibilityService() {
             )
         }
 
-        val displayPoint = toDisplayPoint()
+        val displayPoint = toDisplayPoint() ?: run {
+            onResult(false)
+            return
+        }
 
         fun safe(): Boolean {
             val x = displayPoint.x
