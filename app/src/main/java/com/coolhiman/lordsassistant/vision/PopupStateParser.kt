@@ -4,6 +4,8 @@ import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 
+enum class PopupSemantic { RESOURCE, MONSTER, DARKNEST, CASTLE, EMPTY, UNKNOWN }
+
 data class PopupState(
     val kind: TargetKind? = null,
     val resource: ResourceType? = null,
@@ -14,7 +16,9 @@ data class PopupState(
     val occupied: Boolean? = null,
     val incomingTroops: Boolean? = null,
     val coordinate: WorldCoordinate? = null,
-    val isPopup: Boolean = false
+    val isPopup: Boolean = false,
+    /** Semantic evidence for training only; it never authorizes an action. */
+    val semantic: PopupSemantic = PopupSemantic.UNKNOWN
 )
 
 object PopupStateParser {
@@ -56,6 +60,14 @@ object PopupStateParser {
             (kind != null && popupLevel.containsMatchIn(text)) ||
             (coord != null && terrain != null) ||
             (coord != null && listOf("occup", "unoccup", "occupier", "available", "transfer", "bookmark", "share").any { it in lower })
+        val semantic = when {
+            classification.kind == TargetKind.RESOURCE -> PopupSemantic.RESOURCE
+            classification.kind == TargetKind.MONSTER -> PopupSemantic.MONSTER
+            listOf("darknest", "dark nest").any { it in lower } -> PopupSemantic.DARKNEST
+            listOf("castle", "your castle", "enemy castle").any { it in lower } -> PopupSemantic.CASTLE
+            isPopup && coord != null && terrain != null && kind == null && classification.resource == null && classification.monsterName == null -> PopupSemantic.EMPTY
+            else -> PopupSemantic.UNKNOWN
+        }
 
         val occupied = when {
             "unoccupied" in lower || "available" in lower -> false
@@ -79,7 +91,8 @@ object PopupStateParser {
             occupied = occupied,
             incomingTroops = incoming,
             coordinate = coord,
-            isPopup = isPopup
+            isPopup = isPopup,
+            semantic = semantic
         )
     }
 }
