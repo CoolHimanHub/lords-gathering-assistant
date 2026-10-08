@@ -257,32 +257,91 @@ class LmAccessibilityService : AccessibilityService() {
         screenHeight: Int,
         onResult: (Boolean) -> Unit = {}
     ) {
+        /*
+         * GridLearningController works in MediaProjection bitmap coordinates.
+         * AccessibilityService.dispatchGesture() consumes physical default-display
+         * coordinates. They normally match, but OEMs can expose a capture bitmap
+         * whose dimensions differ from the touch display. That mismatch is unsafe:
+         * a visually safe map point can otherwise land on an overlay control.
+         *
+         * Normalize at the final gesture boundary and run all safety checks
+         * against the actual display coordinates that will be tapped.
+         */
+        fun displaySize(): Pair<Int, Int>? {
+            val metrics = android.util.DisplayMetrics()
+            return runCatching {
+                val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getRealMetrics(metrics)
+                if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+                    metrics.widthPixels to metrics.heightPixels
+                } else {
+                    null
+                }
+            }.getOrNull()
+        }
+
+        val display = displaySize()
+        if (display == null || screenWidth <= 0 || screenHeight <= 0) {
+            onResult(false)
+            return
+        }
+
+        val displayWidth = display.first
+        val displayHeight = display.second
+
+        fun toDisplayPoint(): ScreenPoint {
+            if (screenWidth == displayWidth && screenHeight == displayHeight) return point
+
+            // Capture/display rotation mismatch. Preserve the coordinate's
+            // physical location in the default-display orientation.
+            if (screenWidth == displayHeight && screenHeight == displayWidth) {
+                return ScreenPoint(
+                    x = point.y,
+                    y = displayHeight - point.x
+                )
+            }
+
+            return ScreenPoint(
+                x = point.x * displayWidth.toFloat() / screenWidth.toFloat(),
+                y = point.y * displayHeight.toFloat() / screenHeight.toFloat()
+            )
+        }
+
+        val displayPoint = toDisplayPoint()
+
         fun safe(): Boolean {
-            if (screenWidth <= 0 || screenHeight <= 0) return false
-            val x = point.x
-            val y = point.y
-            if (x < screenWidth * 0.10f || x > screenWidth * 0.90f) return false
-            if (y < screenHeight * 0.16f || y > screenHeight * 0.82f) return false
-            // Final defense-in-depth gate: never dispatch a learning gesture
-            // into the touchable diagnostics overlay itself.
+            val x = displayPoint.x
+            val y = displayPoint.y
+            if (x < displayWidth * 0.10f || x > displayWidth * 0.90f) return false
+            if (y < displayHeight * 0.16f || y > displayHeight * 0.82f) return false
+
+            // Final defense-in-depth gate: perform this check in physical
+            // display coordinates, matching dispatchGesture().
             if (OverlayService.isPointInsideInteractiveOverlay(x, y)) return false
-            if (y < screenHeight * 0.30f && x in (screenWidth * 0.34f)..(screenWidth * 0.76f)) return false
+
+            // Conservative upper-center exclusion remains active even if an
+            // OEM reports stale overlay bounds.
+            if (y < displayHeight * 0.30f &&
+                x in (displayWidth * 0.28f)..(displayWidth * 0.80f)
+            ) return false
+
             return true
         }
+
         if (!safe()) {
             onResult(false)
             return
         }
+
         mainHandler.post {
             if (!safe()) {
                 onResult(false)
                 return@post
             }
-            val path = Path().apply { moveTo(point.x, point.y) }
+            val path = Path().apply { moveTo(displayPoint.x, displayPoint.y) }
             val gesture = GestureDescription.Builder()
-                // Use Android's platform tap timeout instead of a shorter
-                // hard-coded stroke. Some games do not treat a very short
-                // accessibility stroke as a normal tap.
+                // Android recommends the platform tap timeout for a normal tap.
                 .addStroke(
                     GestureDescription.StrokeDescription(
                         path,
@@ -307,6 +366,5 @@ class LmAccessibilityService : AccessibilityService() {
             if (!dispatched) onResult(false)
         }
     }
-
     override fun onDestroy() { hideScannerHud(); instance = null; super.onDestroy() }
 }
