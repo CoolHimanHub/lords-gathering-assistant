@@ -19,6 +19,7 @@ import android.widget.TextView
 import com.coolhiman.lordsassistant.capture.ScreenCaptureService
 import com.coolhiman.lordsassistant.data.PreferencesStore
 import com.coolhiman.lordsassistant.target.RankedTarget
+import com.coolhiman.lordsassistant.model.ScreenPoint
 
 class OverlayService : Service() {
     companion object {
@@ -393,6 +394,16 @@ class OverlayService : Service() {
         markerView?.post { markerView?.setTargets(targets.take(12)) }
     }
 
+    /**
+     * Draw the exact final Accessibility gesture point used by Grid Learning.
+     * This is diagnostic only: the marker window is NOT_TOUCHABLE and cannot
+     * receive the learning gesture itself. It makes coordinate-space drift
+     * visible instead of leaving us to infer the tap location from callbacks.
+     */
+    fun showGridProbeMarker(point: ScreenPoint?) {
+        markerView?.post { markerView?.setGridProbePoint(point) }
+    }
+
     private fun refreshInteractiveBounds() {
         val view = card ?: return
         if (view.width <= 0 || view.height <= 0) return
@@ -425,11 +436,17 @@ class OverlayService : Service() {
     private inner class TargetMarkerView : View(this) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private var targets: List<RankedTarget> = emptyList()
+        private var gridProbePoint: ScreenPoint? = null
 
         init { setLayerType(View.LAYER_TYPE_SOFTWARE, null) }
 
         fun setTargets(value: List<RankedTarget>) {
             targets = value
+            invalidate()
+        }
+
+        fun setGridProbePoint(value: ScreenPoint?) {
+            gridProbePoint = value
             invalidate()
         }
 
@@ -446,6 +463,15 @@ class OverlayService : Service() {
                 paint.textSize = 22f
                 canvas.drawText((index + 1).toString(), x + 32f, y + 8f, paint)
                 paint.style = Paint.Style.STROKE
+            }
+
+            gridProbePoint?.let { point ->
+                paint.color = Color.MAGENTA
+                paint.strokeWidth = 6f
+                paint.style = Paint.Style.STROKE
+                canvas.drawCircle(point.x, point.y, 34f, paint)
+                canvas.drawLine(point.x - 22f, point.y, point.x + 22f, point.y, paint)
+                canvas.drawLine(point.x, point.y - 22f, point.x, point.y + 22f, paint)
             }
         }
     }
