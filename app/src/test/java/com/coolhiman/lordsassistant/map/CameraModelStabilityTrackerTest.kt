@@ -7,6 +7,7 @@ import org.junit.Test
 class CameraModelStabilityTrackerTest {
     private fun model(scale: Double, residual: Double = 2.0) =
         CameraModel(
+            kingdom = 1,
             scale = scale,
             offsetX = 100.0,
             offsetY = -40.0,
@@ -33,6 +34,7 @@ class CameraModelStabilityTrackerTest {
         assertTrue(
             tracker.update(
                 CameraModel(
+                    kingdom = 1,
                     scale = 1.5,
                     offsetX = 240.0,
                     offsetY = -160.0,
