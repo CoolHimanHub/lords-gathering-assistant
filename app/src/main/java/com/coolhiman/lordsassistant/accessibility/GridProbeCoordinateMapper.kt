@@ -25,6 +25,8 @@ object GridProbeCoordinateMapper {
             return null
         }
 
+        if (!isInsideDisplay(point, sourceWidth, sourceHeight)) return null
+
         val sourceAspect = sourceWidth.toFloat() / sourceHeight.toFloat()
         val targetAspect = targetWidth.toFloat() / targetHeight.toFloat()
         val aspectError = abs(sourceAspect - targetAspect) / max(sourceAspect, targetAspect)
