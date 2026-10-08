@@ -4,6 +4,7 @@ import com.coolhiman.lordsassistant.model.ResourceType
 import com.coolhiman.lordsassistant.model.TargetKind
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.PopupState
+import com.coolhiman.lordsassistant.vision.PopupSemantic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -44,6 +45,58 @@ class TrainingSamplePolicyTest {
             coordinateAuthority = "OBSERVED"
         )
         assertEquals("TERRAIN_POPUP", decision.rejection)
+    }
+
+    @Test
+    fun acceptsAuthoritativeDarknest() {
+        val decision = TrainingSamplePolicy.decide(
+            PopupState(semantic = PopupSemantic.DARKNEST, level = 4, coordinate = coordinate, isPopup = true),
+            acceptedForCalibration = true,
+            cameraStable = true,
+            coordinateAuthority = "OBSERVED"
+        )
+        assertEquals("DARKNEST", decision.labelType)
+        assertEquals("DARKNEST", decision.label)
+        assertEquals(0.95f, decision.confidence)
+        assertNull(decision.rejection)
+    }
+
+    @Test
+    fun acceptsAuthoritativeCastle() {
+        val decision = TrainingSamplePolicy.decide(
+            PopupState(semantic = PopupSemantic.CASTLE, coordinate = coordinate, isPopup = true),
+            acceptedForCalibration = true,
+            cameraStable = true,
+            coordinateAuthority = "OBSERVED"
+        )
+        assertEquals("CASTLE", decision.labelType)
+        assertEquals("CASTLE", decision.label)
+        assertNull(decision.rejection)
+    }
+
+    @Test
+    fun acceptsAuthoritativeEmptyTile() {
+        val decision = TrainingSamplePolicy.decide(
+            PopupState(semantic = PopupSemantic.EMPTY, terrainName = "forest", coordinate = coordinate, isPopup = true),
+            acceptedForCalibration = true,
+            cameraStable = true,
+            coordinateAuthority = "OBSERVED"
+        )
+        assertEquals("EMPTY", decision.labelType)
+        assertEquals("EMPTY", decision.label)
+        assertEquals(0.84f, decision.confidence)
+        assertNull(decision.rejection)
+    }
+
+    @Test
+    fun rejectsUnknownSemantic() {
+        val decision = TrainingSamplePolicy.decide(
+            PopupState(semantic = PopupSemantic.UNKNOWN, coordinate = coordinate, isPopup = true),
+            acceptedForCalibration = true,
+            cameraStable = true,
+            coordinateAuthority = "OBSERVED"
+        )
+        assertEquals("SEMANTIC_LABEL_MISSING", decision.rejection)
     }
 
     @Test
