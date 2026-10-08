@@ -45,6 +45,24 @@ class CameraModelStabilityTrackerTest {
     }
 
     @Test
+    fun kingdomChangeBreaksContinuity() {
+        val tracker = CameraModelStabilityTracker()
+        assertFalse(tracker.update(model(1.5)))
+        assertFalse(
+            tracker.update(
+                CameraModel(
+                    kingdom = 2,
+                    scale = 1.5,
+                    offsetX = 100.0,
+                    offsetY = -40.0,
+                    residualRmsPx = 2.0
+                )
+            )
+        )
+        assertTrue(tracker.update(model(1.5)))
+    }
+
+    @Test
     fun abruptScaleChangeBreaksContinuity() {
         val tracker = CameraModelStabilityTracker()
         assertFalse(tracker.update(model(1.5)))
@@ -60,6 +78,7 @@ class CameraModelStabilityTrackerTest {
         assertFalse(
             tracker.update(
                 CameraModel(
+                    kingdom = 1,
                     scale = 1.5,
                     offsetX = 100.0,
                     offsetY = -40.0,
