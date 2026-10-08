@@ -59,12 +59,13 @@ object PopupStateParser {
             listOf("occup", "gather", "attack", "hunt", "transfer", "relocat", "bookmark", "share", "migrat").any { it in lower } ||
             (kind != null && popupLevel.containsMatchIn(text)) ||
             (coord != null && terrain != null) ||
-            (coord != null && listOf("occup", "unoccup", "occupier", "available", "transfer", "bookmark", "share").any { it in lower })
+            (coord != null && listOf("occup", "unoccup", "occupier", "available", "transfer", "bookmark", "share").any { it in lower }) ||
+            (coord != null && listOf("darknest", "dark nest", "your castle", "enemy castle", "castle").any { it in lower })
         val semantic = when {
+            listOf("darknest", "dark nest").any { it in lower } -> PopupSemantic.DARKNEST
+            listOf("your castle", "enemy castle", "castle").any { it in lower } -> PopupSemantic.CASTLE
             classification.kind == TargetKind.RESOURCE -> PopupSemantic.RESOURCE
             classification.kind == TargetKind.MONSTER -> PopupSemantic.MONSTER
-            listOf("darknest", "dark nest").any { it in lower } -> PopupSemantic.DARKNEST
-            listOf("castle", "your castle", "enemy castle").any { it in lower } -> PopupSemantic.CASTLE
             isPopup && coord != null && terrain != null && kind == null && classification.resource == null && classification.monsterName == null -> PopupSemantic.EMPTY
             else -> PopupSemantic.UNKNOWN
         }
