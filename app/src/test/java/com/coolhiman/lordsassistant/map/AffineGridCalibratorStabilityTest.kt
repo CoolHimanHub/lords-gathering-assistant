@@ -3,8 +3,10 @@ package com.coolhiman.lordsassistant.map
 import com.coolhiman.lordsassistant.model.ScreenPoint
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AffineGridCalibratorStabilityTest {
@@ -25,6 +27,49 @@ class AffineGridCalibratorStabilityTest {
         calibrator.addSample(WorldCoordinate(355, 10, 21), ScreenPoint(80f, 220f))
         calibrator.addSample(WorldCoordinate(356, 11, 21), ScreenPoint(100f, 240f))
         assertNull(calibrator.fit())
+    }
+
+    @Test
+    fun readinessRejectsMixedKingdomSamples() {
+        val calibrator = AffineGridCalibrator()
+        repeat(6) { index ->
+            calibrator.addSample(WorldCoordinate(355, 10 + index, 20), ScreenPoint(100f + index * 20f, 200f))
+        }
+        calibrator.addSample(WorldCoordinate(356, 16, 20), ScreenPoint(220f, 200f))
+        assertFalse(calibrator.readiness().ready)
+        assertEquals("MIXED_KINGDOM", calibrator.readiness().reason)
+    }
+
+    @Test
+    fun readinessRequiresEnoughSamplesBeforeSyntheticProbing() {
+        val calibrator = AffineGridCalibrator()
+        calibrator.addSample(WorldCoordinate(355, 10, 20), ScreenPoint(100f, 200f))
+        calibrator.addSample(WorldCoordinate(355, 11, 20), ScreenPoint(120f, 220f))
+        calibrator.addSample(WorldCoordinate(355, 10, 21), ScreenPoint(80f, 220f))
+        val readiness = calibrator.readiness()
+        assertFalse(readiness.ready)
+        assertEquals("NEED_SAMPLES", readiness.reason)
+    }
+
+    @Test
+    fun readinessAcceptsCleanSixSampleCalibration() {
+        val samples = listOf(
+            10 to 20, 11 to 20, 12 to 20,
+            10 to 21, 11 to 21, 10 to 22
+        )
+        val calibrator = AffineGridCalibrator()
+        samples.forEach { (x, y) ->
+            calibrator.addSample(
+                WorldCoordinate(355, x, y),
+                ScreenPoint(
+                    100f + (x - 10) * 20f + (y - 20) * 8f,
+                    200f + (x - 10) * 10f + (y - 20) * 20f
+                )
+            )
+        }
+        val readiness = calibrator.readiness()
+        assertTrue(readiness.ready)
+        assertEquals("READY", readiness.reason)
     }
 
     @Test

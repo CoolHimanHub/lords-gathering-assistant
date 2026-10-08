@@ -31,6 +31,36 @@ class AffineGridCalibrator {
 
     fun sampleCount(): Int = samples.size
 
+    /**
+     * Returns an explicit, non-authoritative quality/readiness snapshot for the
+     * current calibration. This is used only to explain why synthetic probing
+     * is or is not allowed; it never authorizes taps by itself.
+     */
+    fun readiness(
+        minSamples: Int = 6,
+        maxRmsPx: Double = 24.0,
+        minWorldSpan: Int = 2
+    ): CalibrationReadiness {
+        val kingdoms = samples.map { it.first.kingdom }.distinct()
+        if (samples.size < minSamples) {
+            return CalibrationReadiness(samples.size, kingdoms.size, null, null, null, null, false, "NEED_SAMPLES")
+        }
+        if (kingdoms.size != 1) {
+            return CalibrationReadiness(samples.size, kingdoms.size, null, null, null, null, false, "MIXED_KINGDOM")
+        }
+        val calibration = fit() ?: return CalibrationReadiness(samples.size, kingdoms.size, null, null, null, null, false, "FIT_INVALID")
+        if (calibration.geometryScore < MIN_GEOMETRY_SCORE) {
+            return CalibrationReadiness(samples.size, kingdoms.size, calibration.rmsErrorPx, calibration.geometryScore, calibration.worldSpanX, calibration.worldSpanY, false, "GEOMETRY_WEAK")
+        }
+        if (calibration.worldSpanX < minWorldSpan || calibration.worldSpanY < minWorldSpan) {
+            return CalibrationReadiness(samples.size, kingdoms.size, calibration.rmsErrorPx, calibration.geometryScore, calibration.worldSpanX, calibration.worldSpanY, false, "SPAN_TOO_SMALL")
+        }
+        if (calibration.rmsErrorPx > maxRmsPx) {
+            return CalibrationReadiness(samples.size, kingdoms.size, calibration.rmsErrorPx, calibration.geometryScore, calibration.worldSpanX, calibration.worldSpanY, false, "RMS_TOO_HIGH")
+        }
+        return CalibrationReadiness(samples.size, kingdoms.size, calibration.rmsErrorPx, calibration.geometryScore, calibration.worldSpanX, calibration.worldSpanY, true, "READY")
+    }
+
     fun fit(): Calibration? {
         if (samples.size < 3) return null
 
@@ -225,6 +255,17 @@ data class Calibration(
         rmsErrorPx <= maxRmsPx && geometryScore >= minGeometryScore
 }
 
+
+data class CalibrationReadiness(
+    val sampleCount: Int,
+    val kingdomCount: Int,
+    val rmsErrorPx: Double?,
+    val geometryScore: Double?,
+    val worldSpanX: Double?,
+    val worldSpanY: Double?,
+    val ready: Boolean,
+    val reason: String
+)
 
 data class CalibrationResolution(
     val coordinate: WorldCoordinate,
