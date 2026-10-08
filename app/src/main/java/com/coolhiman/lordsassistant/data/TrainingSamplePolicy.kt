@@ -21,7 +21,16 @@ object TrainingSamplePolicy {
         if (!cameraStable) return TrainingSampleDecision(rejection = "CAMERA_UNSTABLE")
         if (coordinateAuthority != "OBSERVED") return TrainingSampleDecision(rejection = "COORDINATE_NOT_OBSERVED")
         if (!popup.isPopup || popup.coordinate == null) return TrainingSampleDecision(rejection = "NOT_A_TILE_POPUP")
-        val label = when (popup.semantic) {
+        val effectiveSemantic = when {
+            popup.semantic != PopupSemantic.UNKNOWN -> popup.semantic
+            popup.kind?.name == "RESOURCE" -> PopupSemantic.RESOURCE
+            popup.kind?.name == "MONSTER" -> PopupSemantic.MONSTER
+            else -> PopupSemantic.UNKNOWN
+        }
+        if (effectiveSemantic == PopupSemantic.UNKNOWN && popup.terrainName != null) {
+            return TrainingSampleDecision(rejection = "TERRAIN_POPUP")
+        }
+        val label = when (effectiveSemantic) {
             PopupSemantic.RESOURCE -> popup.resource?.name
             PopupSemantic.MONSTER -> popup.monsterName?.takeIf { it.isNotBlank() } ?: "MONSTER"
             PopupSemantic.DARKNEST -> "DARKNEST"
@@ -29,7 +38,7 @@ object TrainingSamplePolicy {
             PopupSemantic.EMPTY -> "EMPTY"
             PopupSemantic.UNKNOWN -> null
         } ?: return TrainingSampleDecision(rejection = "SEMANTIC_LABEL_MISSING")
-        val confidence = when (popup.semantic) {
+        val confidence = when (effectiveSemantic) {
             PopupSemantic.RESOURCE -> if (popup.resource != null) 0.98f else 0f
             PopupSemantic.MONSTER -> if (!popup.monsterName.isNullOrBlank()) 0.96f else 0.82f
             PopupSemantic.DARKNEST -> 0.95f
@@ -43,7 +52,7 @@ object TrainingSamplePolicy {
         if (popup.level != null && popup.level !in 1..5) {
             return TrainingSampleDecision(rejection = "LEVEL_OUT_OF_RANGE")
         }
-        val labelType = when (popup.semantic) {
+        val labelType = when (effectiveSemantic) {
             PopupSemantic.RESOURCE -> "RESOURCE"
             PopupSemantic.MONSTER -> "MONSTER"
             PopupSemantic.DARKNEST -> "DARKNEST"
