@@ -34,6 +34,11 @@ class AffineGridCalibrator {
     fun fit(): Calibration? {
         if (samples.size < 3) return null
 
+        // A screen-space affine transform is valid only within one kingdom.
+        // Mixing kingdoms can still produce a low-RMS mathematical fit while
+        // being physically meaningless for the current map viewport.
+        if (samples.map { it.first.kingdom }.distinct().size != 1) return null
+
         var working = samples.toList()
         var fit = fitLeastSquares(working) ?: return null
 

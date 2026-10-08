@@ -18,6 +18,16 @@ class AffineGridCalibratorStabilityTest {
     }
 
     @Test
+    fun rejectsMixedKingdomCalibration() {
+        val calibrator = AffineGridCalibrator()
+        calibrator.addSample(WorldCoordinate(355, 10, 20), ScreenPoint(100f, 200f))
+        calibrator.addSample(WorldCoordinate(355, 11, 20), ScreenPoint(120f, 220f))
+        calibrator.addSample(WorldCoordinate(355, 10, 21), ScreenPoint(80f, 220f))
+        calibrator.addSample(WorldCoordinate(356, 11, 21), ScreenPoint(100f, 240f))
+        assertNull(calibrator.fit())
+    }
+
+    @Test
     fun acceptsTwoDimensionalCalibration() {
         val calibrator = AffineGridCalibrator()
         calibrator.addSample(WorldCoordinate(355, 10, 20), ScreenPoint(100f, 200f))
