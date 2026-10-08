@@ -256,6 +256,17 @@ data class Calibration(
 }
 
 
+data class CalibrationReadiness(
+    val sampleCount: Int,
+    val kingdomCount: Int,
+    val rmsErrorPx: Double?,
+    val geometryScore: Double?,
+    val worldSpanX: Double?,
+    val worldSpanY: Double?,
+    val ready: Boolean,
+    val reason: String
+)
+
 data class CalibrationResolution(
     val coordinate: WorldCoordinate,
     val residualPx: Double
