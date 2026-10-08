@@ -321,6 +321,11 @@ class LmAccessibilityService : AccessibilityService() {
                 return@post
             }
 
+            // Render the exact final gesture coordinate before dispatch.
+            // The marker is non-touchable and exists only to make any remaining
+            // coordinate-space drift immediately visible during Grid Learning.
+            OverlayService.instance?.showGridProbeMarker(mappedPoint)
+
             val path = Path().apply { moveTo(mappedPoint.x, mappedPoint.y) }
             val gesture = GestureDescription.Builder()
                 // Use Android's platform tap timeout instead of a shorter
@@ -337,17 +342,23 @@ class LmAccessibilityService : AccessibilityService() {
             val dispatched = runCatching {
                 dispatchGesture(gesture, object : GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) {
+                        OverlayService.instance?.showGridProbeMarker(null)
                         onResult(true)
                     }
                     override fun onCancelled(gestureDescription: GestureDescription?) {
+                        OverlayService.instance?.showGridProbeMarker(null)
                         onResult(false)
                     }
                 }, mainHandler)
             }.getOrElse {
+                OverlayService.instance?.showGridProbeMarker(null)
                 onResult(false)
                 false
             }
-            if (!dispatched) onResult(false)
+            if (!dispatched) {
+                OverlayService.instance?.showGridProbeMarker(null)
+                onResult(false)
+            }
         }
     }
 
