@@ -61,7 +61,7 @@ class CameraInvariantWorldModel(
         val basePoints = anchors.map { baseCalibration.predict(it.world) }
         val currentPoints = anchors.map { it.screen }
         var active = anchors.indices.toList()
-        var best = fitLeastSquares(basePoints, currentPoints, active) ?: return null
+        var best = fitLeastSquares(basePoints, currentPoints, active, kingdom) ?: return null
 
         repeat(MAX_ROBUST_OUTLIERS) {
             if (active.size <= 3) return@repeat
@@ -76,7 +76,7 @@ class CameraInvariantWorldModel(
             // deterministic and prevents the suspect anchor from influencing
             // the replacement model.
             val candidateActive = active.filterNot { it == worst }
-            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive)
+            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive, kingdom)
                 ?: return@repeat
             if (candidate.residualRmsPx > best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT) {
                 return@repeat
@@ -92,7 +92,8 @@ class CameraInvariantWorldModel(
     private fun fitLeastSquares(
         basePoints: List<com.coolhiman.lordsassistant.model.ScreenPoint>,
         currentPoints: List<com.coolhiman.lordsassistant.model.ScreenPoint>,
-        active: List<Int>
+        active: List<Int>,
+        kingdom: Int
     ): CameraModel? {
         if (active.size < 3) return null
 
@@ -152,7 +153,7 @@ class CameraInvariantWorldModel(
         }
 
         return CameraModel(
-            kingdom = active.map { anchors[it].world.kingdom }.distinct().single(),
+            kingdom = kingdom,
             scale = scale,
             offsetX = offsetX,
             offsetY = offsetY,
@@ -184,10 +185,6 @@ class CameraInvariantWorldModel(
         maxResidualPx: Double = 35.0
     ): WorldCoordinate? {
         if (!model.isUsable(maxAnchorResidualPx) || model.kingdom != kingdom) return null
-        val normalized = ScreenPoint(
-            ((screen.x - model.offsetX) / model.scale).toFloat(),
-            ((screen.y - model.offsetY) / model.scale).toFloat()
-        )
         return resolveDetailed(screen, kingdom, model, maxResidualPx)?.coordinate
     }
 
