@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import com.coolhiman.lordsassistant.model.TrainingSample
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.PopupState
-import com.coolhiman.lordsassistant.vision.PopupSemantic
 import kotlin.math.max
 import kotlin.math.min
 
@@ -45,6 +44,7 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
         )
         if (decision.rejection != null) return CaptureResult(rejection = decision.rejection)
         val label = decision.label ?: return CaptureResult(rejection = "SEMANTIC_LABEL_MISSING")
+        val labelType = decision.labelType ?: return CaptureResult(rejection = "SEMANTIC_LABEL_MISSING")
         val confidence = decision.confidence
         val centerX = pointX.toInt().coerceIn(0, frame.width - 1)
         val centerY = pointY.toInt().coerceIn(0, frame.height - 1)
@@ -56,21 +56,13 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
             return CaptureResult(rejection = "CROP_TOO_SMALL")
         }
 
-        val labelType = when (popup.semantic) {
-            PopupSemantic.RESOURCE -> "RESOURCE"
-            PopupSemantic.MONSTER -> "MONSTER"
-            PopupSemantic.DARKNEST -> "DARKNEST"
-            PopupSemantic.CASTLE -> "CASTLE"
-            PopupSemantic.EMPTY -> "EMPTY"
-            PopupSemantic.UNKNOWN -> "UNKNOWN"
-        }
-        val source = when (popup.semantic) {
-            PopupSemantic.RESOURCE -> "POPUP_RESOURCE"
-            PopupSemantic.MONSTER -> "POPUP_MONSTER"
-            PopupSemantic.DARKNEST -> "POPUP_DARKNEST"
-            PopupSemantic.CASTLE -> "POPUP_CASTLE"
-            PopupSemantic.EMPTY -> "POPUP_EMPTY"
-            PopupSemantic.UNKNOWN -> "POPUP_SEMANTIC"
+        val source = when (labelType) {
+            "RESOURCE" -> "POPUP_RESOURCE"
+            "MONSTER" -> "POPUP_MONSTER"
+            "DARKNEST" -> "POPUP_DARKNEST"
+            "CASTLE" -> "POPUP_CASTLE"
+            "EMPTY" -> "POPUP_EMPTY"
+            else -> "POPUP_SEMANTIC"
         }
 
         val saved = datasetStore.saveCrop(
