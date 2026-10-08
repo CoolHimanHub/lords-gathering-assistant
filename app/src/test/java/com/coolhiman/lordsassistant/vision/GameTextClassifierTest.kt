@@ -38,6 +38,13 @@ class GameTextClassifierTest {
         assertNull(result.resource)
     }
     @Test
+    fun doesNotTreatForestAsOre() {
+        val result = GameTextClassifier.classify("Forest Kingdom of Klinghofen")
+        assertNull(result.resource)
+        assertNull(result.kind)
+    }
+
+    @Test
     fun marksRelayTowerAsNonTarget() {
         val result = GameTextClassifier.classify("Relay Tower 400 Lv.4")
         assertEquals(true, result.ignored)
