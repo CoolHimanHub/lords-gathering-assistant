@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.coolhiman.lordsassistant.model.TrainingSample
 import com.coolhiman.lordsassistant.model.WorldCoordinate
 import com.coolhiman.lordsassistant.vision.PopupState
+import com.coolhiman.lordsassistant.vision.PopupSemantic
 import kotlin.math.max
 import kotlin.math.min
 
@@ -55,17 +56,21 @@ class TrainingSampleRecorder(private val datasetStore: DatasetStore) {
             return CaptureResult(rejection = "CROP_TOO_SMALL")
         }
 
-        val labelType = when {
-            popup.kind?.name == "RESOURCE" -> "RESOURCE"
-            popup.kind?.name == "MONSTER" -> "MONSTER"
-            label == "EMPTY" -> "EMPTY"
-            else -> "UNKNOWN"
+        val labelType = when (popup.semantic) {
+            PopupSemantic.RESOURCE -> "RESOURCE"
+            PopupSemantic.MONSTER -> "MONSTER"
+            PopupSemantic.DARKNEST -> "DARKNEST"
+            PopupSemantic.CASTLE -> "CASTLE"
+            PopupSemantic.EMPTY -> "EMPTY"
+            PopupSemantic.UNKNOWN -> "UNKNOWN"
         }
-        val source = when {
-            popup.kind?.name == "RESOURCE" && popup.resource != null -> "POPUP_RESOURCE"
-            popup.kind?.name == "MONSTER" -> "POPUP_MONSTER"
-            label == "EMPTY" -> "POPUP_EMPTY"
-            else -> "POPUP_SEMANTIC"
+        val source = when (popup.semantic) {
+            PopupSemantic.RESOURCE -> "POPUP_RESOURCE"
+            PopupSemantic.MONSTER -> "POPUP_MONSTER"
+            PopupSemantic.DARKNEST -> "POPUP_DARKNEST"
+            PopupSemantic.CASTLE -> "POPUP_CASTLE"
+            PopupSemantic.EMPTY -> "POPUP_EMPTY"
+            PopupSemantic.UNKNOWN -> "POPUP_SEMANTIC"
         }
 
         val saved = datasetStore.saveCrop(

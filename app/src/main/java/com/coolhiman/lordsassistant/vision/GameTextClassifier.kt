@@ -24,13 +24,13 @@ object GameTextClassifier {
         val text = OcrParser.normalize(raw)
         val lower = text.lowercase()
         val resource = when {
-            "food" in lower -> ResourceType.FOOD
-            "stone" in lower || "rock" in lower -> ResourceType.STONE
-            "wood" in lower || "woods" in lower || "timber" in lower -> ResourceType.WOOD
-            "ore" in lower -> ResourceType.ORE
-            "gold" in lower -> ResourceType.GOLD
-            "gem" in lower -> ResourceType.GEM
-            "energon" in lower -> ResourceType.ENERGON
+            containsWord(lower, "food") -> ResourceType.FOOD
+            containsWord(lower, "stone") || containsWord(lower, "rock") -> ResourceType.STONE
+            containsWord(lower, "wood") || containsWord(lower, "woods") || containsWord(lower, "timber") -> ResourceType.WOOD
+            containsWord(lower, "ore") -> ResourceType.ORE
+            containsWord(lower, "gold") -> ResourceType.GOLD
+            containsWord(lower, "gem") -> ResourceType.GEM
+            containsWord(lower, "energon") -> ResourceType.ENERGON
             else -> null
         }
         val ignored = listOf(
@@ -70,6 +70,9 @@ object GameTextClassifier {
             occupied = occupied, incomingTroops = incoming, ignored = ignored
         )
     }
+
+    private fun containsWord(text: String, word: String): Boolean =
+        Regex("""\b${Regex.escape(word)}\b""").containsMatchIn(text)
 
     private fun parseCompactQuantity(number: String, suffix: String): Long? {
         val multiplier = when (suffix.uppercase()) {

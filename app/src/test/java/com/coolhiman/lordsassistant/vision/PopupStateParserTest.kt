@@ -66,13 +66,32 @@ class PopupStateParserTest {
     }
 
     @Test
-    fun terrainCoordinatePopupIsRecognizedWithoutActionWord() {
+    fun darknestPopupGetsDarknestSemantic() {
+        val state = PopupStateParser.parse(
+            "Darknest Lv.4 K:348 X:240 Y:708 Attack",
+            0
+        )
+        assertEquals(PopupSemantic.DARKNEST, state.semantic)
+    }
+
+    @Test
+    fun castlePopupGetsCastleSemantic() {
+        val state = PopupStateParser.parse(
+            "Enemy Castle K:348 X:240 Y:708",
+            0
+        )
+        assertEquals(PopupSemantic.CASTLE, state.semantic)
+    }
+
+    @Test
+    fun terrainCoordinatePopupGetsEmptySemantic() {
         val state = PopupStateParser.parse(
             "Forest Kingdom of Klinghofen K:348 X:240 Y:708",
             0
         )
         assertTrue(state.isPopup)
         assertEquals("forest", state.terrainName)
+        assertEquals(PopupSemantic.EMPTY, state.semantic)
         assertEquals(240, state.coordinate?.x)
         assertEquals(708, state.coordinate?.y)
     }
