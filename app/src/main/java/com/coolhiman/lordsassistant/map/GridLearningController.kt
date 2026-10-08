@@ -347,10 +347,13 @@ class GridLearningController(private val context: Context) {
 
     private fun nextSyntheticProbe(width: Int, height: Int, cameraStable: Boolean): Probe? {
         if (!cameraStable) return null
+        val readiness = calibrator.readiness(
+            minSamples = MIN_SYNTHETIC_SAMPLES,
+            maxRmsPx = CALIBRATION_RMS_FOR_SYNTHETIC_PX,
+            minWorldSpan = MIN_WORLD_SPAN
+        )
+        if (!readiness.ready) return null
         val calibration = calibrator.fit() ?: return null
-        if (calibration.rmsErrorPx > CALIBRATION_RMS_FOR_SYNTHETIC_PX) return null
-        if (calibrator.sampleCount() < MIN_SYNTHETIC_SAMPLES) return null
-        if (calibration.worldSpanX < MIN_WORLD_SPAN || calibration.worldSpanY < MIN_WORLD_SPAN) return null
         if (frontier.isEmpty()) return null
 
         repeat(frontier.size) {
@@ -414,7 +417,13 @@ class GridLearningController(private val context: Context) {
     fun statusLine(): String {
         if (!active) return "Grid learning: OFF"
         val fit = calibrator.fit()
+        val calibrationReadiness = calibrator.readiness(
+            minSamples = MIN_SYNTHETIC_SAMPLES,
+            maxRmsPx = CALIBRATION_RMS_FOR_SYNTHETIC_PX,
+            minWorldSpan = MIN_WORLD_SPAN
+        )
         val rms = fit?.rmsErrorPx?.let { " • RMS %.1fpx".format(it) } ?: ""
+        val calibration = " • calibration=" + calibrationReadiness.reason
         val dispatch = "dispatch=" + dispatchSuccesses + "/" + probeAttempts
         val issue = lastProbeIssue?.let { " • " + it } ?: ""
         val probe = lastProbePoint?.let {
@@ -431,7 +440,7 @@ class GridLearningController(private val context: Context) {
             samples +
             " • frontier=" + frontier.size +
             candidate +
-            " • " + dispatch + probe + gesture +
+            " • " + dispatch + probe + gesture + calibration +
             " • popup=" + popupSeenWhilePending + "seen/" + popupTimeouts + "timeout" +
             " • camera=" + if (lastCameraStable) "STABLE" else "UNSTABLE" +
             " • " + if (pending != null) "WAITING FOR POPUP" + rms else "READY" + rms + issue
