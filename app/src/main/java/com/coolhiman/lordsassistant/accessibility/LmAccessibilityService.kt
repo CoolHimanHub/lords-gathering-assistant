@@ -278,7 +278,50 @@ class LmAccessibilityService : AccessibilityService() {
                 onResult(false)
                 return@post
             }
-            val path = Path().apply { moveTo(point.x, point.y) }
+            // MediaProjection analysis coordinates and AccessibilityService
+            // gesture coordinates normally share the display coordinate space,
+            // but Android can report different display metrics on some
+            // configurations. Never assume equality: map the accepted analysis
+            // point into the actual gesture display space and fail closed if the
+            // aspect ratio/rotation is incompatible.
+            val displayMetrics = android.util.DisplayMetrics()
+            val windowManager = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getMetrics(displayMetrics)
+            val mappedPoint = GridProbeCoordinateMapper.map(
+                point = point,
+                sourceWidth = screenWidth,
+                sourceHeight = screenHeight,
+                targetWidth = displayMetrics.widthPixels,
+                targetHeight = displayMetrics.heightPixels
+            ) ?: run {
+                onResult(false)
+                return@post
+            }
+
+            // Re-run all safety checks in the final gesture coordinate space.
+            // This is the critical defense against analysis/display coordinate
+            // drift causing a probe to hit the diagnostics overlay.
+            if (!GridProbeCoordinateMapper.isInsideDisplay(
+                    mappedPoint,
+                    displayMetrics.widthPixels,
+                    displayMetrics.heightPixels
+                )) {
+                onResult(false)
+                return@post
+            }
+            if (OverlayService.isPointInsideInteractiveOverlay(mappedPoint.x, mappedPoint.y)) {
+                onResult(false)
+                return@post
+            }
+            if (mappedPoint.y < displayMetrics.heightPixels * 0.30f &&
+                mappedPoint.x in (displayMetrics.widthPixels * 0.34f)..(displayMetrics.widthPixels * 0.76f)
+            ) {
+                onResult(false)
+                return@post
+            }
+
+            val path = Path().apply { moveTo(mappedPoint.x, mappedPoint.y) }
             val gesture = GestureDescription.Builder()
                 // Use Android's platform tap timeout instead of a shorter
                 // hard-coded stroke. Some games do not treat a very short
