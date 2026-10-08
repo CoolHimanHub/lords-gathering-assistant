@@ -22,6 +22,7 @@ data class CameraWorldAnchor(
 )
 
 data class CameraModel(
+    val kingdom: Int,
     val scale: Double,
     val offsetX: Double,
     val offsetY: Double,
@@ -50,6 +51,13 @@ class CameraInvariantWorldModel(
     fun fit(anchors: List<CameraWorldAnchor>): CameraModel? {
         if (anchors.size < 3) return null
 
+        // Camera geometry is meaningful only inside one kingdom. A mixed
+        // anchor set can still have a mathematically clean pan/zoom fit, but
+        // it must never become a reusable camera model.
+        val kingdoms = anchors.map { it.world.kingdom }.distinct()
+        if (kingdoms.size != 1) return null
+
+        val kingdom = kingdoms.single()
         val basePoints = anchors.map { baseCalibration.predict(it.world) }
         val currentPoints = anchors.map { it.screen }
         var active = anchors.indices.toList()
@@ -144,6 +152,7 @@ class CameraInvariantWorldModel(
         }
 
         return CameraModel(
+            kingdom = active.map { anchors[it].world.kingdom }.distinct().single(),
             scale = scale,
             offsetX = offsetX,
             offsetY = offsetY,
@@ -174,7 +183,7 @@ class CameraInvariantWorldModel(
         model: CameraModel,
         maxResidualPx: Double = 35.0
     ): WorldCoordinate? {
-        if (!model.isUsable(maxAnchorResidualPx)) return null
+        if (!model.isUsable(maxAnchorResidualPx) || model.kingdom != kingdom) return null
         val normalized = ScreenPoint(
             ((screen.x - model.offsetX) / model.scale).toFloat(),
             ((screen.y - model.offsetY) / model.scale).toFloat()
@@ -188,7 +197,7 @@ class CameraInvariantWorldModel(
         model: CameraModel,
         maxResidualPx: Double = 35.0
     ): CalibrationResolution? {
-        if (!model.isUsable(maxAnchorResidualPx)) return null
+        if (!model.isUsable(maxAnchorResidualPx) || model.kingdom != kingdom) return null
         val normalized = ScreenPoint(
             ((screen.x - model.offsetX) / model.scale).toFloat(),
             ((screen.y - model.offsetY) / model.scale).toFloat()
