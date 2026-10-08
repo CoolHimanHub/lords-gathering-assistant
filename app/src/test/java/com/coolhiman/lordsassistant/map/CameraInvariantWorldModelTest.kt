@@ -42,7 +42,8 @@ class CameraInvariantWorldModelTest {
         val fitted = model.fit(anchors)
 
         assertNotNull(fitted)
-        assertEquals(1.5, fitted!!.scale, 1e-6)
+        assertEquals(1, fitted!!.kingdom)
+        assertEquals(1.5, fitted.scale, 1e-6)
         assertEquals(50.0, fitted.offsetX, 1e-5)
         assertEquals(-30.0, fitted.offsetY, 1e-5)
         assertTrue(fitted.residualRmsPx < 1e-4)
@@ -92,6 +93,40 @@ class CameraInvariantWorldModelTest {
         assertEquals(
             world(7, 4),
             model.resolve(targetScreen, 1, secondModel)
+        )
+    }
+
+    @Test
+    fun mixedKingdomAnchorsCannotOpenCameraModel() {
+        val anchors = listOf(
+            CameraWorldAnchor(world(0, 0), currentScreen(0, 0)),
+            CameraWorldAnchor(world(10, 0), currentScreen(10, 0)),
+            CameraWorldAnchor(world(0, 10), currentScreen(0, 10)),
+            CameraWorldAnchor(WorldCoordinate(2, 10, 10), currentScreen(10, 10))
+        )
+
+        assertNull(model.fit(anchors))
+    }
+
+    @Test
+    fun cameraModelCannotResolveIntoAnotherKingdom() {
+        val anchors = listOf(
+            world(0, 0),
+            world(10, 0),
+            world(0, 10),
+            world(10, 10)
+        ).map { coordinate ->
+            CameraWorldAnchor(coordinate, currentScreen(coordinate.x, coordinate.y))
+        }
+        val fitted = model.fit(anchors)
+        assertNotNull(fitted)
+
+        assertNull(
+            model.resolve(
+                screen = currentScreen(7, 4),
+                kingdom = 2,
+                model = fitted!!
+            )
         )
     }
 
