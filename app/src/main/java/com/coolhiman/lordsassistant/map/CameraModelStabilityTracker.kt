@@ -28,6 +28,7 @@ class CameraModelStabilityTracker(
         previous = model
         if (before == null) return false
 
+        if (before.kingdom != model.kingdom) return false
         if (before.scale <= 1e-6) return false
 
         val scaleChangePercent =

@@ -22,6 +22,7 @@ data class CameraWorldAnchor(
 )
 
 data class CameraModel(
+    val kingdom: Int,
     val scale: Double,
     val offsetX: Double,
     val offsetY: Double,
@@ -50,10 +51,17 @@ class CameraInvariantWorldModel(
     fun fit(anchors: List<CameraWorldAnchor>): CameraModel? {
         if (anchors.size < 3) return null
 
+        // Camera geometry is meaningful only inside one kingdom. A mixed
+        // anchor set can still have a mathematically clean pan/zoom fit, but
+        // it must never become a reusable camera model.
+        val kingdoms = anchors.map { it.world.kingdom }.distinct()
+        if (kingdoms.size != 1) return null
+
+        val kingdom = kingdoms.single()
         val basePoints = anchors.map { baseCalibration.predict(it.world) }
         val currentPoints = anchors.map { it.screen }
         var active = anchors.indices.toList()
-        var best = fitLeastSquares(basePoints, currentPoints, active) ?: return null
+        var best = fitLeastSquares(basePoints, currentPoints, active, kingdom) ?: return null
 
         repeat(MAX_ROBUST_OUTLIERS) {
             if (active.size <= 3) return@repeat
@@ -68,7 +76,7 @@ class CameraInvariantWorldModel(
             // deterministic and prevents the suspect anchor from influencing
             // the replacement model.
             val candidateActive = active.filterNot { it == worst }
-            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive)
+            val candidate = fitLeastSquares(basePoints, currentPoints, candidateActive, kingdom)
                 ?: return@repeat
             if (candidate.residualRmsPx > best.residualRmsPx * REQUIRED_RMS_IMPROVEMENT) {
                 return@repeat
@@ -84,7 +92,8 @@ class CameraInvariantWorldModel(
     private fun fitLeastSquares(
         basePoints: List<com.coolhiman.lordsassistant.model.ScreenPoint>,
         currentPoints: List<com.coolhiman.lordsassistant.model.ScreenPoint>,
-        active: List<Int>
+        active: List<Int>,
+        kingdom: Int
     ): CameraModel? {
         if (active.size < 3) return null
 
@@ -144,6 +153,7 @@ class CameraInvariantWorldModel(
         }
 
         return CameraModel(
+            kingdom = kingdom,
             scale = scale,
             offsetX = offsetX,
             offsetY = offsetY,
@@ -174,11 +184,7 @@ class CameraInvariantWorldModel(
         model: CameraModel,
         maxResidualPx: Double = 35.0
     ): WorldCoordinate? {
-        if (!model.isUsable(maxAnchorResidualPx)) return null
-        val normalized = ScreenPoint(
-            ((screen.x - model.offsetX) / model.scale).toFloat(),
-            ((screen.y - model.offsetY) / model.scale).toFloat()
-        )
+        if (!model.isUsable(maxAnchorResidualPx) || model.kingdom != kingdom) return null
         return resolveDetailed(screen, kingdom, model, maxResidualPx)?.coordinate
     }
 
@@ -188,7 +194,7 @@ class CameraInvariantWorldModel(
         model: CameraModel,
         maxResidualPx: Double = 35.0
     ): CalibrationResolution? {
-        if (!model.isUsable(maxAnchorResidualPx)) return null
+        if (!model.isUsable(maxAnchorResidualPx) || model.kingdom != kingdom) return null
         val normalized = ScreenPoint(
             ((screen.x - model.offsetX) / model.scale).toFloat(),
             ((screen.y - model.offsetY) / model.scale).toFloat()

@@ -7,6 +7,7 @@ import org.junit.Test
 class CameraModelStabilityTrackerTest {
     private fun model(scale: Double, residual: Double = 2.0) =
         CameraModel(
+            kingdom = 1,
             scale = scale,
             offsetX = 100.0,
             offsetY = -40.0,
@@ -33,6 +34,7 @@ class CameraModelStabilityTrackerTest {
         assertTrue(
             tracker.update(
                 CameraModel(
+                    kingdom = 1,
                     scale = 1.5,
                     offsetX = 240.0,
                     offsetY = -160.0,
@@ -40,6 +42,27 @@ class CameraModelStabilityTrackerTest {
                 )
             )
         )
+    }
+
+    @Test
+    fun kingdomChangeBreaksContinuityUntilTwoConsecutiveModelsAgree() {
+        val tracker = CameraModelStabilityTracker()
+        assertFalse(tracker.update(model(1.5)))
+        assertFalse(
+            tracker.update(
+                CameraModel(
+                    kingdom = 2,
+                    scale = 1.5,
+                    offsetX = 100.0,
+                    offsetY = -40.0,
+                    residualRmsPx = 2.0
+                )
+            )
+        )
+        // Switching back is another kingdom transition, not proof of
+        // continuity. Require a second consecutive model in kingdom 1.
+        assertFalse(tracker.update(model(1.5)))
+        assertTrue(tracker.update(model(1.5)))
     }
 
     @Test
@@ -58,6 +81,7 @@ class CameraModelStabilityTrackerTest {
         assertFalse(
             tracker.update(
                 CameraModel(
+                    kingdom = 1,
                     scale = 1.5,
                     offsetX = 100.0,
                     offsetY = -40.0,
