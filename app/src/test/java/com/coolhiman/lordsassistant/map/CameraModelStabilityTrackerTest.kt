@@ -45,7 +45,7 @@ class CameraModelStabilityTrackerTest {
     }
 
     @Test
-    fun kingdomChangeBreaksContinuity() {
+    fun kingdomChangeBreaksContinuityUntilTwoConsecutiveModelsAgree() {
         val tracker = CameraModelStabilityTracker()
         assertFalse(tracker.update(model(1.5)))
         assertFalse(
@@ -59,6 +59,9 @@ class CameraModelStabilityTrackerTest {
                 )
             )
         )
+        // Switching back is another kingdom transition, not proof of
+        // continuity. Require a second consecutive model in kingdom 1.
+        assertFalse(tracker.update(model(1.5)))
         assertTrue(tracker.update(model(1.5)))
     }
 
