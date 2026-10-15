@@ -168,7 +168,8 @@ class AffineGridCalibrator {
             maxWorldY = ys.maxOrNull()!!.toInt(),
             worldSpanX = xSpan,
             worldSpanY = ySpan,
-            geometryScore = geometryScore
+            geometryScore = geometryScore,
+            kingdom = source.first().first.kingdom
         )
     }
 
@@ -210,7 +211,8 @@ data class Calibration(
     val maxWorldY: Int = Int.MAX_VALUE,
     val worldSpanX: Double = 0.0,
     val worldSpanY: Double = 0.0,
-    val geometryScore: Double = 0.0
+    val geometryScore: Double = 0.0,
+    val kingdom: Int? = null
 ) {
     fun predict(world: WorldCoordinate): ScreenPoint =
         ScreenPoint(

@@ -13,7 +13,8 @@ class CameraInvariantWorldModelTest {
     private val calibration = Calibration(
         screenX = doubleArrayOf(2.0, 0.5, 100.0),
         screenY = doubleArrayOf(-0.25, 3.0, 200.0),
-        rmsErrorPx = 0.0
+        rmsErrorPx = 0.0,
+        kingdom = 1
     )
 
     private val model = CameraInvariantWorldModel(calibration)
@@ -94,6 +95,24 @@ class CameraInvariantWorldModelTest {
             world(7, 4),
             model.resolve(targetScreen, 1, secondModel)
         )
+    }
+
+    @Test
+    fun anchorsFromAnotherKingdomCannotReuseBaseCalibration() {
+        val otherKingdomAnchors = listOf(
+            WorldCoordinate(2, 0, 0),
+            WorldCoordinate(2, 10, 0),
+            WorldCoordinate(2, 0, 10),
+            WorldCoordinate(2, 10, 10)
+        ).map { coordinate ->
+            val base = calibration.predict(coordinate)
+            CameraWorldAnchor(
+                coordinate,
+                ScreenPoint(base.x * 1.5f + 50f, base.y * 1.5f - 30f)
+            )
+        }
+
+        assertNull(model.fit(otherKingdomAnchors))
     }
 
     @Test
