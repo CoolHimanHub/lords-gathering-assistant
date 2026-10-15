@@ -58,6 +58,7 @@ class CameraInvariantWorldModel(
         if (kingdoms.size != 1) return null
 
         val kingdom = kingdoms.single()
+        if (baseCalibration.kingdom != kingdom) return null
         val basePoints = anchors.map { baseCalibration.predict(it.world) }
         val currentPoints = anchors.map { it.screen }
         var active = anchors.indices.toList()
